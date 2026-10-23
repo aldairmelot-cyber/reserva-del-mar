@@ -30,7 +30,7 @@ Todo el equipo ve y edita los mismos datos, con inicio de sesión de Google y un
 
 - **Editor** (el contador): los correos de `editores` en `config.js` y de la función `editor()` en `firestore.rules`. Carga, edita y configura todo.
 - **Consulta**: se asignan dentro de la app, en **Datos → Usuarios y perfiles**, con el correo de Google de cada persona. Solo ven y descargan informes; al entrar ven una portada con el resumen del mes.
-  - **Consejo de Administración**: estados financieros, presupuesto, cartera, aclaraciones e informe al Consejo. Sin impuestos.
+  - **Consejo de Administración**: estados financieros, presupuesto, cartera, aclaraciones e informe al Consejo. Sin impuestos ni descarga de los archivos cargados.
   - **Administración**: lo del Consejo más impuestos (retención, IVA, ICA, prorrateo).
   - **Revisoría Fiscal**: lo de la Administración más revisión del balance, libro auxiliar, verificación DIAN y conciliación de manillas.
 

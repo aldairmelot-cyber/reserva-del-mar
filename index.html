@@ -4899,7 +4899,9 @@ var c8=Lt(ca(),1);(0,l8.createRoot)(document.getElementById("root")).render((0,c
   var ICONO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 12v6"/><path d="m9 15 3 3 3-3"/></svg>';
   var bLat = null, bBarra = null;
   function seccionActual(){ var s = seccionDe(texto(document.querySelector(".titulo-pag span")), texto(document.querySelector(".titulo-pag h1"))); return s === "Otros" ? "" : s; }
+  function sinArchivos(){ return !!(window.EFPH_PERFIL && window.EFPH_PERFIL.rol === "consejo"); }
   function colocar(){
+    if (sinArchivos()) { if (bLat && bLat.parentNode) bLat.remove(); if (bBarra && bBarra.parentNode) bBarra.remove(); if (modal) cerrar(); return; }
     var pie = document.querySelector(".lateral-pie");
     if (pie) {
       if (!bLat) { bLat = document.createElement("button"); bLat.type = "button"; bLat.className = "ac-btn"; bLat.innerHTML = ICONO + "<span>Archivos cargados</span>"; bLat.addEventListener("click", function(){ abrir(""); }); }
@@ -4912,12 +4914,13 @@ var c8=Lt(ca(),1);(0,l8.createRoot)(document.getElementById("root")).render((0,c
       if (bBarra.parentNode !== barra && titulo) titulo.insertAdjacentElement("afterend", bBarra);
     }
   }
-  new MutationObserver(function(){ if (!bLat || !document.body.contains(bLat) || !bBarra || !document.body.contains(bBarra)) colocar(); })
+  new MutationObserver(function(){ if (sinArchivos() ? (bLat && bLat.parentNode) || (bBarra && bBarra.parentNode) : !bLat || !document.body.contains(bLat) || !bBarra || !document.body.contains(bBarra)) colocar(); })
     .observe(document.documentElement, { childList: true, subtree: true });
 
   // ---------- ventana ----------
   var modal = null, filtroTxt = "", filtroSec = "", confirmar = null;
   function abrir(sec){
+    if (sinArchivos()) return;
     filtroSec = sec || ""; filtroTxt = "";
     if (!modal) {
       modal = document.createElement("div");
