@@ -34,6 +34,8 @@ Todo el equipo ve y edita los mismos datos, con inicio de sesión de Google y un
   - **Administración**: lo del Consejo más impuestos (retención, IVA, ICA, prorrateo).
   - **Revisoría Fiscal**: lo de la Administración más revisión del balance, libro auxiliar, verificación DIAN y conciliación de manillas.
 
+Cada persona de consulta puede tener además un papel de **firma** (representante legal, contador o revisor fiscal), que se asigna en **Usuarios y perfiles**. Cuando el mes está definitivo, cada uno firma su parte en **Estados financieros → Firmas** y la firma sale en el PDF y el Word de los estados financieros. El editor firma como contador. Si el mes se reabre como borrador, las firmas se retiran.
+
 Las reglas de `firestore.rules` hacen cumplir esos permisos en el servidor: un perfil de consulta no puede leer lo que no le corresponde ni escribir nada. Al cambiar las reglas, péguelas en **Firebase → Firestore Database → Reglas** y pulse **Publicar**. Para agregar otro editor, añada su correo en `config.js` y en `firestore.rules`.
 
 Para probar los perfiles en modo local, abra la app con `?perfil=consejo`, `?perfil=admin` o `?perfil=revisor` al final de la dirección.

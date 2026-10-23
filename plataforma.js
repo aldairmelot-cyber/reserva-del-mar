@@ -29,7 +29,7 @@
     "prorrateo_cfg", "prorrateo_mes", "cartera", "cartera_c", "cartera_p",
     "concb", "concb_cfg", "concb_expl", "concb_idx", "concb_notas", "concb_raw", "concb_wo",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
-    "verif_idx", "verif_raw", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles",
+    "verif_idx", "verif_raw", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
   ];
 
   /* ------------------------------------------------------------------ perfiles */
@@ -39,12 +39,13 @@
   let perfil = { rol: "editor", nombre: "", email: "" };
   function fijarPerfil(p) { perfil = p; window.EFPH_PERFIL = Object.freeze({ ...p, etiqueta: PERFILES[p.rol] || p.rol }); }
   const esEditor = () => perfil.rol === "editor";
-  const puedeEscribir = (ruta) => esEditor() || String(ruta).startsWith("_usuarios/");
+  const puedeEscribir = (ruta) => esEditor() || String(ruta).startsWith("_usuarios/") || (!!perfil.firma && String(ruta).startsWith("firmas/"));
   const sinPermiso = () => { const e = new Error("Su perfil es de solo consulta."); e.code = "not_granted"; return e; };
   const negado = (e) => !!e && (e.code === "permission-denied" || e.code === "not_granted");
   if (MODO === "local") {
     let r = null; try { r = new URLSearchParams(location.search).get("perfil"); } catch (e) {}
-    fijarPerfil({ rol: PERFILES[r] ? r : "editor", nombre: PERFILES[r] && r !== "editor" ? "Prueba " + PERFILES[r] : "Este equipo", email: "" });
+    let fq = null; try { fq = new URLSearchParams(location.search).get("firma"); } catch (e) {}
+    fijarPerfil({ rol: PERFILES[r] ? r : "editor", nombre: PERFILES[r] && r !== "editor" ? "Prueba " + PERFILES[r] : "Este equipo", email: PERFILES[r] && r !== "editor" ? "prueba-" + r + "@local" : "", firma: fq || (r === "admin" ? "representante" : r === "revisor" ? "revisor" : "") });
   }
 
   /* ------------------------------------------------------------------ descargas */
@@ -160,7 +161,7 @@
   /* Envoltura: la app ve objetos normales; en Firestore cada documento es { j: "<json>" }. */
   function envolverFirestore(fs) {
     /* _roles se guarda en campos simples: las reglas de seguridad leen su campo `rol`. */
-    const enc = (d, ruta) => (String(ruta || "").startsWith("_roles/") ? { ...(d || {}) } : { j: JSON.stringify(d === undefined ? null : d) });
+    const enc = (d, ruta) => (/^(_roles|firmas)\//.test(String(ruta || "")) ? { ...(d || {}) } : { j: JSON.stringify(d === undefined ? null : d) });
     const vacioDoc = (ruta) => ({ id: ruta.split("/").pop(), ref: { path: ruta }, exists: false, data: () => undefined, get: () => undefined });
     const vacioCol = () => ({ docs: [], size: 0, empty: true, forEach: () => {} });
     const dec = (s) => { const x = s.data(); return x && typeof x.j === "string" ? JSON.parse(x.j) : x; };
@@ -251,7 +252,7 @@
           const s = await fs.doc("_roles/" + email).get();
           const d = s.exists ? s.data() : null;
           if (d && PERFILES[d.rol] && d.rol !== "editor") {
-            fijarPerfil({ rol: d.rol, nombre: d.nombre || usuario.displayName || email, email });
+            fijarPerfil({ rol: d.rol, nombre: d.nombre || usuario.displayName || email, email, firma: d.rol !== "consejo" && ["representante", "contador", "revisor"].includes(d.firma) ? d.firma : "" });
             break;
           }
           await noAutorizado(usuario, auth); usuario = await esperarSesion(auth);
