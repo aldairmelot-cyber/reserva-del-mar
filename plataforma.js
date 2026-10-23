@@ -388,8 +388,14 @@
       d.innerHTML = `<div class="pf-caja"><h2>${escapar(CFG.titulo || "Estados Financieros")}</h2><p>Inicie sesión con su cuenta de Google autorizada para ver y trabajar con la información compartida.</p><button class="pf-btn" type="button">Iniciar sesión con Google</button><div class="pf-err" hidden></div></div>`;
       d.querySelector("button").onclick = async () => {
         const e = d.querySelector(".pf-err"); e.hidden = true;
-        try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
-        catch (err) { e.textContent = "No se pudo iniciar sesión: " + (err.message || err.code); e.hidden = false; }
+        const prov = new firebase.auth.GoogleAuthProvider(); prov.setCustomParameters({ prompt: "select_account" });
+        try { await auth.signInWithPopup(prov); }
+        catch (err) {
+          /* En la app instalada de algunos celulares la ventana emergente no abre: se usa la redirección. */
+          if (err && /popup-blocked|operation-not-supported|web-storage-unsupported/.test(err.code || "")) { try { await auth.signInWithRedirect(prov); return; } catch (e2) { err = e2; } }
+          if (err && err.code === "auth/popup-closed-by-user") return;
+          e.textContent = "No se pudo iniciar sesión: " + (err.message || err.code); e.hidden = false;
+        }
       };
       document.body.appendChild(d);
     });

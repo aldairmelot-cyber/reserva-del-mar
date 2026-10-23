@@ -68,3 +68,12 @@ Abra la dirección que indique. No abra `index.html` con doble clic: algunos nav
 | `firestore.rules` | Reglas de seguridad para el modo compartido. |
 
 No suba archivos contables (`.xlsx`, `.xls`, `.pdf`) ni respaldos (`respaldo-*.json`): el `.gitignore` ya los excluye.
+
+## Instalar en el celular
+
+La app se puede instalar como aplicación (sin tiendas):
+
+- **Android (Chrome):** abra la dirección de la app, toque el menú **⋮** y elija **Instalar aplicación** o **Agregar a la pantalla principal**.
+- **iPhone (Safari):** abra la dirección en **Safari**, toque **Compartir** (el cuadro con la flecha) y elija **Agregar a inicio**.
+
+Queda un ícono "Reserva del Mar" que abre la app a pantalla completa. Siempre carga la versión más reciente; `sw.js` solo guarda una copia por si no hay conexión.
