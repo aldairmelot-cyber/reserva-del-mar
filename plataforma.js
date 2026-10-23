@@ -29,8 +29,23 @@
     "prorrateo_cfg", "prorrateo_mes", "cartera", "cartera_c", "cartera_p",
     "concb", "concb_cfg", "concb_expl", "concb_idx", "concb_notas", "concb_raw", "concb_wo",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
-    "verif_idx", "verif_raw", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios",
+    "verif_idx", "verif_raw", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles",
   ];
+
+  /* ------------------------------------------------------------------ perfiles */
+  /* editor: el contador (correos en config.js → editores); los demás perfiles son de consulta
+     y se asignan en la app (Datos → Usuarios y perfiles), guardados en _roles/<correo>. */
+  const PERFILES = { editor: "Contador · editor", consejo: "Consejo de Administración", revisor: "Revisoría Fiscal", admin: "Administración" };
+  let perfil = { rol: "editor", nombre: "", email: "" };
+  function fijarPerfil(p) { perfil = p; window.EFPH_PERFIL = Object.freeze({ ...p, etiqueta: PERFILES[p.rol] || p.rol }); }
+  const esEditor = () => perfil.rol === "editor";
+  const puedeEscribir = (ruta) => esEditor() || String(ruta).startsWith("_usuarios/");
+  const sinPermiso = () => { const e = new Error("Su perfil es de solo consulta."); e.code = "not_granted"; return e; };
+  const negado = (e) => !!e && (e.code === "permission-denied" || e.code === "not_granted");
+  if (MODO === "local") {
+    let r = null; try { r = new URLSearchParams(location.search).get("perfil"); } catch (e) {}
+    fijarPerfil({ rol: PERFILES[r] ? r : "editor", nombre: PERFILES[r] && r !== "editor" ? "Prueba " + PERFILES[r] : "Este equipo", email: "" });
+  }
 
   /* ------------------------------------------------------------------ descargas */
   const downloads = {
@@ -119,9 +134,9 @@
         return {
           id: ruta.split("/").pop(), path: ruta,
           get: () => listo.then(() => docSnap(ruta)),
-          set: (datos, opts) => cambiar(ruta, opts && opts.merge ? { ...(cache.get(ruta) || {}), ...datos } : datos),
-          update: (datos) => cambiar(ruta, { ...(cache.get(ruta) || {}), ...datos }),
-          delete: () => cambiar(ruta, undefined),
+          set: async (datos, opts) => { if (!puedeEscribir(ruta)) throw sinPermiso(); return cambiar(ruta, opts && opts.merge ? { ...(cache.get(ruta) || {}), ...datos } : datos); },
+          update: async (datos) => { if (!puedeEscribir(ruta)) throw sinPermiso(); return cambiar(ruta, { ...(cache.get(ruta) || {}), ...datos }); },
+          delete: async () => { if (!puedeEscribir(ruta)) throw sinPermiso(); return cambiar(ruta, undefined); },
           onSnapshot: (fn, err) => suscribir("doc", ruta, fn, err),
         };
       },
@@ -144,7 +159,10 @@
 
   /* Envoltura: la app ve objetos normales; en Firestore cada documento es { j: "<json>" }. */
   function envolverFirestore(fs) {
-    const enc = (d) => ({ j: JSON.stringify(d === undefined ? null : d) });
+    /* _roles se guarda en campos simples: las reglas de seguridad leen su campo `rol`. */
+    const enc = (d, ruta) => (String(ruta || "").startsWith("_roles/") ? { ...(d || {}) } : { j: JSON.stringify(d === undefined ? null : d) });
+    const vacioDoc = (ruta) => ({ id: ruta.split("/").pop(), ref: { path: ruta }, exists: false, data: () => undefined, get: () => undefined });
+    const vacioCol = () => ({ docs: [], size: 0, empty: true, forEach: () => {} });
     const dec = (s) => { const x = s.data(); return x && typeof x.j === "string" ? JSON.parse(x.j) : x; };
     const snapDoc = (s) => ({ id: s.id, ref: { path: s.ref.path }, exists: s.exists, data: () => (s.exists ? dec(s) : undefined), get: (k) => (s.exists ? (dec(s) || {})[k] : undefined) });
     const snapCol = (q) => { const docs = q.docs.map(snapDoc); return { docs, size: docs.length, empty: !docs.length, forEach: (f) => docs.forEach(f) }; };
@@ -154,23 +172,29 @@
         const r = fs.doc(ruta);
         return {
           id: r.id, path: ruta,
-          get: async () => snapDoc(await r.get()),
+          get: async () => { try { return snapDoc(await r.get()); } catch (e) { if (negado(e)) return vacioDoc(ruta); throw e; } },
           set: async (datos, opts) => {
+            if (!puedeEscribir(ruta)) throw sinPermiso();
             if (opts && opts.merge) { const s = await r.get(); datos = { ...(s.exists ? dec(s) : {}), ...datos }; }
-            await reintentar(() => r.set(enc(datos)));
+            await reintentar(() => r.set(enc(datos, ruta)));
           },
           update: async (datos) => {
+            if (!puedeEscribir(ruta)) throw sinPermiso();
             const s = await r.get();
             if (!s.exists) { const e = new Error("El documento no existe"); e.code = "not_found"; throw e; }
-            await reintentar(() => r.set(enc({ ...dec(s), ...datos })));
+            await reintentar(() => r.set(enc({ ...dec(s), ...datos }, ruta)));
           },
-          delete: () => r.delete(),
+          delete: async () => { if (!puedeEscribir(ruta)) throw sinPermiso(); return r.delete(); },
           onSnapshot: (fn, err) => r.onSnapshot((s) => fn(snapDoc(s)), err),
         };
       },
       collection(col) {
         const r = fs.collection(col);
-        return { doc: (id) => db.doc(col + "/" + id), get: async () => snapCol(await r.get()), onSnapshot: (fn, err) => r.onSnapshot((q) => fn(snapCol(q)), err) };
+        return {
+          doc: (id) => db.doc(col + "/" + id),
+          get: async () => { try { return snapCol(await r.get()); } catch (e) { if (negado(e)) return vacioCol(); throw e; } },
+          onSnapshot: (fn, err) => r.onSnapshot((q) => fn(snapCol(q)), (e) => (negado(e) ? fn(vacioCol()) : err && err(e))),
+        };
       },
       async exportar(avance) {
         const out = {}; let n = 0;
@@ -189,7 +213,7 @@
           }
         }
         const L = Object.entries(obj); let n = 0;
-        for (const [ruta, datos] of L) { await reintentar(() => fs.doc(ruta).set(enc(datos))); avance && avance(++n, L.length); }
+        for (const [ruta, datos] of L) { await reintentar(() => fs.doc(ruta).set(enc(datos, ruta))); avance && avance(++n, L.length); }
       },
     };
     return db;
@@ -215,10 +239,25 @@
       try { await fs.enablePersistence({ synchronizeTabs: true }); } catch (e) { /* sin caché sin conexión */ }
       const salir = () => auth.signOut().then(() => location.reload());
       let usuario = await esperarSesion(auth);
+      const editores = (CFG.editores || []).map((x) => String(x).toLowerCase());
       for (;;) {
-        try { await fs.doc("config/entidad").get(); break; }
-        catch (err) {
+        const email = String(usuario.email || "").toLowerCase();
+        try {
+          if (editores.includes(email)) {
+            await fs.doc("config/entidad").get();
+            fijarPerfil({ rol: "editor", nombre: usuario.displayName || email, email });
+            break;
+          }
+          const s = await fs.doc("_roles/" + email).get();
+          const d = s.exists ? s.data() : null;
+          if (d && PERFILES[d.rol] && d.rol !== "editor") {
+            fijarPerfil({ rol: d.rol, nombre: d.nombre || usuario.displayName || email, email });
+            break;
+          }
+          await noAutorizado(usuario, auth); usuario = await esperarSesion(auth);
+        } catch (err) {
           if (err && err.code === "permission-denied") { await noAutorizado(usuario, auth); usuario = await esperarSesion(auth); continue; }
+          fijarPerfil({ rol: editores.includes(email) ? "editor" : "consejo", nombre: usuario.displayName || email, email });
           break;
         }
       }
@@ -240,9 +279,10 @@
     return {
       async id() { return id; },
       async me() { return { id, name: nombre, email: correo }; },
-      isOwner() { return true; },
-      canEdit() { return true; },
-      async can() { return true; },
+      isOwner() { return esEditor(); },
+      canEdit() { return esEditor(); },
+      async can(n) { return n === "data.write" ? esEditor() : true; },
+      perfil() { return window.EFPH_PERFIL || { rol: perfil.rol }; },
       async profiles(ids) {
         const out = {};
         await Promise.all((ids || []).map(async (u) => {
@@ -356,17 +396,24 @@
   function quitarPortada() { const d = document.getElementById("pf-portada"); if (d) d.remove(); }
 
   function ponerUsuario(u, salir, db) {
-    ponerChip(`<span title="Datos compartidos en la nube">☁ ${escapar(u.email || u.displayName || "Usuario")}</span>`, db, "en la nube (lo verá todo el equipo)", salir);
+    const etq = esEditor() ? "" : ` · ${escapar(PERFILES[perfil.rol] || perfil.rol)}`;
+    ponerChip(`<span title="Datos compartidos en la nube">☁ ${escapar(u.email || u.displayName || "Usuario")}${etq}</span>`, db, "en la nube (lo verá todo el equipo)", salir, !esEditor());
   }
   function ponerRespaldoLocal(db) {
-    ponerChip(`<span title="Los datos se guardan solo en este navegador">Datos en este equipo</span>`, db, "en este equipo", null);
+    ponerChip(`<span title="Los datos se guardan solo en este navegador">Datos en este equipo${esEditor() ? "" : " · " + escapar(PERFILES[perfil.rol])}</span>`, db, "en este equipo", null, !esEditor());
   }
 
   /* Chip inferior: estado + Respaldar / Restaurar (+ Salir en modo compartido). */
-  function ponerChip(etiqueta, db, donde, salir) {
+  function ponerChip(etiqueta, db, donde, salir, soloConsulta) {
     alCargar(() => {
       estilos();
       const c = document.createElement("div"); c.className = "pf-chip";
+      if (soloConsulta) {
+        c.innerHTML = `${etiqueta}${salir ? '<button type="button" data-a="salir">Salir</button>' : ""}`;
+        if (salir) c.querySelector('[data-a="salir"]').onclick = salir;
+        document.body.appendChild(c);
+        return;
+      }
       c.innerHTML = `${etiqueta}<button type="button" data-a="exp">Respaldar</button><button type="button" data-a="imp">Restaurar</button>${salir ? '<button type="button" data-a="salir">Salir</button>' : ""}<input type="file" accept=".json,application/json" hidden>`;
       const inp = c.querySelector("input"), bExp = c.querySelector('[data-a="exp"]'), bImp = c.querySelector('[data-a="imp"]');
       bExp.onclick = async () => {
@@ -416,7 +463,10 @@
       if (nombre === "permissions") return permissions;
       if (nombre === "db") return obtenerDB();
       if (nombre === "user") return (userP = userP || crearUser());
-      if (nombre === "assets") return (assetsP = assetsP || crearAssets());
+      if (nombre === "assets") {
+        const a = await (assetsP = assetsP || crearAssets());
+        return esEditor() ? a : { leer: a.leer, list: a.list };
+      }
       return null;
     },
   };

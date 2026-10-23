@@ -13,6 +13,11 @@
 window.APP_CONFIG = {
   titulo: "Estados Financieros · Agrupación Reserva del Mar P.H.",
 
+  /* Correos con perfil de edición (el contador). Deben coincidir con la lista
+     `editor()` de firestore.rules. Los perfiles de consulta (Consejo, Revisoría
+     Fiscal, Administración) se asignan dentro de la app: Datos → Usuarios y perfiles. */
+  editores: ["aldair.melot@gmail.com", "aldairmelot@gmail.com"],
+
   firebase: {
     apiKey: "AIzaSyBY_Q62P2opvttJJErWoYILAn7JVUdeDgY",
     authDomain: "reserva-del-mar.firebaseapp.com",

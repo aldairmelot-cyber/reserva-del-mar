@@ -26,7 +26,17 @@ Todo el equipo ve y edita los mismos datos, con inicio de sesión de Google y un
 4. **Firestore → Reglas**: pegue el contenido de `firestore.rules` y publique.
 5. **Configuración del proyecto → Tus apps → Web (`</>`)**: registre la app y copie el objeto `firebaseConfig` en `config.js`, en el campo `firebase`.
 
-Para dar acceso a una persona nueva: agregue su correo de Google en `firestore.rules` y en **Firebase → Firestore Database → Reglas**, y pulse **Publicar**.
+### Perfiles
+
+- **Editor** (el contador): los correos de `editores` en `config.js` y de la función `editor()` en `firestore.rules`. Carga, edita y configura todo.
+- **Consulta**: se asignan dentro de la app, en **Datos → Usuarios y perfiles**, con el correo de Google de cada persona. Solo ven y descargan informes; al entrar ven una portada con el resumen del mes.
+  - **Consejo de Administración**: estados financieros, presupuesto, cartera, aclaraciones e informe al Consejo. Sin impuestos.
+  - **Administración**: lo del Consejo más impuestos (retención, IVA, ICA, prorrateo).
+  - **Revisoría Fiscal**: lo de la Administración más revisión del balance, libro auxiliar, verificación DIAN y conciliación de manillas.
+
+Las reglas de `firestore.rules` hacen cumplir esos permisos en el servidor: un perfil de consulta no puede leer lo que no le corresponde ni escribir nada. Al cambiar las reglas, péguelas en **Firebase → Firestore Database → Reglas** y pulse **Publicar**. Para agregar otro editor, añada su correo en `config.js` y en `firestore.rules`.
+
+Para probar los perfiles en modo local, abra la app con `?perfil=consejo`, `?perfil=admin` o `?perfil=revisor` al final de la dirección.
 
 En Firestore cada documento se guarda como texto JSON en un campo `j`, porque la app usa listas dentro de listas, que Firestore no admite directamente. Los archivos originales que se suben (para descargarlos después en **Archivos cargados**) se guardan en la misma base, en las colecciones `_archivos` y `_archivos_partes`; no hace falta activar Firebase Storage.
 
