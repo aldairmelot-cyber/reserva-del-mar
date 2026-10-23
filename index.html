@@ -120,6 +120,36 @@
 .ef-perfil small{color:var(--suave);font-size:12.5px}
 .ef-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;border:1px solid var(--linea);border-radius:6px;padding:12px}
 .ef-form .campo{display:flex;flex-direction:column;gap:3px;flex:1;min-width:180px;font-size:13px}
+.ef-acl-cab-sup{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.ef-acl-tit{font:600 21px/1.3 var(--f-marca);color:var(--acento)}
+.ef-acl-det{display:flex;flex-direction:column;gap:16px}
+.ef-acl-det .panel h2{margin-bottom:8px}
+.ef-lectura-txt p{margin:0 0 10px;line-height:1.6;max-width:85ch}
+.ef-grupo{margin-top:10px}
+.ef-saldo{border:1px solid var(--linea);border-radius:6px;margin-top:6px;background:var(--hoja)}
+.ef-saldo summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 12px;cursor:pointer;list-style:none}
+.ef-saldo summary::-webkit-details-marker{display:none}
+.ef-saldo summary::before{content:"▸";color:var(--acento-2);margin-right:2px;transition:transform .15s}
+.ef-saldo[open] summary::before{transform:rotate(90deg)}
+.ef-saldo-t{flex:1;display:flex;flex-direction:column;min-width:0}
+.ef-saldo-t small{color:var(--suave);font-size:12.5px}
+.ef-saldo-v{white-space:nowrap;font-variant-numeric:tabular-nums}
+.ef-saldo p{margin:0;padding:0 12px 12px 26px;color:var(--tinta);line-height:1.55;font-size:13.5px}
+.ef-portal .err,.ef-acl-det .err{color:var(--error)}
+.ef-efectos{list-style:none;margin:0 0 10px;padding:0}
+.ef-efectos li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--linea);font-size:14px}
+.ef-efectos li b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ef-efectos-tot{font-weight:700;border-bottom:3px double var(--linea-fuerte)!important}
+.ef-pasos{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px}
+.ef-pasos li span{display:block;color:var(--tinta)}
+.ef-decision-panel{background:var(--acento-suave);border-color:var(--acento-2)}
+.ef-decision-panel ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;line-height:1.55}
+.ef-anexos{margin:0;padding-left:20px}
+.ef-acl-card{display:flex;flex-direction:column;gap:6px;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.ef-acl-card:hover{border-color:var(--acento-2);box-shadow:0 2px 10px #3e424f14}
+.ef-acl-card-sup{display:flex;gap:6px;flex-wrap:wrap}
+.ef-acl-card-t{font:600 16px/1.3 var(--f-marca);color:var(--acento)}
+.ef-acl-card-r{margin:0;color:var(--tinta);font-size:13.5px;line-height:1.5}
 .ef-form input,.ef-form select{background:var(--hoja);border:1px solid var(--linea-fuerte);border-radius:var(--radio);padding:6px 8px;min-width:0;font:inherit;color:inherit}
 .ef-form .campo span{color:var(--suave);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 </style>
@@ -2162,6 +2192,7 @@ function AclSeccion({ vista, ses, notificar, soloLectura, ir, entidad, lista, se
     } catch (e) { notificar("error", "Error al generar el archivo: " + (e?.message ?? e)); }
     setGen(false);
   };
+  if (efConsulta()) return aH(EfAcl, { L, anio, setAnio, anios, sel, setSel, descargar, gen });
   if (sel) return aH(AclEditor, { key: sel.id, a: sel, ses, notificar, soloLectura, nombreCta, onCerrar: () => setSel(null), onGuardar: async a => { let x = await guardar(a); setSel(x); notificar("ok", "Aclaraci\xF3n guardada."); }, onBorrar: borrar, onDescargar: (tipo, a) => descargar(tipo, [a], `Aclaracion_${String(a.titulo || "sin_titulo").replace(/[^A-Za-z0-9]+/g, "_").slice(0, 40)}`) });
   let T = L.filter(a => +a.mes <= corte).map(aclTotales), sum = k => T.reduce((s, t) => s + t[k], 0);
   return aH(Ve.Fragment, null,
@@ -4139,6 +4170,74 @@ function EfUsuarios({ ses, notificar }) {
           efH("td", { className: "acciones-fila" }, conf === u.email ? efH(Ve.Fragment, null, efH("button", { type: "button", className: "btn btn-sm btn-peligro", onClick: () => quitar(u.email) }, "Confirmar"), efH("button", { type: "button", className: "btn btn-sm", onClick: () => setConf(null) }, "No"))
             : efH("button", { type: "button", className: "btn btn-sm btn-quitar", onClick: () => setConf(u.email) }, "Quitar acceso"))))))),
     efH("p", { className: "pie" }, "La persona entra a la misma dirección de la app e inicia sesión con ese correo de Google. Si cambia su perfil, lo verá al recargar la página."));
+}
+
+/* ---------- aclaraciones en modo lectura (perfiles de consulta) ---------- */
+function efParrafos(t) { return String(t || "").split("\n").filter(x => x.trim()).map((x, k) => efH("p", { key: k }, x)); }
+function efResumenCorto(a) {
+  let t = String(a.consejo?.resumen || a.descripcion || "").split("\n").find(x => x.trim()) || "";
+  return t.length > 240 ? t.slice(0, 237).replace(/\s+\S*$/, "") + "…" : t;
+}
+function EfAclDetalle({ a, onCerrar, descargar, gen }) {
+  let t = aclTotales(a), c = a.consejo ?? {}, p = a.partidas ?? [];
+  let sal = c.saldos ?? p.map(x => ({ grupo: x.grupo, tercero: x.tercero, que: x.concepto, situacion: x.obs || x.estado || "", efecto: x.efecto }));
+  let grupos = []; for (const x of sal) { let g = grupos.find(y => y.g === (x.grupo || "")); g ? g.L.push(x) : grupos.push({ g: x.grupo || "", L: [x] }); }
+  let nombre = `Aclaracion_${String(a.titulo || "sin_titulo").replace(/[^A-Za-z0-9]+/g, "_").slice(0, 40)}`;
+  let btn = (tipo, txt, prim) => efH("button", { type: "button", className: "btn" + (prim ? " btn-primario" : ""), disabled: !!gen, onClick: () => descargar(tipo, [a], nombre) }, gen === tipo ? "Generando…" : txt);
+  let decision = c.decision ?? [];
+  return efH("div", { className: "ef-acl-det" },
+    efH("section", { className: "panel ef-acl-cab" },
+      efH("div", { className: "ef-acl-cab-sup" }, efH("button", { type: "button", className: "enlace", onClick: onCerrar }, "← Volver a las aclaraciones"), efH("span", { className: "chip chip-gris" }, `${w2(+a.mes)} ${a.anio}`)),
+      efH("h2", { className: "ef-acl-tit" }, a.titulo || "Aclaración"),
+      efH("p", { className: "tenue" }, [a.documento, a.soporte].filter(Boolean).join(" · ")),
+      efH("div", { className: "kpis espacio" },
+        efH("div", { className: "kpi" }, efH("span", null, "Por cobrar y anticipos dados de baja"), efH("b", null, n8(t.activo))),
+        efH("div", { className: "kpi" }, efH("span", null, "Por pagar dados de baja"), efH("b", null, n8(t.pasivo))),
+        efH("div", { className: "kpi" + (t.efecto < 0 ? " ef-b-err" : "") }, efH("span", null, "Efecto en el excedente del año"), efH("b", null, n8(t.efecto)))),
+      efH("div", { className: "acciones espacio" }, efH("span", { className: "tenue" }, "Descargar:"), btn("consejo", "Informe al Consejo (PDF)", !0), btn("pdf", "Relación con soportes (PDF)"), btn("xlsx", "Excel"))),
+    efH("section", { className: "panel ef-lectura-txt" }, efH("h2", null, "Resumen"), ...efParrafos(c.resumen || a.descripcion)),
+    sal.length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Saldos y su situación"),
+      efH("p", { className: "sub" }, "Los valores en rojo disminuyen el excedente; los demás lo aumentan."),
+      ...grupos.map((g, k) => efH("div", { key: k, className: "ef-grupo" }, g.g && efH("h3", { className: "ef-sub" }, g.g),
+        ...g.L.map((x, j) => efH("details", { key: j, className: "ef-saldo" },
+          efH("summary", null, efH("span", { className: "ef-saldo-t" }, efH("b", null, x.tercero), efH("small", null, x.que || "")), efH("b", { className: "ef-saldo-v" + ((+x.efecto || 0) < 0 ? " err" : "") }, n8(+x.efecto || 0))),
+          efH("p", null, x.situacion || "Sin observaciones."))))),
+      efH("div", { className: "ef-fila ef-sep" }, efH("b", null, "Total efecto"), efH("b", { className: (t.efecto < 0 ? "err" : "") }, n8(sal.reduce((s, x) => s + (+x.efecto || 0), 0))))),
+    (c.mantienen ?? []).length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Saldos que se mantienen y siguen en gestión"),
+      ...c.mantienen.map((x, k) => efH("details", { key: k, className: "ef-saldo" },
+        efH("summary", null, efH("span", { className: "ef-saldo-t" }, efH("b", null, x.tercero), efH("small", null, x.concepto || "")), efH("b", { className: "ef-saldo-v" }, n8(+x.saldo || 0))),
+        efH("p", null, x.gestion || "")))),
+    efH("section", { className: "panel" }, efH("h2", null, "Cómo se refleja en los estados financieros"),
+      (c.efectos ?? []).length ? efH(Ve.Fragment, null,
+        efH("ul", { className: "ef-efectos" }, ...c.efectos.map((x, k) => efH("li", { key: k }, efH("span", null, x.concepto), efH("b", { className: (+x.valor || 0) < 0 ? "err" : "" }, n8(+x.valor || 0)))),
+          efH("li", { className: "ef-efectos-tot" }, efH("span", null, "Efecto neto en el excedente"), efH("b", { className: t.efecto < 0 ? "err" : "" }, n8(c.efectos.reduce((s, x) => s + (+x.valor || 0), 0))))),
+        efH("div", { className: "ef-lectura-txt" }, ...efParrafos(c.efectosNota)))
+        : efH("div", { className: "ef-lectura-txt" }, ...efParrafos(String(a.tratamiento || "").replace(/\s*\(cuenta \d+\)/g, "")))),
+    (c.pasos ?? []).length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Lo que sigue"),
+      efH("ol", { className: "ef-pasos" }, ...c.pasos.map((x, k) => efH("li", { key: k }, efH("b", null, x.accion), efH("span", null, x.detalle || ""))))),
+    decision.length > 0 && efH("section", { className: "panel ef-decision-panel" }, efH("h2", null, "Lo que se somete a decisión del Consejo"),
+      efH("ul", null, ...decision.map((x, k) => efH("li", { key: k }, x)))),
+    (a.anexos ?? []).length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Soportes"),
+      efH("p", { className: "sub" }, "Vienen anexos en la «Relación con soportes (PDF)»."),
+      efH("ul", { className: "ef-anexos" }, ...a.anexos.map((x, k) => efH("li", { key: k }, efH("b", null, x.titulo || x.archivo), efH("small", { className: "tenue" }, ` · ${x.paginas ? x.paginas + " pág. · " : ""}${Math.round((x.bytes || 0) / 1024)} KB`))))));
+}
+function EfAcl({ L, anio, setAnio, anios, sel, setSel, descargar, gen }) {
+  if (sel) return efH(EfAclDetalle, { a: sel, onCerrar: () => setSel(null), descargar, gen });
+  let tot = L.reduce((s, a) => s + aclTotales(a).efecto, 0);
+  return efH("div", { className: "ef-portal" },
+    efH("section", { className: "ef-hero" },
+      efH("div", null, efH("span", { className: "ef-hola" }, "Aclaraciones"), efH("h2", null, `Hechos que explican el resultado de ${anio}`),
+        efH("p", null, L.length ? `En el año hay ${L.length} aclaraci${L.length === 1 ? "ón" : "ones"}, con un efecto neto de ${n8(tot)} en el excedente. Abra cada una para leerla completa o descargar su informe.` : "No hay aclaraciones registradas en este año.")),
+      efH("label", { className: "campo" }, efH("span", { className: "tenue" }, "Año "), efH("select", { "aria-label": "Año", value: anio, onChange: e => setAnio(+e.target.value) }, ...anios.map(x => efH("option", { key: x, value: x }, x))))),
+    efH("div", { className: "ef-grid" }, ...[...L].sort((a, b) => b.mes - a.mes).map(a => {
+      let t = aclTotales(a), dec = (a.consejo?.decision ?? []).length;
+      return efH("button", { key: a.id, type: "button", className: "panel ef-acl-card", onClick: () => setSel(a) },
+        efH("div", { className: "ef-acl-card-sup" }, efH("span", { className: "chip chip-gris" }, w2(+a.mes)), dec ? efH("span", { className: "chip chip-oro" }, "Para decisión del Consejo") : null),
+        efH("b", { className: "ef-acl-card-t" }, a.titulo || "Aclaración"),
+        efH("p", { className: "ef-acl-card-r" }, efResumenCorto(a)),
+        efH("div", { className: "ef-fila ef-sep" }, efH("span", { className: "tenue" }, "Efecto en el excedente"), efH("b", { className: t.efecto < 0 ? "err" : "" }, n8(t.efecto))),
+        efH("span", { className: "enlace" }, "Leer completa →"));
+    })));
 }
 
 var c8=Lt(ca(),1);(0,l8.createRoot)(document.getElementById("root")).render((0,c8.jsx)(i8,{}));})();
