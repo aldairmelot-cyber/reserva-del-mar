@@ -4774,7 +4774,7 @@ function EfEstado({ ses, pid, nFirmas, definitivo, editor, rojos, onEstado, peri
 
 /* =================== Firmas de los estados financieros por mes =================== */
 var EF_ROLES_FIRMA = [["representante", "Representante legal"], ["contador", "Contador"], ["revisor", "Revisor fiscal"]];
-var efMiFirma = () => efPerfil() === "editor" ? "contador" : ((window.EFPH_PERFIL && window.EFPH_PERFIL.firma) || null);
+var efMiFirma = () => efPerfil() === "editor" ? ((window.APP_CONFIG && window.APP_CONFIG.editorFirma) || null) : ((window.EFPH_PERFIL && window.EFPH_PERFIL.firma) || null);
 async function efCargarFirmas(ses, pid) {
   if (!ses || !pid) return {};
   let out = {};
