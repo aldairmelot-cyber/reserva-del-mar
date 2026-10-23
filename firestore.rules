@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Solo los correos de esta lista pueden leer y escribir la información.
+// Edite la lista y publique las reglas en Firebase → Firestore Database → Reglas.
+// (Gmail ignora los puntos del correo; se ponen las dos formas por seguridad.)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autorizado() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'aldair.melot@gmail.com',
+          'aldairmelot@gmail.com'
+          // , 'otra.persona@correo.com'
+        ];
+    }
+
+    match /{document=**} {
+      allow read, write: if autorizado();
+    }
+  }
+}
