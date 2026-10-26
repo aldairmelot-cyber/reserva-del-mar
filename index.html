@@ -2127,7 +2127,7 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
   cfg = cfg || {};
   let ini = anio * 10000 + 101, fin = anio * 10000 + mes * 100 + 31;
   let R = aux.filter(r => r.f >= ini && r.f <= fin), mesDe = f => Math.floor(f / 100) % 100;
-  let M = Array.from({ length: mes }, (_, i) => ({ m: i + 1, uno: 0, c: FI_CFG.conceptos.map(() => 0), tras: [] }));
+  let M = Array.from({ length: mes }, (_, i) => ({ m: i + 1, uno: 0, c: FI_CFG.conceptos.map(() => 0), tras: [], det: [] }));
   for (const x of M) {
     let p = ppto[x.m], it = p?.items?.find(y => y.codigo === FI_CFG.unoPct);
     x.uno = it ? +it.ppto || 0 : p?.totales?.gastos ? Math.round((+p.totales.gastos[0] || 0) / 100) : R.filter(r => r.cta === FI_CFG.unoPct && mesDe(r.f) === x.m).reduce((s, r) => s + r.c - r.d, 0);
@@ -2142,9 +2142,9 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
     let t = fiTipoDoc(r.doc), x = M[mesDe(r.f) - 1];
     if (t === "FV") continue;
     if (t === "RC" || (t === "NC" && /IDENTIFICACI/i.test(r.nota) && r.c > 0)) {
-      let v = r.c - r.d;
-      if (v > 0 && restSI[k] > 0) { let e = Math.min(restSI[k], v); restSI[k] -= e; yaLiq[k] += e; v -= e; }
-      x.c[k] += v; continue;
+      let v = r.c - r.d, e = 0;
+      if (v > 0 && restSI[k] > 0) { e = Math.min(restSI[k], v); restSI[k] -= e; yaLiq[k] += e; v -= e; }
+      x.c[k] += v; x.det.push({ f: r.f, doc: fiDocL(r.doc), ter: r.ter, nota: r.nota, k, valor: r.c - r.d, excl: e, cuenta: v }); continue;
     }
     noRec.push({ ...r, concepto: FI_CFG.conceptos[k][1] });
   }
@@ -2270,7 +2270,7 @@ function fiDoc(r, entidad) {
 function FiSeccion({ ses, notificar, entidad, soloLectura }) {
   let hoy = new Date(), [anio, setAnio] = Ve.useState(hoy.getFullYear()), [mes, setMes] = Ve.useState(0);
   let [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState({}), [err, setErr] = Ve.useState(""), [carg, setCarg] = Ve.useState(false), [gen, setGen] = Ve.useState(false);
-  let [nuevo, setNuevo] = Ve.useState({ fecha: hoy.toISOString().slice(0, 10), valor: "", doc: "" });
+  let [nuevo, setNuevo] = Ve.useState({ fecha: hoy.toISOString().slice(0, 10), valor: "", doc: "" }), [verMes, setVerMes] = Ve.useState(0);
   Ve.useEffect(() => { let vivo = true; (async () => {
     setCarg(true); setErr(""); setBase(null);
     try {
@@ -2321,10 +2321,18 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
       aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
         aH("thead", null, aH("tr", null, ["Mes", "Saldo anterior", "1% gasto", ...FI_CFG.conceptos.map(c => c[1]), "Rendimientos fiducia", "Total del mes", "Trasladado", "Saldo por trasladar", "Estado"].map((t, i) => th(t, i, i > 0 && i < 10)))),
         aH("tbody", null, r.M.map(x => aH("tr", { key: x.m },
-          aH("td", null, fiMeses[x.m - 1]), num(x.ant), num(x.uno), ...x.c.map((v, k) => aH(Ve.Fragment, { key: k }, num(v))), num(x.rend), num(x.total, 1),
+          aH("td", null, fiMeses[x.m - 1], x.det.length > 0 && aH("div", null, aH("button", { type: "button", className: "enlace", onClick: () => setVerMes(verMes === x.m ? 0 : x.m) }, verMes === x.m ? "Ocultar recaudo" : "Ver recaudo"))), num(x.ant), num(x.uno), ...x.c.map((v, k) => aH(Ve.Fragment, { key: k }, num(v))), num(x.rend), num(x.total, 1),
           aH("td", { className: "a-right num" }, P(x.trasladado), x.rend >= 1 && aH("div", { className: "tenue" }, `rendimientos ${P(x.rend)}`), x.tras.map((t, j) => aH("div", { key: j, className: "tenue" }, `${fiFecha(t.f)}${t.doc ? " \xB7 " + t.doc : ""}${t.origen !== "Contabilidad" ? " \xB7 a mano" : ""}`))),
           num(x.saldo, 1, Math.abs(x.saldo) >= 1 ? "err" : ""), aH("td", null, chip(x.saldo))))),
         aH("tfoot", null, aH("tr", null, aH("td", null, aH("b", null, "Total")), num(r.saldoInicial, 1), num(r.uno, 1), ...r.conc.map((v, k) => aH(Ve.Fragment, { key: k }, num(v, 1))), num(r.rendT, 1), num(r.incrementos, 1), num(r.trasladado, 1), num(r.pendiente, 1), aH("td", null, chip(r.pendiente)))))),
+      verMes > 0 && r.M[verMes - 1] && (() => { let x = r.M[verMes - 1];
+        return aH("div", { className: "espacio" }, aH("h3", { className: "ef-sub" }, `Recaudo de ${fiMeses[verMes - 1].toLowerCase()} de ${r.anio}: ${x.det.length} movimiento(s)`),
+          aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
+            aH("thead", null, aH("tr", null, ["Fecha", "Documento", "Tercero", "Concepto", "Detalle", "Recaudado", "Ya liquidado al 1 de enero", "Se traslada"].map((t, i) => th(t, i, i >= 5)))),
+            aH("tbody", null, x.det.map((d, i) => aH("tr", { key: i }, aH("td", null, fiFecha(d.f)), aH("td", null, d.doc), aH("td", null, d.ter), aH("td", null, FI_CFG.conceptos[d.k][1]), aH("td", null, d.nota), num(d.valor), num(d.excl), num(d.cuenta)))),
+            aH("tfoot", null, ...FI_CFG.conceptos.map((c, k) => { let L = x.det.filter(d => d.k === k); return L.length ? aH("tr", { key: k }, aH("td", { colSpan: 5 }, aH("b", null, `Total ${c[1].toLowerCase()}`)), num(L.reduce((a, d) => a + d.valor, 0), 1), num(L.reduce((a, d) => a + d.excl, 0), 1), num(x.c[k], 1)) : null; })))),
+          aH("p", { className: "tenue" }, "Recibos de caja y notas de identificaci\xF3n de pagos aplicados a las cuentas de intereses de mora y sanciones. Los valores en negativo son reversiones de pagos mal aplicados."),
+          aH("button", { type: "button", className: "btn btn-sm", onClick: () => setVerMes(0) }, "Cerrar detalle")); })(),
       r.posteriores.length > 0 && aH("div", { className: "aviso espacio " + (Math.abs(r.pendienteHoy) < 1 ? "aviso-ok" : "aviso-adv") },
         aH("p", null, `Traslados despu\xE9s del corte: ${r.posteriores.map(t => `${fiFecha(t.f)} ${P(t.valor)}${t.origen !== "Contabilidad" ? " (registrado a mano)" : ""}`).join("; ")}. Saldo por trasladar hoy: ${P(r.pendienteHoy)} — ${fiEstado(r.pendienteHoy).toLowerCase()}.`)),
       aH("div", { className: "herramientas espacio" },
