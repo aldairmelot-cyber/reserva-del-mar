@@ -2112,7 +2112,7 @@ var aclP = n => (n < 0 ? "-" : "") + "$" + Math.round(Math.abs(n || 0)).toLocale
 var FI_VISTAS = ["fondo"];
 var FI_CFG = {
   fondo: "3305", unoPct: "41701009", inversion: ["12450502"],
-  conceptos: [["13050503", "Intereses de mora"], ["13050507", "Sanciones por faltas graves"], ["13050506", "Sanci\xF3n por inasistencia a la asamblea"]]
+  conceptos: [["13050503", "Intereses de mora", "INTERESES\nDE MORA"], ["13050507", "Sanciones por faltas graves", "SANCIONES\nFALTAS GRAVES"], ["13050506", "Sanci\xF3n por inasistencia a la asamblea", "SANCI\xD3N\nINASISTENCIA"]]
 };
 var fiMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 var fiTrim = ["Enero a marzo", "Abril a junio", "Julio a septiembre", "Octubre a diciembre"];
@@ -2188,7 +2188,7 @@ function fiDoc(r, entidad) {
     tot("SALDO QUE DEBE TENER EL FONDO", r.debeEstar)];
   b.push({ tipo: "tabla", columnas: [{ titulo: "CONCEPTO", ancho: 78, alin: "left" }, { titulo: "VALOR", ancho: 22, alin: "right" }], filas: f1, cabecera: !0 });
   h("2. LIQUIDACI\xD3N DE LOS TRASLADOS POR TRIMESTRE");
-  let cols = [{ titulo: "TRIMESTRE", ancho: 16, alin: "left" }, { titulo: "1% GASTO", ancho: 12, alin: "right" }, ...FI_CFG.conceptos.map(c => ({ titulo: c[1].toUpperCase().replace("SANCI\xD3N POR ", "SANC. ").replace("SANCIONES POR ", "SANC. "), ancho: 12, alin: "right" })), { titulo: "TOTAL A\nTRASLADAR", ancho: 12, alin: "right" }, { titulo: "TRASLADADO", ancho: 12, alin: "right" }, { titulo: "DIFERENCIA", ancho: 12, alin: "right" }];
+  let cols = [{ titulo: "TRIMESTRE", ancho: 16, alin: "left" }, { titulo: "1% GASTO\nPRESUPUESTADO", ancho: 12, alin: "right" }, ...FI_CFG.conceptos.map(c => ({ titulo: c[2], ancho: 12, alin: "right" })), { titulo: "TOTAL A\nTRASLADAR", ancho: 12, alin: "right" }, { titulo: "TRASLADADO", ancho: 12, alin: "right" }, { titulo: "DIFERENCIA", ancho: 12, alin: "right" }];
   let fq = r.Q.map(q => ({ estilo: "detalle", celdas: [or(fiTrim[q.i]), er(q.uno), ...q.c.map(v => er(v)), er(q.total), er(q.trasladado), er(q.dif)] }));
   fq.push({ estilo: "totalDoble", celdas: [or("TOTAL", { bold: !0 }), er(r.uno, { bold: !0 }), ...r.conc.map(v => er(v, { bold: !0 })), er(r.incrementos, { bold: !0 }), er(r.trasladado, { bold: !0 }), er(r.pendiente, { bold: !0 })] });
   b.push({ tipo: "tabla", columnas: cols, filas: fq, cabecera: !0 });
