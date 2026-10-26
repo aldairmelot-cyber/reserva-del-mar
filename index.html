@@ -2285,8 +2285,25 @@ function aclDocConsejo(lista, entidad, anio, mes) {
     let ex = ["TERCERO / SALDO", "QU\xC9 ES", "SITUACI\xD3N ACTUAL", "EFECTO"];
     let col = (u) => [{ titulo: u[0], ancho: 22, alin: "left" }, { titulo: u[1], ancho: 30, alin: "left" }, { titulo: u[2], ancho: 34, alin: "left" }, { titulo: u[3], ancho: 14, alin: "right" }];
     let sal = c.saldos ?? p.map(x => ({ grupo: x.grupo, tercero: x.tercero, que: x.concepto, situacion: x.estado === "Soportado" ? "Soportado." : (x.estado || ""), efecto: x.efecto }));
+    let n = 2, Q = aclCuadros(a);
+    if (Q.cobrar.L.length || Q.pagar.L.length) {
+      h(b, `${n++}. SALDOS POR TERCERO: ANTES Y DESPU\xC9S DE LA DEPURACI\xD3N`);
+      b.push({ tipo: "parrafo", estilo: "normal", texto: "Para cada tercero se muestra el saldo que ten\xEDa en los estados financieros, el valor que se da de baja y el saldo con el que queda." });
+      let cq = [{ titulo: "TERCERO", ancho: 46, alin: "left" }, { titulo: "SALDO\nANTERIOR", ancho: 18, alin: "right" }, { titulo: "SE DA\nDE BAJA", ancho: 18, alin: "right" }, { titulo: "SALDO\nFINAL", ancho: 18, alin: "right" }];
+      let tabla = (tit, q) => { if (!q.L.length) return; b.push({ tipo: "parrafo", estilo: "h3", texto: tit });
+        b.push({ tipo: "tabla", columnas: cq, cabecera: !0, filas: [...q.L.map(x => ({ estilo: "detalle", sep: !0, celdas: [or(x.tercero), er(x.ant), er(x.baja), er(x.fin)] })),
+          { estilo: "totalDoble", celdas: [or("TOTAL", { bold: !0 }), er(q.ant, { bold: !0 }), er(q.baja, { bold: !0 }), er(q.fin, { bold: !0 })] }] }); };
+      tabla("Cuentas por cobrar y anticipos", Q.cobrar);
+      tabla("Cuentas por pagar", Q.pagar);
+      let fe = [{ estilo: "detalle", sep: !0, celdas: [or("Cuentas por cobrar y anticipos que se dan de baja (disminuyen el excedente)"), er(-Q.cobrar.baja)] },
+        { estilo: "detalle", sep: !0, celdas: [or("Cuentas por pagar que se dan de baja (aumentan el excedente)"), er(Q.pagar.baja)] }];
+      Math.abs(Q.otros) >= 1 && fe.push({ estilo: "detalle", sep: !0, celdas: [or("Otros ajustes a ingresos y gastos del registro"), er(Q.otros)] });
+      fe.push({ estilo: "totalDoble", celdas: [or("EFECTO NETO EN EL EXCEDENTE (valor que se castiga)", { bold: !0 }), er(Q.efecto, { bold: !0 })] });
+      b.push({ tipo: "parrafo", estilo: "h3", texto: "Efecto neto" });
+      b.push({ tipo: "tabla", columnas: [{ titulo: "CONCEPTO", ancho: 80, alin: "left" }, { titulo: "VALOR", ancho: 20, alin: "right" }], filas: fe, cabecera: !0 });
+    }
     if (sal.length) {
-      h(b, "2. SALDOS DEPURADOS Y SU SITUACI\xD3N");
+      h(b, `${n++}. QU\xC9 ES CADA SALDO Y SU SITUACI\xD3N`);
       b.push({ tipo: "parrafo", estilo: "normal", texto: "Los valores en par\xE9ntesis disminuyen el excedente; los dem\xE1s lo aumentan porque corresponden a cuentas por pagar que la revisi\xF3n no identific\xF3 como pendientes." });
       let fil = [], g0 = null;
       for (const x of sal) {
@@ -2296,7 +2313,6 @@ function aclDocConsejo(lista, entidad, anio, mes) {
       fil.push(tot("TOTAL EFECTO", sal.reduce((s, x) => s + (+x.efecto || 0), 0)));
       b.push({ tipo: "tabla", columnas: col(ex), filas: fil, cabecera: !0 });
     }
-    let n = 3;
     if ((c.mantienen ?? []).length) {
       h(b, `${n++}. SALDOS QUE SE MANTIENEN Y CONTIN\xDAAN EN GESTI\xD3N`);
       b.push({ tipo: "parrafo", estilo: "normal", texto: "Los siguientes saldos se revisaron, pero no se dieron de baja: siguen en los estados financieros mientras se adelanta su cobro o legalizaci\xF3n." });
@@ -2328,6 +2344,25 @@ function aclDocConsejo(lista, entidad, anio, mes) {
   });
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg, secciones: S,
     leyendas: ["Documento de trabajo para el Consejo \xB7 Cifras provisionales sujetas a soportes y a las decisiones del Consejo", "Cifras Expresadas en Pesos Colombianos (COP$)"] };
+}
+
+/* Cuadros por tercero para el Consejo: saldo anterior, lo que se da de baja y saldo final.
+   El saldo anterior se digita en la partida (antActivo / antPasivo); si está vacío se toma igual a lo
+   dado de baja, es decir, saldo final cero. */
+function aclCuadros(a) {
+  let arma = (kB, kA) => {
+    let M = new Map();
+    for (const x of a.partidas ?? []) {
+      let baja = +x[kB] || 0, va = x[kA], ant = va === "" || va == null ? baja : +va || 0;
+      if (!baja && !ant) continue;
+      let k = String(x.tercero || "(sin tercero)").trim(), g = M.get(k) ?? { tercero: k, ant: 0, baja: 0 };
+      g.ant += ant; g.baja += baja; M.set(k, g);
+    }
+    let L = [...M.values()].map(g => ({ ...g, fin: g.ant - g.baja }));
+    return { L, ant: L.reduce((s, x) => s + x.ant, 0), baja: L.reduce((s, x) => s + x.baja, 0), fin: L.reduce((s, x) => s + x.fin, 0) };
+  };
+  let cobrar = arma("activo", "antActivo"), pagar = arma("pasivo", "antPasivo"), t = aclTotales(a);
+  return { cobrar, pagar, efecto: t.efecto, otros: t.efecto - (pagar.baja - cobrar.baja) };
 }
 
 /* Soportes PDF de una aclaración (trozos en la base) */
@@ -2451,20 +2486,22 @@ function AclEditor({ a: a0, ses, notificar, soloLectura, nombreCta, onCerrar, on
         !ro && aH("div", { className: "acciones" },
           aH("label", { className: "btn btn-sm" + (ocupado ? " deshab" : "") }, ocupado ? "Leyendo…" : "Cargar comprobante (PDF)", aH("input", { type: "file", accept: ".pdf", hidden: true, disabled: ocupado, onChange: e => { e.target.files?.[0] && cargarComp(e.target.files[0]); e.target.value = ""; } })),
           aH("button", { type: "button", className: "btn btn-sm", onClick: () => { setA(x => ({ ...x, partidas: [...x.partidas, { grupo: "", tercero: "", concepto: "", cuentasBalance: "", cuentasResultado: "", activo: 0, pasivo: 0, efecto: 0, sustento: "", estado: "Soporte pendiente", obs: "" }] })); setCambio(true); } }, "Agregar partida"))),
-      aH("p", { className: "sub" }, "Una fila por tercero. Activo y pasivo son los saldos que se dieron de baja; efecto en resultados es positivo si aumenta el excedente (ingreso) y negativo si lo disminuye (gasto o reversi\xF3n de ingreso). Al cargar el comprobante en PDF de World Office se arma la relaci\xF3n sola y el PDF queda adjunto."),
+      aH("p", { className: "sub" }, "Una fila por tercero. Activo y pasivo son los saldos que se dieron de baja; el saldo anterior es lo que el tercero ten\xEDa antes de la depuraci\xF3n (vac\xEDo = igual a lo dado de baja, saldo final cero); efecto en resultados es positivo si aumenta el excedente (ingreso) y negativo si lo disminuye (gasto o reversi\xF3n de ingreso). Al cargar el comprobante en PDF de World Office se arma la relaci\xF3n sola y el PDF queda adjunto."),
       !a.partidas.length ? aH("p", { className: "tenue" }, "Sin partidas todav\xEDa.") :
         aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos acl-tabla" },
-          aH("thead", null, aH("tr", null, ["Grupo", "Tercero", "Concepto", "Cuentas", "Activo", "Pasivo", "Efecto", "Soporte", "Sustento / observaci\xF3n", ""].map((h, i) => aH("th", { key: i, className: i >= 4 && i <= 6 ? "a-right" : "" }, h)))),
+          aH("thead", null, aH("tr", null, ["Grupo", "Tercero", "Concepto", "Cuentas", "Saldo anterior por cobrar", "Activo (baja)", "Saldo anterior por pagar", "Pasivo (baja)", "Efecto", "Soporte", "Sustento / observaci\xF3n", ""].map((h, i) => aH("th", { key: i, className: i >= 4 && i <= 8 ? "a-right" : "", title: i === 4 || i === 6 ? "Saldo que ten\xEDa el tercero antes de la depuraci\xF3n. Si se deja vac\xEDo, se toma igual a lo dado de baja (saldo final cero)." : void 0 }, h)))),
           aH("tbody", null, a.partidas.map((p, i) => aH("tr", { key: i },
             aH("td", null, aH("input", { value: p.grupo ?? "", disabled: ro, onChange: e => setP(i, "grupo", e.target.value), style: { width: "9rem" } })),
             aH("td", null, aH("input", { value: p.tercero ?? "", disabled: ro, onChange: e => setP(i, "tercero", e.target.value), style: { width: "11rem" } })),
             aH("td", null, aH("textarea", { value: p.concepto ?? "", rows: 2, disabled: ro, onChange: e => setP(i, "concepto", e.target.value), style: { width: "15rem" } })),
             aH("td", null, aH("input", { value: p.cuentasBalance ?? "", disabled: ro, onChange: e => setP(i, "cuentasBalance", e.target.value), style: { width: "7rem" } })),
-            ...["activo", "pasivo", "efecto"].map(k => aH("td", { key: k }, aH("input", { className: "num a-right", value: p[k] ? Math.round(p[k]).toLocaleString("es-CO") : "0", disabled: ro, onChange: e => setP(i, k, aclNum(e.target.value)), style: { width: "7.5rem" } }))),
+            ...["antActivo", "activo", "antPasivo", "pasivo", "efecto"].map(k => aH("td", { key: k }, k.startsWith("ant") ?
+              aH("input", { className: "num a-right", value: p[k] === "" || p[k] == null ? "" : Math.round(p[k]).toLocaleString("es-CO"), placeholder: Math.round(+p[k === "antActivo" ? "activo" : "pasivo"] || 0).toLocaleString("es-CO"), disabled: ro, onChange: e => setP(i, k, e.target.value.trim() === "" ? "" : aclNum(e.target.value)), style: { width: "7.5rem" } }) :
+              aH("input", { className: "num a-right", value: p[k] ? Math.round(p[k]).toLocaleString("es-CO") : "0", disabled: ro, onChange: e => setP(i, k, aclNum(e.target.value)), style: { width: "7.5rem" } }))),
             aH("td", null, aH("select", { value: p.estado || "Soporte pendiente", disabled: ro, onChange: e => setP(i, "estado", e.target.value) }, ACL_ESTADOS.map(v => aH("option", { key: v, value: v }, v)))),
             aH("td", null, aH("textarea", { value: p.obs ?? "", rows: 2, disabled: ro, onChange: e => setP(i, "obs", e.target.value), style: { width: "18rem" } })),
             aH("td", null, !ro && aH("button", { type: "button", className: "btn btn-sm btn-quitar", title: "Quitar partida", onClick: () => { setA(x => ({ ...x, partidas: x.partidas.filter((_, j) => j !== i) })); setCambio(true); } }, "\xD7"))))),
-          aH("tfoot", null, aH("tr", null, aH("td", { colSpan: 4 }, aH("b", null, "Total")), aH("td", { className: "a-right num" }, aH("b", null, aclP(t.activo))), aH("td", { className: "a-right num" }, aH("b", null, aclP(t.pasivo))), aH("td", { className: "a-right num" }, aH("b", null, aclP(t.efecto))), aH("td", { colSpan: 3 }))))),
+          aH("tfoot", null, aH("tr", null, aH("td", { colSpan: 4 }, aH("b", null, "Total")), aH("td", { className: "a-right num" }, aH("b", null, aclP(aclCuadros(a).cobrar.ant))), aH("td", { className: "a-right num" }, aH("b", null, aclP(t.activo))), aH("td", { className: "a-right num" }, aH("b", null, aclP(aclCuadros(a).pagar.ant))), aH("td", { className: "a-right num" }, aH("b", null, aclP(t.pasivo))), aH("td", { className: "a-right num" }, aH("b", null, aclP(t.efecto))), aH("td", { colSpan: 3 }))))),
       a.movimientos.length > 0 && aH("div", { className: "aviso " + (t.cuadra ? "aviso-ok" : "aviso-adv") + " espacio" },
         aH("p", null, `Registros contables: ${a.movimientos.length} movimientos, d\xE9bitos ${aclP(t.debitos)} y cr\xE9ditos ${aclP(t.creditos)}. Efecto en resultados ${aclP(t.efectoMov)}${t.usaBalance ? `; activos dados de baja ${aclP(t.activoMov)} y pasivos ${aclP(t.pasivoMov)}` : ""}. ${t.cuadra ? "La relaci\xF3n de partidas cuadra con los registros." : "La relaci\xF3n de partidas no cuadra con los registros: rev\xEDsela."}`))),
     aH("section", { className: "panel" },
@@ -4368,7 +4405,20 @@ function EfAclDetalle({ a, onCerrar, descargar, gen }) {
         efH("div", { className: "kpi" + (t.efecto < 0 ? " ef-b-err" : "") }, efH("span", null, "Efecto en el excedente del año"), efH("b", null, n8(t.efecto)))),
       efH("div", { className: "acciones espacio" }, efH("span", { className: "tenue" }, "Descargar:"), btn("consejo", "Informe al Consejo (PDF)", !0), btn("pdf", "Relación con soportes (PDF)"), btn("xlsx", "Excel"))),
     efH("section", { className: "panel ef-lectura-txt" }, efH("h2", null, "Resumen"), ...efParrafos(c.resumen || a.descripcion)),
-    sal.length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Saldos y su situación"),
+    (() => { let Q = aclCuadros(a); if (!Q.cobrar.L.length && !Q.pagar.L.length) return null;
+      let tb = (tit, q) => q.L.length > 0 && efH("div", { className: "ef-grupo" }, efH("h3", { className: "ef-sub" }, tit),
+        efH("div", { className: "tabla-scroll" }, efH("table", { className: "t-datos" },
+          efH("thead", null, efH("tr", null, efH("th", null, "Tercero"), efH("th", { className: "a-right" }, "Saldo anterior"), efH("th", { className: "a-right" }, "Se da de baja"), efH("th", { className: "a-right" }, "Saldo final"))),
+          efH("tbody", null, ...q.L.map((x, k) => efH("tr", { key: k }, efH("td", null, x.tercero), efH("td", { className: "a-right num" }, n8(x.ant)), efH("td", { className: "a-right num" }, n8(x.baja)), efH("td", { className: "a-right num" }, n8(x.fin))))),
+          efH("tfoot", null, efH("tr", null, efH("td", null, efH("b", null, "Total")), efH("td", { className: "a-right num" }, efH("b", null, n8(q.ant))), efH("td", { className: "a-right num" }, efH("b", null, n8(q.baja))), efH("td", { className: "a-right num" }, efH("b", null, n8(q.fin))))))));
+      return efH("section", { className: "panel" }, efH("h2", null, "Saldos por tercero: antes y después de la depuración"),
+        tb("Cuentas por cobrar y anticipos", Q.cobrar), tb("Cuentas por pagar", Q.pagar),
+        efH("ul", { className: "ef-efectos" },
+          efH("li", null, efH("span", null, "Por cobrar y anticipos que se dan de baja"), efH("b", { className: "err" }, n8(-Q.cobrar.baja))),
+          efH("li", null, efH("span", null, "Por pagar que se dan de baja"), efH("b", null, n8(Q.pagar.baja))),
+          Math.abs(Q.otros) >= 1 && efH("li", null, efH("span", null, "Otros ajustes a ingresos y gastos"), efH("b", { className: Q.otros < 0 ? "err" : "" }, n8(Q.otros))),
+          efH("li", { className: "ef-efectos-tot" }, efH("span", null, "Efecto neto en el excedente (valor que se castiga)"), efH("b", { className: Q.efecto < 0 ? "err" : "" }, n8(Q.efecto))))); })(),
+    sal.length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Qué es cada saldo y su situación"),
       efH("p", { className: "sub" }, "Los valores en rojo disminuyen el excedente; los demás lo aumentan."),
       ...grupos.map((g, k) => efH("div", { key: k, className: "ef-grupo" }, g.g && efH("h3", { className: "ef-sub" }, g.g),
         ...g.L.map((x, j) => efH("details", { key: j, className: "ef-saldo" },
