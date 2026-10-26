@@ -2359,7 +2359,7 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
         aH("tbody", null,
           aH("tr", null, aH("td", null, `Pendiente por trasladar al ${fiFin(r.anio, r.mes)} de ${fiMeses[r.mes - 1].toLowerCase()} (seg\xFAn la liquidaci\xF3n mes a mes)`), num(Math.max(0, r.pendiente), 1)),
           r.posteriores.length > 0 && aH("tr", null, aH("td", null, "Menos: traslados hechos despu\xE9s del corte"), num(-r.trasPost)),
-          r.posteriores.length > 0 && aH("tr", null, aH("td", null, aH("b", null, "Pendiente hoy")), num(Math.max(0, r.pendienteHoy), 1))))),
+          r.posteriores.length > 0 && aH("tr", null, aH("td", null, aH("b", null, r.pendienteHoy < -0.5 ? "Trasladado de m\xE1s hoy (se descuenta del pr\xF3ximo traslado)" : "Pendiente hoy")), num(Math.abs(r.pendienteHoy), 1))))),
       r.pendiente < 0 && aH("p", { className: "tenue" }, `Se ha trasladado ${P(-r.pendiente)} de m\xE1s; se descuenta del pr\xF3ximo traslado.`),
       aH("h3", { className: "ef-sub espacio" }, "2. Abonos al patrimonio del fondo (cuenta 3305)"),
       aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
