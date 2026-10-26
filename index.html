@@ -2282,7 +2282,7 @@ function aclDocConsejo(lista, entidad, anio, mes) {
     c.resumen ? par(b, c.resumen) : par(b, a.descripcion);
     b.push({ tipo: "tabla", columnas: [{ titulo: "POR COBRAR Y ANTICIPOS\nDADOS DE BAJA", ancho: 34, alin: "center" }, { titulo: "POR PAGAR\nDADOS DE BAJA", ancho: 33, alin: "center" }, { titulo: "EFECTO EN EL\nEXCEDENTE DEL A\xD1O", ancho: 33, alin: "center" }],
       filas: [{ estilo: "totalDoble", celdas: [er(t.activo, { bold: !0 }), er(t.pasivo, { bold: !0 }), er(t.efecto, { bold: !0 })] }], cabecera: !0 });
-    let ex = ["TERCERO / SALDO", "QU\xC9 ES", "SITUACI\xD3N ACTUAL", "EFECTO"];
+    let ex = ["TERCERO / SALDO", "CONCEPTO", "SITUACI\xD3N ACTUAL", "EFECTO"];
     let col = (u) => [{ titulo: u[0], ancho: 22, alin: "left" }, { titulo: u[1], ancho: 30, alin: "left" }, { titulo: u[2], ancho: 34, alin: "left" }, { titulo: u[3], ancho: 14, alin: "right" }];
     let sal = c.saldos ?? p.map(x => ({ grupo: x.grupo, tercero: x.tercero, que: x.concepto, situacion: x.estado === "Soportado" ? "Soportado." : (x.estado || ""), efecto: x.efecto }));
     let n = 2, Q = aclCuadros(a);
@@ -2303,7 +2303,7 @@ function aclDocConsejo(lista, entidad, anio, mes) {
       b.push({ tipo: "tabla", columnas: [{ titulo: "CONCEPTO", ancho: 80, alin: "left" }, { titulo: "VALOR", ancho: 20, alin: "right" }], filas: fe, cabecera: !0 });
     }
     if (sal.length) {
-      h(b, `${n++}. QU\xC9 ES CADA SALDO Y SU SITUACI\xD3N`);
+      h(b, `${n++}. CONCEPTO DE CADA SALDO Y SU SITUACI\xD3N`);
       b.push({ tipo: "parrafo", estilo: "normal", texto: "Los valores en par\xE9ntesis disminuyen el excedente; los dem\xE1s lo aumentan porque corresponden a cuentas por pagar que la revisi\xF3n no identific\xF3 como pendientes." });
       let fil = [], g0 = null;
       for (const x of sal) {
@@ -4418,7 +4418,7 @@ function EfAclDetalle({ a, onCerrar, descargar, gen }) {
           efH("li", null, efH("span", null, "Por pagar que se dan de baja"), efH("b", null, n8(Q.pagar.baja))),
           Math.abs(Q.otros) >= 1 && efH("li", null, efH("span", null, "Otros ajustes a ingresos y gastos"), efH("b", { className: Q.otros < 0 ? "err" : "" }, n8(Q.otros))),
           efH("li", { className: "ef-efectos-tot" }, efH("span", null, "Efecto neto en el excedente (valor que se castiga)"), efH("b", { className: Q.efecto < 0 ? "err" : "" }, n8(Q.efecto))))); })(),
-    sal.length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Qué es cada saldo y su situación"),
+    sal.length > 0 && efH("section", { className: "panel" }, efH("h2", null, "Concepto de cada saldo y su situación"),
       efH("p", { className: "sub" }, "Los valores en rojo disminuyen el excedente; los demás lo aumentan."),
       ...grupos.map((g, k) => efH("div", { key: k, className: "ef-grupo" }, g.g && efH("h3", { className: "ef-sub" }, g.g),
         ...g.L.map((x, j) => efH("details", { key: j, className: "ef-saldo" },
