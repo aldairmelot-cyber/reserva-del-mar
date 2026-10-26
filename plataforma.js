@@ -29,7 +29,7 @@
     "prorrateo_cfg", "prorrateo_mes", "cartera", "cartera_c", "cartera_p",
     "concb", "concb_cfg", "concb_expl", "concb_idx", "concb_notas", "concb_raw", "concb_wo",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
-    "verif_idx", "verif_raw", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
+    "verif_idx", "verif_raw", "fondo_cfg", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
   ];
 
   /* ------------------------------------------------------------------ perfiles */

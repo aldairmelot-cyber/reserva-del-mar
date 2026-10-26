@@ -4566,7 +4566,7 @@ function EfPortalAnt({ ses, actual, r, periodos, ir, retResumen, cartera, acl, p
     kpi("Excedente acumulado", n8(s.act.neto), `${pAnt}: ${n8(s.ant.neto)}`, "eri", s.act.neto < 0 ? "err" : null),
     kpi(`Resultado de ${mesNom}`, n8(l.act.neto), `mismo mes ${pAnt}: ${n8(l.ant.neto)}`, "eri_mes", l.act.neto < 0 ? "err" : null),
     kpi("Efectivo disponible", n8(i.act.r.EFECTIVO ?? 0), c.act.me != null ? `${ia(c.act.me, 1)} meses de gasto` : "", "flujo"),
-    kpi("Fondo de imprevistos", n8(i.act.r.FONDO_PAT ?? 0), "reserva obligatoria", "notas")));
+    kpi("Fondo de imprevistos", n8(i.act.r.FONDO_PAT ?? 0), efPermitida("fondo") ? "ver auditoría del fondo" : "reserva obligatoria", efPermitida("fondo") ? "fondo" : "notas")));
 
   let tarjetas = [];
 
@@ -4654,7 +4654,7 @@ function EfUsuarios({ ses, notificar }) {
     setOc(!1);
   };
   let quitar = async email => { setOc(!0); try { await ses.store.del("_roles/" + email); notificar("ok", `Se quitó el acceso de ${email}.`); await cargar(); } catch (e) { notificar("error", "No se pudo quitar: " + (e?.message ?? e)); } setConf(null); setOc(!1); };
-  let que = { consejo: "Estados financieros, presupuesto, cartera, aclaraciones e informe al Consejo. Sin impuestos.", admin: "Lo del Consejo más impuestos (retención, IVA, ICA, prorrateo).", revisor: "Lo de la Administración más revisión del balance, libro auxiliar, verificación DIAN y conciliación de manillas." };
+  let que = { consejo: "Estados financieros, presupuesto, cartera, aclaraciones e informe al Consejo. Sin impuestos.", admin: "Lo del Consejo más impuestos (retención, IVA, ICA, prorrateo).", revisor: "Lo de la Administración más revisión del balance, auditoría del fondo de imprevistos, libro auxiliar, verificación DIAN y conciliación de manillas." };
   return efH("section", { className: "pantalla" },
     efH("header", { className: "pantalla-enc" }, efH("div", null, efH("h2", { className: "h-sec" }, "Usuarios y perfiles"),
       efH("p", { className: "lead" }, "Agregue a cada persona con su correo de Google y el perfil que le corresponde. Los perfiles de consulta solo ven y descargan informes: no pueden cargar ni modificar nada."))),
@@ -4768,7 +4768,8 @@ var EF_GRUPOS = [
   { id: "acl", t: "Aclaraciones", ico: "aclara", v: [["acl", "Aclaraciones"]] },
   { id: "consejo", t: "Informe al Consejo", ico: "informes", v: [["consejo", "Informe al Consejo"]] },
   { id: "imp", t: "Impuestos", ico: "impuestos", v: [["ret", "Retención en la fuente"], ["iva", "IVA"], ["ica", "ICA y ReteICA"], ["prorrateo", "Prorrateo de IVA"]] },
-  { id: "rev", t: "Revisión", ico: "verif", v: [["revision", "Revisión del balance"], ["fondo", "Fondo de imprevistos"], ["verif", "Libro auxiliar"], ["dian", "DIAN · resumen"], ["dian_ventas", "DIAN · ventas"], ["dian_compras", "DIAN · compras"], ["conc", "Conciliación de manillas"]] }
+  { id: "fondo", t: "Fondo de imprevistos", ico: "banco", v: [["fondo", "Auditoría del fondo"]] },
+  { id: "rev", t: "Revisión", ico: "verif", v: [["revision", "Revisión del balance"], ["verif", "Libro auxiliar"], ["dian", "DIAN · resumen"], ["dian_ventas", "DIAN · ventas"], ["dian_compras", "DIAN · compras"], ["conc", "Conciliación de manillas"]] }
 ];
 var efGrupos = () => EF_GRUPOS.map(G => ({ ...G, v: G.v.filter(([v]) => efPermitida(v)) })).filter(G => G.v.length);
 var efGrupoDe = vista => efGrupos().find(G => G.v.some(([v]) => v === vista));
