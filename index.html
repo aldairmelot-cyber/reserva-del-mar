@@ -2133,11 +2133,19 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
     x.uno = it ? +it.ppto || 0 : p?.totales?.gastos ? Math.round((+p.totales.gastos[0] || 0) / 100) : R.filter(r => r.cta === FI_CFG.unoPct && mesDe(r.f) === x.m).reduce((s, r) => s + r.c - r.d, 0);
   }
   let ctas = FI_CFG.conceptos.map(c => c[0]), noRec = [];
-  for (const r of R) {
+  /* cartera que ya estaba al 1 de enero: se liquid\xF3 al fondo cuando se caus\xF3 (a\xF1os anteriores), as\xED que su recaudo no se traslada otra vez */
+  let descSI = cfg.descontarSaldoInicial !== false;
+  let siCart = ctas.map(c => { let x = bal.cuentas.find(y => String(y[0]) === c); return descSI && x ? Math.max(0, +x[3] || 0) : 0; });
+  let restSI = [...siCart], yaLiq = ctas.map(() => 0);
+  for (const r of [...R].sort((a, b) => a.f - b.f)) {
     let k = ctas.indexOf(r.cta); if (k < 0) continue;
     let t = fiTipoDoc(r.doc), x = M[mesDe(r.f) - 1];
     if (t === "FV") continue;
-    if (t === "RC" || (t === "NC" && /IDENTIFICACI/i.test(r.nota) && r.c > 0)) { x.c[k] += r.c - r.d; continue; }
+    if (t === "RC" || (t === "NC" && /IDENTIFICACI/i.test(r.nota) && r.c > 0)) {
+      let v = r.c - r.d;
+      if (v > 0 && restSI[k] > 0) { let e = Math.min(restSI[k], v); restSI[k] -= e; yaLiq[k] += e; v -= e; }
+      x.c[k] += v; continue;
+    }
     noRec.push({ ...r, concepto: FI_CFG.conceptos[k][1] });
   }
   /* traslados: de la contabilidad (débitos a la inversión con concepto de fondo de imprevistos) y los registrados a mano que la contabilidad aún no tiene */
@@ -2167,14 +2175,14 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
   let invCtas = bal.cuentas.filter(c => FI_CFG.inversion.includes(c[0])).map(c => ({ codigo: c[0], nombre: c[1], si: +c[3] || 0, sf: +c[6] || 0 }));
   let s = f => M.reduce((a, x) => a + f(x), 0);
   let r = {
-    anio, mes, M, noRec, posteriores, rend, otrosDep, retiros, fondoCtas, invCtas, movFondo: R.filter(x => x.cta.startsWith(FI_CFG.fondo)),
+    anio, mes, M, noRec, posteriores, rend, otrosDep, retiros, fondoCtas, invCtas, descSI, siCart, yaLiq, movFondo: R.filter(x => x.cta.startsWith(FI_CFG.fondo)),
     saldoInicial: +cfg.saldoInicial || 0, uno: s(x => x.uno), rendT: s(x => x.rend), conc: FI_CFG.conceptos.map((_, k) => s(x => x.c[k])), incrementos: s(x => x.total), trasladado: s(x => x.trasladado),
     fondoSI: fondoCtas.reduce((a, c) => a + c.si, 0), fondoSF: fondoCtas.reduce((a, c) => a + c.sf, 0), inversion: invCtas.reduce((a, c) => a + c.sf, 0)
   };
   r.pendiente = M.length ? M[M.length - 1].saldo : r.saldoInicial;
   r.trasPost = posteriores.reduce((a, t) => a + t.valor, 0);
   r.pendienteHoy = r.pendiente - r.trasPost;
-  r.debeEstar = r.fondoSF + r.incrementos;
+  r.debeEstar = r.fondoSF + r.incrementos; /* se recalcula abajo con el ajuste de a\xF1os anteriores */
   r.debeInvertido = r.debeEstar - Math.max(0, r.pendiente);
   r.rendEstimado = r.inversion > 0 ? Math.round(r.rend * Math.min(1, r.debeInvertido / r.inversion)) : 0;
   r.noRecTotal = noRec.reduce((a, x) => a + x.c - x.d, 0);
@@ -2186,6 +2194,12 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
   r.fondoInvertido = r.fondoSF + r.trasContab + rend;
   r.difConc = r.recursosFondo - r.fondoInvertido;
   r.difInicial = r.invSI - r.fondoSF;
+  /* para que todo cuadre: dinero a la fiducia y abonos al patrimonio (3305) */
+  r.fiduciaDespues = r.inversion + Math.max(0, r.pendiente);
+  r.ajusteAnterior = r.fiduciaDespues - r.fondoSF - r.incrementos;
+  r.patrimonioDespues = r.fondoSF + r.incrementos + r.ajusteAnterior;
+  r.yaLiqT = yaLiq.reduce((a, v) => a + v, 0);
+  r.debeEstar = r.patrimonioDespues;
   return r;
 }
 
@@ -2197,9 +2211,7 @@ function fiHallazgos(r) {
   if (r.noRec.length) H.push(`${r.noRec.length} movimiento(s) en las cuentas de intereses y sanciones por ${P(r.noRecTotal)} no son recaudo (reversiones, condonaciones, depuraciones u otros ajustes) y no deben trasladarse al fondo.`);
   if (r.incrementos >= 1) H.push(`Los incrementos del a\xF1o (${P(r.incrementos)}) todav\xEDa no est\xE1n en la cuenta del fondo (${FI_CFG.fondo}): siguen en los ingresos del a\xF1o. Deben llevarse a la cuenta ${FI_CFG.fondo} a m\xE1s tardar al cierre del ejercicio.`);
   if (r.rend >= 1) H.push(`La inversi\xF3n del fondo produjo ${P(r.rend)} de rendimientos en el a\xF1o. Seg\xFAn el art\xEDculo 79, literal d, pertenecen al fondo: ya est\xE1n abonados en la fiducia, pero se registraron como ingreso del a\xF1o y deben llevarse a la cuenta del fondo (${FI_CFG.fondo}).`);
-  if (Math.abs(r.difConc) >= 1 || r.otrosDep.length) H.push(`Conciliaci\xF3n con la fiducia: la inversi\xF3n tiene ${P(r.inversion)}${r.otrosDep.length ? `. Sin los dep\xF3sitos que no son traslados del fondo (${P(r.otrosDepT)}: ${r.otrosDep.map(x => `${fiFecha(x.f)} ${fiDocL(x.doc)} ${P(x.d)}`).join("; ")}) quedan ${P(r.recursosFondo)}` : ""}, frente a ${P(r.fondoInvertido)} que deber\xEDa tener el fondo (saldo contable, traslados y rendimientos del a\xF1o). Diferencia: ${P(r.difConc)}${Math.abs(r.difInicial) >= 1 ? `; al 1 de enero ya hab\xEDa ${P(r.difInicial)} de diferencia` : ""}.`);
-  let cob = r.inversion - r.debeInvertido;
-  H.push(cob >= 0 ? `La inversi\xF3n (${P(r.inversion)}) cubre el saldo que el fondo debe tener invertido (${P(r.debeInvertido)}); el excedente de ${P(cob)} corresponde a otros recursos de la copropiedad.` : `La inversi\xF3n (${P(r.inversion)}) no alcanza a cubrir el saldo que el fondo debe tener invertido (${P(r.debeInvertido)}): faltan ${P(-cob)}.`);
+  if (Math.abs(r.ajusteAnterior) >= 1) H.push(`Para que la fiducia y el patrimonio cuadren, adem\xE1s de lo del a\xF1o (${P(r.incrementos)}) hay que ${r.ajusteAnterior > 0 ? "abonar al fondo" : "descontar del fondo"} ${P(Math.abs(r.ajusteAnterior))} de a\xF1os anteriores, contra excedentes de ejercicios anteriores (3705).`);
   return H;
 }
 
@@ -2213,6 +2225,7 @@ function fiDoc(r, entidad) {
     { estilo: "detalle", celdas: [or("M\xE1s: 1% del gasto presupuestado del a\xF1o"), er(r.uno)] },
     ...FI_CFG.conceptos.map((c, k) => ({ estilo: "detalle", celdas: [or(`M\xE1s: ${c[1].toLowerCase()} recaudados`), er(r.conc[k])] })),
     { estilo: "detalle", celdas: [or("M\xE1s: rendimientos de la inversi\xF3n del fondo (art. 79 d)"), er(r.rendT)] },
+    ...(Math.abs(r.ajusteAnterior) >= 1 ? [{ estilo: "detalle", celdas: [or("M\xE1s: a\xF1os anteriores no abonados al patrimonio (ajuste contra 3705)"), er(r.ajusteAnterior)] }] : []),
     tot("SALDO QUE DEBE TENER EL FONDO", r.debeEstar)] });
   h("2. TRASLADOS MES A MES");
   p("Saldo anterior: lo que quedaba pendiente (positivo) o trasladado de m\xE1s (negativo) del mes anterior. Saldo por trasladar = saldo anterior + total a trasladar del mes − trasladado en el mes. Los rendimientos se abonan en la misma fiducia, por eso cuentan como trasladados en el mes en que se causan.");
@@ -2227,14 +2240,19 @@ function fiDoc(r, entidad) {
       filas: [...T.map(t => ({ estilo: "detalle", celdas: [or(fiFecha(t.f)), or(t.doc), or(String(t.nota).slice(0, 120)), or(t.origen), er(t.valor)] })), tot("TOTAL", T.reduce((a, t) => a + t.valor, 0), 4)] });
     if (r.posteriores.length) p(`Saldo por trasladar despu\xE9s de los traslados posteriores al corte: ${aclP(r.pendienteHoy)} (${fiEstado(r.pendienteHoy).toLowerCase()}).`);
   }
-  h("3. CONCILIACI\xD3N CON LA FIDUCIA");
-  let fc = [{ estilo: "detalle", celdas: [or(`Saldo de la inversi\xF3n al corte (${r.invCtas.map(c => c.nombre).join(" + ")})`), er(r.inversion)] },
-    ...r.otrosDep.map(x => ({ estilo: "detalle", celdas: [or(`Menos: dep\xF3sito que no es traslado del fondo \xB7 ${fiFecha(x.f)} ${fiDocL(x.doc)} \xB7 ${x.nota}`.slice(0, 130)), er(-x.d)] })),
-    { estilo: "detalle", celdas: [or("Recursos del fondo en la inversi\xF3n", { bold: !0 }), er(r.recursosFondo, { bold: !0 })] },
-    { estilo: "detalle", celdas: [or(`Fondo que deber\xEDa estar invertido: saldo contable ${aclP(r.fondoSF)} + traslados del a\xF1o ${aclP(r.trasContab)} + rendimientos ${aclP(r.rend)}`), er(r.fondoInvertido)] },
-    tot(r.difConc >= 0 ? "DIFERENCIA: LA INVERSI\xD3N TIENE DE M\xC1S" : "DIFERENCIA: A LA INVERSI\xD3N LE FALTA", r.difConc)];
-  b.push({ tipo: "tabla", columnas: [{ titulo: "CONCEPTO", ancho: 80, alin: "left" }, { titulo: "VALOR", ancho: 20, alin: "right" }], filas: fc, cabecera: !0 });
-  p(`Al 1 de enero la inversi\xF3n ten\xEDa ${aclP(r.invSI)} y el fondo, con los ajustes de apertura, ${aclP(r.fondoSF)}${Math.abs(r.difInicial) < 1 ? "." : `: una diferencia de ${aclP(r.difInicial)} que viene del a\xF1o anterior.`}`);
+  h("3. PARA QUE TODO CUADRE");
+  b.push({ tipo: "parrafo", texto: "Dinero a la fiducia", estilo: "h3" });
+  b.push({ tipo: "tabla", columnas: [{ titulo: "CONCEPTO", ancho: 80, alin: "left" }, { titulo: "VALOR", ancho: 20, alin: "right" }], cabecera: !0, filas: [
+    { estilo: "detalle", celdas: [or("Pendiente por trasladar al corte"), er(Math.max(0, r.pendiente))] },
+    ...(r.posteriores.length ? [{ estilo: "detalle", celdas: [or("Menos: traslados hechos despu\xE9s del corte"), er(-r.trasPost)] }, tot("PENDIENTE HOY", Math.max(0, r.pendienteHoy))] : [])] });
+  b.push({ tipo: "parrafo", texto: "Abonos al patrimonio del fondo (cuenta 3305)", estilo: "h3" });
+  b.push({ tipo: "tabla", columnas: [{ titulo: "CONCEPTO", ancho: 44, alin: "left" }, { titulo: "ASIENTO", ancho: 38, alin: "left" }, { titulo: "VALOR", ancho: 18, alin: "right" }], cabecera: !0, filas: [
+    { estilo: "detalle", celdas: [or("Saldo actual del fondo"), or(""), er(r.fondoSF)] },
+    { estilo: "detalle", celdas: [or("Lo del a\xF1o: 1%, intereses y sanciones recaudados y rendimientos"), or("D\xE9bito ingresos del a\xF1o \xB7 cr\xE9dito 3305"), er(r.incrementos)] },
+    ...(Math.abs(r.ajusteAnterior) >= 1 ? [{ estilo: "detalle", celdas: [or("A\xF1os anteriores: dinero del fondo en la fiducia no abonado al patrimonio"), or(r.ajusteAnterior > 0 ? "D\xE9bito 3705 \xB7 cr\xE9dito 3305" : "D\xE9bito 3305 \xB7 cr\xE9dito 3705"), er(r.ajusteAnterior)] }] : []),
+    { estilo: "totalDoble", celdas: [or("PATRIMONIO DEL FONDO DESPU\xC9S DE LOS ABONOS", { bold: !0 }), or(""), er(r.patrimonioDespues, { bold: !0 })] }] });
+  p(`Fiducia despu\xE9s del traslado: ${aclP(r.fiduciaDespues)}. Patrimonio del fondo despu\xE9s de los abonos: ${aclP(r.patrimonioDespues)}. Diferencia: ${aclP(r.fiduciaDespues - r.patrimonioDespues)}.${r.otrosDep.length ? ` El ajuste de a\xF1os anteriores incluye ${r.otrosDep.map(x => `${fiDocL(x.doc)} del ${fiFecha(x.f)} por ${aclP(x.d)}`).join("; ")}${Math.abs(r.difInicial) >= 1 ? ` y la diferencia que tra\xEDa la fiducia al 1 de enero (${aclP(r.difInicial)})` : ""}.` : ""}`);
+  if (r.descSI && r.yaLiqT >= 1) p(`No se cuentan ${aclP(r.yaLiqT)} recaudados de la cartera que ya estaba al 1 de enero: se liquidaron al fondo en el a\xF1o en que se causaron.`);
   let n = 4;
   if (r.noRec.length) {
     h(`${n++}. MOVIMIENTOS QUE NO SON RECAUDO`);
@@ -2330,21 +2348,34 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
           aH("tr", null, aH("td", null, `Saldo contable del fondo al corte (cuenta ${FI_CFG.fondo})`), aH("td", null, ""), num(r.fondoSF)),
           aH("tr", null, aH("td", null, "M\xE1s: 1% del gasto presupuestado del a\xF1o"), aH("td", null, "Art. 79 a) \xB7 Ley 675, art. 35"), num(r.uno)),
           ...FI_CFG.conceptos.map((c, k) => aH("tr", { key: c[0] }, aH("td", null, `M\xE1s: ${c[1].toLowerCase()} recaudados`), aH("td", null, "Art. 79 b)"), num(r.conc[k]))),
-          aH("tr", null, aH("td", null, "M\xE1s: rendimientos de la inversi\xF3n del fondo"), aH("td", null, "Art. 79 d)"), num(r.rendT))),
+          aH("tr", null, aH("td", null, "M\xE1s: rendimientos de la inversi\xF3n del fondo"), aH("td", null, "Art. 79 d)"), num(r.rendT)),
+          Math.abs(r.ajusteAnterior) >= 1 && aH("tr", null, aH("td", null, "M\xE1s: a\xF1os anteriores no abonados al patrimonio"), aH("td", null, "Ajuste contra 3705"), num(r.ajusteAnterior))),
         aH("tfoot", null, aH("tr", null, aH("td", { colSpan: 2 }, aH("b", null, "Saldo que debe tener el fondo")), num(r.debeEstar, 1))))),
       aH("p", { className: "tenue" }, "Los rendimientos ya est\xE1n abonados en la fiducia, pero se registraron como ingreso del a\xF1o: falta llevarlos a la cuenta del fondo.")),
-    r && aH("section", { className: "panel" }, aH("h2", null, "Conciliaci\xF3n con la fiducia"),
-      aH("p", { className: "sub" }, "Compara el dinero de la inversi\xF3n del fondo con lo que deber\xEDa tener seg\xFAn la contabilidad del fondo: el saldo de la cuenta 3305 m\xE1s los traslados y los rendimientos del a\xF1o."),
+    r && aH("section", { className: "panel" }, aH("h2", null, "Para que todo cuadre"),
+      aH("p", { className: "sub" }, "Lo que falta para que la fiducia y el patrimonio del fondo (cuenta 3305) queden iguales al corte: el dinero que se debe pasar a la fiducia y los abonos que se deben registrar en el patrimonio."),
+      aH("h3", { className: "ef-sub" }, "1. Dinero a la fiducia"),
       aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
-        aH("thead", null, aH("tr", null, th("Concepto", 0), th("Valor", 1, 1))),
         aH("tbody", null,
-          aH("tr", null, aH("td", null, `Saldo de la inversi\xF3n al corte (${r.invCtas.map(c => c.nombre).join(" + ")})`), num(r.inversion, 1)),
-          r.otrosDep.length > 0 && aH("tr", null, aH("td", null, "Menos: otros dep\xF3sitos a la inversi\xF3n que no son traslados del fondo", r.otrosDep.map((x, i) => aH("div", { key: i, className: "tenue" }, `${fiFecha(x.f)} \xB7 ${fiDocL(x.doc)} \xB7 ${x.nota} \xB7 ${P(x.d)}`))), num(-r.otrosDepT)),
-          aH("tr", null, aH("td", null, aH("b", null, "Recursos del fondo en la inversi\xF3n")), num(r.recursosFondo, 1)),
-          aH("tr", null, aH("td", null, `Fondo que deber\xEDa estar invertido: saldo contable ${P(r.fondoSF)} + traslados del a\xF1o ${P(r.trasContab)} + rendimientos ${P(r.rend)}`), num(r.fondoInvertido)),
-          r.retiros.length > 0 && aH("tr", null, aH("td", null, "Retiros de la inversi\xF3n en el a\xF1o (ya descontados del saldo)", r.retiros.map((x, i) => aH("div", { key: i, className: "tenue" }, `${fiFecha(x.f)} \xB7 ${fiDocL(x.doc)} \xB7 ${x.nota} \xB7 ${P(x.c)}`))), num(r.retirosT))),
-        aH("tfoot", null, aH("tr", null, aH("td", null, aH("b", null, r.difConc >= 0 ? "Diferencia: la inversi\xF3n tiene de m\xE1s" : "Diferencia: a la inversi\xF3n le falta")), num(r.difConc, 1, Math.abs(r.difConc) >= 1 ? "err" : ""))))),
-      aH("p", { className: "tenue" }, `Al 1 de enero la inversi\xF3n ten\xEDa ${P(r.invSI)} y el fondo, con los ajustes de apertura, ${P(r.fondoSF)}: ${Math.abs(r.difInicial) < 1 ? "estaban iguales." : `una diferencia de ${P(r.difInicial)} que viene del a\xF1o anterior${Math.abs(r.difInicial - r.difConc - r.retirosT) < 1 ? " y explica la diferencia de hoy" : ""}.`}`)),
+          aH("tr", null, aH("td", null, `Pendiente por trasladar al ${fiFin(r.anio, r.mes)} de ${fiMeses[r.mes - 1].toLowerCase()} (seg\xFAn la liquidaci\xF3n mes a mes)`), num(Math.max(0, r.pendiente), 1)),
+          r.posteriores.length > 0 && aH("tr", null, aH("td", null, "Menos: traslados hechos despu\xE9s del corte"), num(-r.trasPost)),
+          r.posteriores.length > 0 && aH("tr", null, aH("td", null, aH("b", null, "Pendiente hoy")), num(Math.max(0, r.pendienteHoy), 1))))),
+      r.pendiente < 0 && aH("p", { className: "tenue" }, `Se ha trasladado ${P(-r.pendiente)} de m\xE1s; se descuenta del pr\xF3ximo traslado.`),
+      aH("h3", { className: "ef-sub espacio" }, "2. Abonos al patrimonio del fondo (cuenta 3305)"),
+      aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
+        aH("thead", null, aH("tr", null, th("Concepto", 0), th("Asiento", 1), th("Valor", 2, 1))),
+        aH("tbody", null,
+          aH("tr", null, aH("td", null, "Saldo actual del fondo"), aH("td", null, ""), num(r.fondoSF)),
+          aH("tr", null, aH("td", null, "Lo del a\xF1o: 1% del gasto, intereses y sanciones recaudados y rendimientos", aH("div", { className: "tenue" }, [`1% ${P(r.uno)}`, ...FI_CFG.conceptos.map((c, k) => `${c[1].toLowerCase()} ${P(r.conc[k])}`), `rendimientos ${P(r.rendT)}`].join(" \xB7 "))), aH("td", null, "D\xE9bito ingresos del a\xF1o (o excedente del ejercicio al cierre) \xB7 cr\xE9dito 3305"), num(r.incrementos)),
+          Math.abs(r.ajusteAnterior) >= 1 && aH("tr", null, aH("td", null, "A\xF1os anteriores: dinero del fondo que est\xE1 en la fiducia y no se abon\xF3 al patrimonio",
+              r.otrosDep.map((x, i) => aH("div", { key: i, className: "tenue" }, `${fiFecha(x.f)} \xB7 ${fiDocL(x.doc)} \xB7 ${x.nota} \xB7 ${P(x.d)}`)),
+              Math.abs(r.difInicial) >= 1 && aH("div", { className: "tenue" }, `Diferencia que tra\xEDa la fiducia frente al fondo al 1 de enero: ${P(r.difInicial)}`)),
+            aH("td", null, r.ajusteAnterior > 0 ? "D\xE9bito 3705 Excedentes de ejercicios anteriores \xB7 cr\xE9dito 3305" : "D\xE9bito 3305 \xB7 cr\xE9dito 3705 Excedentes de ejercicios anteriores"), num(r.ajusteAnterior))),
+        aH("tfoot", null, aH("tr", null, aH("td", { colSpan: 2 }, aH("b", null, "Patrimonio del fondo despu\xE9s de los abonos")), num(r.patrimonioDespues, 1))))),
+      aH("div", { className: "aviso espacio " + (Math.abs(r.patrimonioDespues - r.fiduciaDespues) < 1 ? "aviso-ok" : "aviso-adv") },
+        aH("p", null, `Fiducia despu\xE9s del traslado: ${P(r.fiduciaDespues)} \xB7 patrimonio del fondo despu\xE9s de los abonos: ${P(r.patrimonioDespues)} \xB7 diferencia: ${P(r.fiduciaDespues - r.patrimonioDespues)}.`)),
+      r.descSI && r.yaLiqT >= 1 && aH("p", { className: "tenue" }, `No se cuentan ${P(r.yaLiqT)} recaudados de la cartera que ya estaba al 1 de enero (${FI_CFG.conceptos.map((c, k) => r.yaLiq[k] >= 1 ? `${c[1].toLowerCase()} ${P(r.yaLiq[k])}` : null).filter(Boolean).join(", ")}): esos valores ya se liquidaron al fondo en el a\xF1o en que se causaron.`),
+      !soloLectura && aH("label", { className: "check espacio" }, aH("input", { type: "checkbox", checked: r.descSI, onChange: e => guardarCfg({ ...cfg, descontarSaldoInicial: e.target.checked }) }), " Descontar el recaudo de la cartera que ya estaba al 1 de enero (ya liquidada al fondo cuando se caus\xF3)")),
     r && aH("section", { className: "panel" }, aH("h2", null, "Composici\xF3n contable del fondo"),
       aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
         aH("thead", null, aH("tr", null, ["Cuenta", "Saldo inicial", "D\xE9bitos", "Cr\xE9ditos", "Saldo final"].map((t, i) => th(t, i, i > 0)))),
