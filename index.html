@@ -2146,6 +2146,96 @@ function CblSeccion({ cuenta, ses, notificar, soloLectura, ir, entidad, cfg }) {
   return cmH(CblResultado, { R, D, idx, sel, setSel, guardarSeg, soloLectura, ses, notificar, entidad, ir });
 }
 
+/* ---------- banco frente a libros: PDF de partidas pendientes para validar (asistente contable) ---------- */
+async function cblPendientesPdf(R, D, ent, soloPend = !0) {
+  let doc = await fr.create(), F = await doc.embedFont(Na.Helvetica), FB = await doc.embedFont(Na.HelveticaBold), tinta = _e(.15, .16, .2), gris = _e(.42, .43, .46), linea = _e(.8, .81, .84), fondo = _e(.94, .95, .96), oro = _e(.55, .38, .13), rojo = _e(.71, .14, .09), verde = _e(.11, .48, .29), logo = null;
+  if (ent?.logo) try { let b = Uint8Array.from(atob(ent.logo.split(",")[1]), c => c.charCodeAt(0)); logo = ent.logo.startsWith("data:image/png") ? await doc.embedPng(b) : await doc.embedJpg(b); } catch { }
+  let W = 612, H = 792, M = 42, AN = W - 2 * M, pg, y, ent0 = ent?.entidadLegal || ent?.entidad || "", cta = cmNomNum(R.cuenta), mesE = cmMesEtq(R.mes);
+  let T = (f, s) => HR(f, String(s ?? "")), wd = (f, s, z) => f.widthOfTextAtSize(T(f, s), z);
+  let txt = (s, x, yy, { f = F, z = 9, c = tinta, al = "l" } = {}) => { let t = T(f, s), w = f.widthOfTextAtSize(t, z); pg.drawText(t, { x: al === "r" ? x - w : al === "c" ? x - w / 2 : x, y: yy, size: z, font: f, color: c }); };
+  let cut = (s, f, z, w) => { s = String(s ?? ""); if (wd(f, s, z) <= w) return s; for (; s.length > 1 && wd(f, s + "…", z) > w;) s = s.slice(0, -1); return s + "…"; };
+  let wrap = (s, f, z, w) => { let out = []; for (const pr of String(s ?? "").split("\n")) { let l = ""; for (const t of pr.split(/\s+/)) { let u = l ? l + " " + t : t; wd(f, u, z) <= w || !l ? l = u : (out.push(l), l = t); } out.push(l); } return out; };
+  let nueva = () => {
+    pg = doc.addPage([W, H]); y = H - 36; let lx = M;
+    if (logo) { let h = 28, w = logo.width * h / logo.height; pg.drawImage(logo, { x: M, y: y - h, width: w, height: h }); lx = M + w + 10; }
+    txt(ent0, lx, y - 11, { f: FB, z: 10 }); txt(`Partidas pendientes por registrar \xB7 ${cta} \xB7 ${mesE}`, lx, y - 24, { z: 8.5, c: gris });
+    pg.drawLine({ start: { x: M, y: y - 36 }, end: { x: W - M, y: y - 36 }, thickness: 1, color: oro }); y -= 52;
+    pg.drawLine({ start: { x: M, y: 34 }, end: { x: W - M, y: 34 }, thickness: .5, color: linea });
+    txt(`${ent0}${ent?.nit ? " \xB7 NIT " + ent.nit : ""}`, M, 23, { z: 7, c: gris }); txt("P\xE1gina " + doc.getPageCount(), W - M, 23, { z: 7, c: gris, al: "r" });
+  };
+  let sitio = h => { y - h < 48 && nueva(); };
+  let par = (s, { f = F, z = 9, gap = 6, c = tinta, ind = 0 } = {}) => { for (const l of wrap(s, f, z, AN - ind)) { sitio(z * 1.35); txt(l, M + ind, y, { f, z, c }); y -= z * 1.35; } y -= gap; };
+  let h1 = (s, sub) => { sitio(46); y -= 4; txt(s, M, y, { f: FB, z: 12, c: oro }); sub && txt(sub, W - M, y, { f: FB, z: 9, al: "r" }); y -= 7; pg.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: .6, color: linea }); y -= 13; };
+  let fmt = v => typeof v == "number" ? (Math.round(v) < 0 ? "−" : "") + "$ " + zm(Math.abs(Math.round(v))) : v;
+  /* tabla con columna de casilla y espacio para observaciones */
+  let tabla = (cols, rows, { z = 7.6, tot = null } = {}) => {
+    let tw = cols.reduce((s, c) => s + c.w, 0), k = AN / tw, lh = z * 1.25, pad = z * .9;
+    let enc = () => { let rh = z * 2; sitio(rh * 2); pg.drawRectangle({ x: M, y: y - rh + z * .6, width: AN, height: rh, color: fondo }); let x = M; for (const c of cols) { let w = c.w * k; txt(cut(c.t, FB, z - .3, w - 6), c.r ? x + w - 3 : c.c ? x + w / 2 : x + 3, y - z * .7, { f: FB, z: z - .3, al: c.r ? "r" : c.c ? "c" : "l" }); x += w; } y -= rh; };
+    enc();
+    for (const r of rows.concat(tot ? [Object.assign(tot, { bold: 1 })] : [])) {
+      let f = r.bold ? FB : F, cel = cols.map((c, j) => { let v = r[j], w = c.w * k - 6; if (c.box) return []; if (c.r || typeof v == "number") return [cut(fmt(v), f, z, w)]; let L = wrap(fmt(v), f, z, w); return L.length > 5 ? [...L.slice(0, 4), cut(L.slice(4).join(" "), f, z, w)] : L; });
+      let n = Math.max(1, ...cel.map(q => q.length)), rh = Math.max(n * lh + pad, r.bold ? 0 : z * 2.6);
+      if (y - rh < 48) { nueva(); enc(); }
+      let x = M;
+      cols.forEach((c, j) => {
+        let w = c.w * k, v = r[j];
+        if (c.box && !r.bold) pg.drawRectangle({ x: x + w / 2 - 4.5, y: y - z * .9 - 4, width: 9, height: 9, borderColor: gris, borderWidth: .7 });
+        (cel[j] ?? []).forEach((l, i) => txt(l, c.r ? x + w - 3 : x + 3, y - z * .7 - i * lh, { z, f: i && c.sub ? F : f, c: c.sub && i ? oro : c.neg && typeof v == "number" && v < 0 ? rojo : tinta, al: c.r ? "r" : "l" }));
+        x += w;
+      });
+      y -= rh; pg.drawLine({ start: { x: M, y: y + z * .6 }, end: { x: W - M, y: y + z * .6 }, thickness: .35, color: linea });
+    }
+    y -= 8;
+  };
+  let P = R.part.filter(p => !soloPend || p.e === "pend"), tieneB = !!D.banco, tieneL = !!D.libro;
+  /* portada */
+  nueva();
+  txt("Partidas pendientes por registrar", M, y, { f: FB, z: 17 }); y -= 19;
+  txt(`${cta} \xB7 ${mesE}`, M, y, { z: 11.5, c: gris }); y -= 15;
+  txt(`Generado el ${new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}${tieneB ? ` \xB7 banco hasta ${cmFd(R.ultB)}` : ""}${tieneL ? ` \xB7 libro: ${R.libroFuente} hasta ${cmFd(D.libro.fin)}` : ""}`, M, y, { z: 8.5, c: gris }); y -= 20;
+  par("Para quien registra: revise cada partida, haga el registro en World Office (o corrija el existente), marque la casilla “Validado” y anote el comprobante o la observaci\xF3n. Las partidas salen de cruzar el movimiento del banco con el libro auxiliar de la cuenta.", { z: 8.6, c: gris });
+  /* resumen de saldos */
+  let c = R.conc, dif = R.libroFin != null && R.bancoFin != null ? cmR(R.libroFin - R.bancoFin) : null;
+  h1("Resumen");
+  tabla([{ t: "Concepto", w: 70 }, { t: "Valor", w: 22, r: 1 }], [
+    [tieneB ? "Saldo seg\xFAn banco" : `Saldo del banco al cierre de ${cmMesEtq(cmMesAnt(R.mes))} (falta el banco de ${mesE})`, (tieneB ? R.bancoFin : R.bancoIni) ?? "—"], ["Saldo seg\xFAn libros (World Office)", R.libroFin ?? "—"], ["Diferencia (libros − banco)", dif ?? "—"],
+    ...(tieneB && tieneL ? [["Explicada por las partidas de este informe y las ya validadas", dif != null && c.residuo != null ? cmR(dif - c.residuo) : "—"], ["Sin explicar", c.residuo ?? "—"]] : [])
+  ], { z: 8.2 });
+  R.avisos.forEach(a => par("Nota: " + a, { z: 8, c: gris, gap: 3 }));
+  let grupos = Object.keys(CBL_GRUPOS).map(g => [g, P.filter(p => p.grupo === g)]).filter(([, L]) => L.length);
+  if (grupos.length) {
+    tabla([{ t: "Qu\xE9 hay que hacer", w: 62 }, { t: "Partidas", w: 12, r: 1 }, { t: "Valor", w: 20, r: 1 }], grupos.map(([g, L]) => [CBL_GRUPOS[g][0], String(L.length), cmR(L.reduce((s, p) => s + p.v, 0))]), { z: 8 });
+  } else par(tieneB && tieneL ? "No hay partidas pendientes: banco y libros cuadran." : "A\xFAn faltan archivos del mes (banco o libro auxiliar), por eso no hay partidas.", { f: FB, z: 9.5, c: verde });
+  /* detalle por grupo */
+  let n = 0;
+  for (const [g, L] of grupos) {
+    n++;
+    h1(`${n}. ${CBL_GRUPOS[g][0]}`, `${L.length} \xB7 ${fmt(cmR(L.reduce((s, p) => s + p.v, 0)))}`);
+    par(CBL_GRUPOS[g][1], { z: 8.4, c: gris, gap: 2 });
+    par("Qu\xE9 hacer: " + (g === "fee" ? "Registrar la nota bancaria del mes: comisiones, IVA y 4 x 1000 como gasto, e intereses como ingreso financiero." : L[0].accion ?? ""), { z: 8.4, f: FB, gap: 6 });
+    if (g === "fee") {
+      /* notas bancarias: detalle por concepto para armar la nota */
+      let rows = [];
+      for (const p of L) { let k = p.id.split("|")[1], x = R.fees[k]; if (!x) continue; let por = {}; for (const m of x.L) { let d = m.desc.replace(/\s+EL RODADERO.*$/i, "").trim(), q = por[d] ??= { n: 0, v: 0 }; q.n++; q.v += m.v; } Object.entries(por).sort((a, b) => a[1].v - b[1].v).forEach(([d, q]) => rows.push([CBL_FEE[k], d, String(q.n), cmR(q.v), "", ""])); }
+      tabla([{ t: "Tipo", w: 20 }, { t: "Concepto del banco", w: 38 }, { t: "Movs.", w: 8, r: 1 }, { t: "Valor", w: 15, r: 1, neg: 1 }, { t: "Validado", w: 9, box: 1, c: 1 }, { t: "Observaci\xF3n", w: 20 }], rows, { z: 7.5, tot: ["Total", "", String(rows.reduce((s, r) => s + Number(r[2]), 0)), cmR(rows.reduce((s, r) => s + r[3], 0)), "", ""] });
+      continue;
+    }
+    if (g === "wompi") {
+      tabla([{ t: "Detalle", w: 66 }, { t: "Diferencia", w: 18, r: 1 }, { t: "Validado", w: 9, box: 1, c: 1 }], L.map(p => [p.d, p.v, ""]), { z: 7.8 });
+      par("Detalle por d\xEDa (Wompi abona al d\xEDa siguiente el neto de los pagos). Busque desde qu\xE9 d\xEDa la diferencia acumulada crece: ah\xED faltan recibos.", { z: 8, c: gris, gap: 3 });
+      tabla([{ t: "Fecha", w: 14 }, { t: "Recibos en libros", w: 22, r: 1 }, { t: "Abonos en banco", w: 22, r: 1 }, { t: "Diferencia acumulada", w: 24, r: 1 }], R.wompi.dias.map(x => [cmFd(x.f), x.l, x.b, x.dif]), { z: 7.4, tot: ["Total", R.wompi.libro, R.wompi.banco, R.wompi.dif] });
+      continue;
+    }
+    tabla([{ t: "Fecha", w: 11 }, { t: "Detalle", w: 47, sub: 1 }, { t: "Valor", w: 15, r: 1, neg: 1 }, { t: "Validado", w: 8, box: 1, c: 1 }, { t: "Comprobante / observaci\xF3n", w: 21 }],
+      L.sort((a, b) => (a.f || "").localeCompare(b.f || "") || a.v - b.v).map(p => [cmFd(p.f), p.d + (p.pista ? "\n" + p.pista : "") + (p.n ? "\nNota: " + p.n : ""), p.v, "", ""]),
+      { z: 7.5, tot: ["Total", `${L.length} partida(s)`, cmR(L.reduce((s, p) => s + p.v, 0)), "", ""] });
+  }
+  /* firmas */
+  y -= 26; sitio(60);
+  [["Elabor\xF3", M], ["Valid\xF3", M + AN / 2 + 10]].forEach(([t, x]) => { pg.drawLine({ start: { x, y: y + 10 }, end: { x: x + AN / 2 - 30, y: y + 10 }, thickness: .6, color: tinta }); txt(t, x, y - 2, { z: 8.4, c: gris }); txt("Fecha:", x, y - 14, { z: 8.4, c: gris }); });
+  return doc.save();
+}
+
 function CblResultado({ R, D, idx, sel, setSel, guardarSeg, soloLectura, ses, notificar, entidad, ir }) {
   let [soloPend, setSoloPend] = Ve.useState(!1), c = R.conc, tieneB = !!D.banco, tieneL = !!D.libro;
   let grupos = Object.keys(CBL_GRUPOS).map(g => [g, R.part.filter(p => p.grupo === g && (!soloPend || p.e === "pend")).map(p => ({ ...p, tipo: "cbl" }))]).filter(([, L]) => L.length);
@@ -2160,6 +2250,10 @@ function CblResultado({ R, D, idx, sel, setSel, guardarSeg, soloLectura, ses, no
     Math.abs(dif) <= 1 ? ["cm-ver-ok", "Banco y libros cuadran", R.part.length ? `Los saldos son iguales. Quedan ${R.part.length} movimiento(s) que no se pudieron emparejar uno a uno, pero se compensan entre s\xED: normalmente son registros en bloque (gastos bancarios del mes, traslados de consignaciones, recibos Wompi). Rev\xEDselos solo si algo no le parece.` : "Los saldos son iguales y todos los movimientos est\xE1n emparejados."] :
     Math.abs(c.residuo) <= 1 ? ["cm-ver-ok", "Diferencia explicada", `Libros y banco difieren en ${cmMon(dif)} y todo est\xE1 explicado por las partidas de abajo.`] :
     ["cm-ver-err", "Diferencia sin explicar", `Libros y banco difieren en ${cmMon(dif)}. Las partidas de abajo explican todo menos ${cmMon(c.residuo)}, que viene de la diferencia de saldos al empezar el mes (libros ${cmMon(R.libroIni)} y banco ${cmMon(R.bancoIni)}${R.bancoIniFuente ? " seg\xFAn " + R.bancoIniFuente : ""}).`];
+  let pdfPend = async () => {
+    try { await BL(ses, `Pendientes_${cmNomCta(R.cuenta).replace(/\s+/g, "_")}_${R.cuenta}_${R.mes}.pdf`, await cblPendientesPdf(R, D, entidad), notificar); }
+    catch (e) { notificar("error", "No se pudo generar el PDF: " + (e?.message ?? e)); }
+  };
   let excel = async () => {
     try {
       let cab = t => [[entidad?.entidad ?? "", ""], [`${t} \xB7 ${cmNomNum(R.cuenta)} \xB7 ${cmMesEtq(R.mes)}`]];
@@ -2178,8 +2272,9 @@ function CblResultado({ R, D, idx, sel, setSel, guardarSeg, soloLectura, ses, no
         cmH("div", null, cmH("h2", null, `${cmNomNum(R.cuenta)} \xB7 ${cmMesEtq(R.mes)}`), cmH("p", { className: "sub" }, `Cruza cada movimiento del banco con el libro auxiliar de World Office y muestra qu\xE9 falta registrar para que los dos saldos coincidan.`)),
         cmH("div", { className: "dv-acc" },
           cmH("div", { className: "dv-sel" }, cmH("label", { htmlFor: "cbl-sel" }, "Mes"), cmH("select", { id: "cbl-sel", value: sel, onChange: e => setSel(e.target.value) }, idx.map(x => cmH("option", { key: x.k, value: x.k }, cmMesEtq(x.mes))))),
+          cmH("button", { type: "button", className: "btn btn-primario", onClick: pdfPend, title: "Para enviar a quien registra en World Office" }, "PDF de pendientes"),
           cmH("button", { type: "button", className: "btn", onClick: excel }, "Excel"),
-          !soloLectura && cmH("button", { type: "button", className: "btn btn-primario", onClick: () => ir("conc_carga") }, "Actualizar archivos"))),
+          !soloLectura && cmH("button", { type: "button", className: "btn", onClick: () => ir("conc_carga") }, "Actualizar archivos"))),
       cmH("div", { className: "cm-cortes" },
         cmH("span", { className: "chip " + (tieneB ? "chip-acento" : "chip-warn") }, tieneB ? `${cmNomCta(R.cuenta)}: hasta ${cmFd(R.ultB)}${D.banco.consulta ? " (consulta " + cmFh(D.banco.consulta) + ")" : ""}` : "Banco: falta"),
         cmH("span", { className: "chip " + (tieneL ? "chip-acento" : "chip-warn") }, tieneL ? `Libro: ${R.libroFuente} \xB7 hasta ${cmFd(D.libro.fin)}` : "Libro: falta"),
