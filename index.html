@@ -2032,7 +2032,7 @@ function cblCalcular(D, seg) {
       .forEach(([t, d, k]) => sum(k) && finMes.push({ tipo: t, concepto: `${d} (${deduc.length} abono(s))`, n: deduc.length, v: -sum(k) }));
   }
   finMes.sort((a, b) => Object.keys(CBL_FINMES).indexOf(a.tipo) - Object.keys(CBL_FINMES).indexOf(b.tipo) || a.v - b.v);
-  Math.abs(wompi.dif) > 1 && part.push({ id: "w|" + mes, grupo: "wompi", f: "", d: `Wompi: abonado en banco ${pe(wompi.banco, "0")} \xB7 registrado en libros ${pe(wompi.libro, "0")}`, v: wompi.dif, accion: wompi.dif > 0 ? "Registrar los recibos de los pagos Wompi que faltan (y la comisi\xF3n)" : "Verificar recibos Wompi registrados sin abono" });
+  Math.abs(wompi.dif) > 1 && part.push({ id: "w|" + mes, grupo: "wompi", f: "", d: `Wompi: abonado en banco ${pe(wompi.banco, "0")} \xB7 registrado en libros ${pe(wompi.libro, "0")}`, v: wompi.dif, accion: wompi.dif > 0 ? "Registrar los recibos de los pagos Wompi que faltan" : "Verificar recibos Wompi registrados sin abono" });
   /* pistas: posible error de digitacion entre lo que quedo sin cruzar en banco y en libros (mismo signo, fecha cercana) */
   let casi = (a, b) => { let x = String(Math.round(Math.abs(a))), y = String(Math.round(Math.abs(b))); if (x.length !== y.length || x === y) return !1; let d = [...x].map((c, i) => c !== y[i] ? i : -1).filter(i => i >= 0); return d.length === 1 || d.length === 2 && d[1] === d[0] + 1 && x[d[0]] === y[d[1]] && x[d[1]] === y[d[0]]; };
   for (const p of part.filter(p => ["entSin", "salSin", "debSin", "credSin"].includes(p.grupo))) {
@@ -2122,7 +2122,7 @@ async function cblActualizarIdx(store, k, cfg) {
 var CBL_GRUPOS = {
   salSin: ["Salidas del banco que no est\xE1n en libros", "Pagos, traslados e impuestos que ya salieron del banco. Registre el egreso o la nota bancaria."],
   entSin: ["Entradas al banco sin recibo en libros", "Dinero que lleg\xF3 y no tiene recibo de caja. Identifique qui\xE9n pag\xF3 y haga el recibo."],
-  wompi: ["Pagos por Wompi", "Wompi abona un neto por d\xEDa y en libros va un recibo por cada pago. La diferencia son recibos que faltan (o sobran) y la comisi\xF3n de Wompi. Ver el detalle por d\xEDa abajo."],
+  wompi: ["Pagos por Wompi", "Wompi abona un neto por d\xEDa y en libros va un recibo por cada pago. La diferencia son recibos que faltan (o sobran) y la comisi\xF3n de Wompi."],
   dat: ["Descuentos del dat\xE1fono sin registrar", "En libros se registr\xF3 el valor completo pagado con tarjeta, pero el banco abon\xF3 el neto. Registre la comisi\xF3n y las retenciones."],
   difv: ["Mismo movimiento con una diferencia de valor", "El banco y libros tienen el mismo pago o recibo por valores un poco distintos (costo de PSE o transacci\xF3n, error de valor). Ajuste la diferencia."],
   fee: ["Gastos e ingresos bancarios del mes", "Comisiones, IVA, 4 x 1000 e intereses que cobra o abona el banco. Se registran con una nota bancaria."],
@@ -2226,9 +2226,9 @@ async function cblPendientesPdf(R, D, ent, soloPend = !0) {
       continue;
     }
     if (g === "wompi") {
-      tabla([{ t: "Detalle", w: 66 }, { t: "Diferencia", w: 18, r: 1 }, { t: "Validado", w: 9, box: 1, c: 1 }], L.map(p => [p.d, p.v, ""]), { z: 7.8 });
-      par("Detalle por d\xEDa (Wompi abona al d\xEDa siguiente el neto de los pagos). Busque desde qu\xE9 d\xEDa la diferencia acumulada crece: ah\xED faltan recibos.", { z: 8, c: gris, gap: 3 });
-      tabla([{ t: "Fecha", w: 14 }, { t: "Recibos en libros", w: 22, r: 1 }, { t: "Abonos en banco", w: 22, r: 1 }, { t: "Diferencia acumulada", w: 24, r: 1 }], R.wompi.dias.map(x => [cmFd(x.f), x.l, x.b, x.dif]), { z: 7.4, tot: ["Total", R.wompi.libro, R.wompi.banco, R.wompi.dif] });
+      let p0 = L[0];
+      tabla([{ t: "Detalle", w: 58 }, { t: "Por registrar", w: 18, r: 1 }, { t: "Validado", w: 8, box: 1, c: 1 }, { t: "Comprobantes", w: 18 }], [[`Wompi abon\xF3 al banco ${fmt(R.wompi.banco)} en ${cmMesEtq(R.mes)} y en libros hay recibos Wompi por ${fmt(R.wompi.libro)}.`, p0.v, "", ""]], { z: 7.8 });
+      par("C\xF3mo hacerlo: descargue del portal de Wompi el reporte de transacciones del mes, comp\xE1relo con los recibos Wompi ya registrados y registre los pagos que no tengan recibo. Lo que quede de diferencia al final es la comisi\xF3n de Wompi, que va en la nota de fin de mes.", { z: 8.2, c: gris });
       continue;
     }
     tabla([{ t: "Fecha", w: 11 }, { t: "Detalle", w: 47, sub: 1 }, { t: "Valor", w: 15, r: 1, neg: 1 }, { t: "Validado", w: 8, box: 1, c: 1 }, { t: "Comprobante / observaci\xF3n", w: 21 }],
