@@ -1,6 +1,6 @@
 # Estados Financieros · Agrupación Reserva del Mar P.H.
 
-Aplicación web para generar, a partir de los balances de prueba mensuales de World Office, los estados financieros de la propiedad horizontal (ESF, ERI, ECP, EFE, indicadores, notas y certificación), además de presupuesto, retenciones, IVA, ICA, cartera, conciliación bancaria, verificación contable con el libro auxiliar y verificación DIAN.
+Aplicación web para generar, a partir de los balances de prueba mensuales de World Office, los estados financieros de la propiedad horizontal (ESF, ERI, ECP, EFE, indicadores, notas y certificación), además de presupuesto, retenciones, IVA, ICA, cartera, verificación de ventas de manillas (Siigo frente a banco y Plink), verificación contable con el libro auxiliar y verificación DIAN.
 
 Es un sitio estático: un solo `index.html` que se ejecuta completo en el navegador. Los archivos contables se procesan en el equipo de quien los carga y no se suben al repositorio.
 
@@ -32,7 +32,7 @@ Todo el equipo ve y edita los mismos datos, con inicio de sesión de Google y un
 - **Consulta**: se asignan dentro de la app, en **Datos → Usuarios y perfiles**, con el correo de Google de cada persona. Solo ven y descargan informes; al entrar ven una portada con el resumen del mes.
   - **Consejo de Administración**: estados financieros, presupuesto, cartera, aclaraciones e informe al Consejo. Sin impuestos ni descarga de los archivos cargados.
   - **Administración**: lo del Consejo más impuestos (retención, IVA, ICA, prorrateo).
-  - **Revisoría Fiscal**: lo de la Administración más revisión del balance, auditoría del fondo de imprevistos, libro auxiliar, verificación DIAN y conciliación de manillas.
+  - **Revisoría Fiscal**: lo de la Administración más revisión del balance, auditoría del fondo de imprevistos, libro auxiliar, verificación DIAN y verificación de manillas.
 
 Cada persona de consulta puede tener además un papel de **firma** (representante legal, contador o revisor fiscal), que se asigna en **Usuarios y perfiles**. Cuando el mes está definitivo, cada uno firma su parte en **Estados financieros → Firmas** y la firma sale en el PDF y el Word de los estados financieros. El editor no firma (salvo que se ponga `editorFirma: "contador"` en `config.js`), pero puede retirar cualquier firma. Si el mes se reabre como borrador, las firmas se retiran.
 

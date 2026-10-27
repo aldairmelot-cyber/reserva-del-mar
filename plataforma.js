@@ -27,7 +27,7 @@
     "config", "mapeos", "periodos", "balances", "aclaraciones", "acl_pdf",
     "presupuesto", "presupuesto_notas", "retencion", "retencion_pdf", "iva", "ica",
     "prorrateo_cfg", "prorrateo_mes", "cartera", "cartera_c", "cartera_p",
-    "concb", "concb_cfg", "concb_expl", "concb_idx", "concb_notas", "concb_raw", "concb_wo",
+    "cman_raw", "cman_idx", "cman_seg", "cman_cfg",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
     "verif_idx", "verif_raw", "fondo_cfg", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
   ];

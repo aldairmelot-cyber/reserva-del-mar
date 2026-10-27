@@ -7,7 +7,7 @@ rules_version = '2';
 //    _roles/<correo> con su perfil: 'consejo', 'revisor' o 'admin'. Solo lee, según su perfil:
 //      consejo  → estados financieros, presupuesto, cartera, aclaraciones (sin impuestos ni archivos cargados).
 //      admin    → lo del consejo + impuestos.
-//      revisor  → lo de admin + verificación contable, auditoría del fondo de imprevistos (usa el libro auxiliar), verificación DIAN y conciliación bancaria.
+//      revisor  → lo de admin + verificación contable, auditoría del fondo de imprevistos (usa el libro auxiliar), verificación DIAN y verificación de manillas (banco, Plink y Siigo).
 // Pegue este texto en Firebase → Firestore Database → Reglas y pulse Publicar.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -34,6 +34,8 @@ service cloud.firestore {
     }
     function revision() {
       return ['verif_idx', 'verif_raw', 'dianv', 'dianv_aux', 'dianv_cfg', 'dianv_idx', 'dianv_notas',
+              'cman_raw', 'cman_idx', 'cman_seg', 'cman_cfg',
+              // datos de la conciliación anterior: protegidos hasta eliminarlos desde la app
               'concb', 'concb_cfg', 'concb_expl', 'concb_idx', 'concb_notas', 'concb_raw', 'concb_wo'];
     }
     function archivos() {
