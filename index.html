@@ -1905,10 +1905,11 @@ function cblTipoBanco(d, v) {
   if (/ABONO NETO|ABONO (VISA|MASTER|AMEX)/.test(x)) return "dat";
   if (v > 0 && /INTERES|RENDIMIENTO/.test(x)) return "int";
   if (v < 0 && /4X1000|4 X 1000|GMF|IMPTO GOBIERNO/.test(x)) return "gmf";
-  if (v < 0 && /COMISION|IVA COMIS|CUOTA PLAN|IVA CUOTA|CUOTA DE MANEJO|SERVICIO PAGO|SERVICIO POR PAGO|COBRO IVA|CARGO POR|IVA SERVICIO/.test(x)) return "com";
+  if (v < 0 && /COMISION|IVA COMIS|CUOTA PLAN|IVA CUOTA|CUOTA DE MANEJO|SERVICIO PAGO|SERVICIO POR PAGO|COBRO IVA|CARGO POR|IVA SERVICIO|REDEBAN/.test(x)) return "com";
   return "otro";
 }
 var CBL_FEE = { com: "Comisiones e IVA bancarios", gmf: "Gravamen 4 x 1000", int: "Intereses de ahorros" };
+var CBL_FINMES = { com: "Gasto bancario (comisiones e IVA)", gmf: "Gravamen 4 x 1000", datcom: "Gasto bancario (comisi\xF3n dat\xE1fono)", datrf: "Anticipo retenci\xF3n en la fuente", datriva: "Anticipo retenci\xF3n de IVA", datrica: "Anticipo retenci\xF3n de ICA", int: "Ingreso financiero (intereses)" };
 var cblTok = s => cmN(s).replace(/[^A-Z ]/g, " ").split(" ").filter(t => t.length > 2 && !/^(PAGO|PROV|PROVE|PROVEEDORES|DE|DEL|LA|LOS|LAS|SAS|S A|EL|RODADERO|TRANSFERENCIA|CTA|SUC|VIRTUAL|INTERBANC|CONSIG|LOCAL|REFEREN|EFECTIVO|NAL|REFERENCIA|EXPENSA|ADMON|OCTUBRE|PAGOS)$/.test(t));
 function cblSim(a, b) { let A = cblTok(a), B = cblTok(b); if (!A.length || !B.length) return 0; let h = A.filter(t => B.some(u => u === t || t.length >= 4 && u.length >= 4 && (u.startsWith(t) || t.startsWith(u)))).length; return h / Math.min(A.length, B.length); }
 
@@ -2017,9 +2018,20 @@ function cblCalcular(D, seg) {
   let part = [];
   for (const b of bSin) part.push({ id: b.id, grupo: b.v > 0 ? "entSin" : "salSin", f: b.f, d: b.desc + (b.ref ? " \xB7 " + b.ref : ""), v: b.v, accion: b.v > 0 ? "Hacer el recibo de caja (identificar qui\xE9n pag\xF3)" : "Registrar el egreso o la nota bancaria" });
   for (const l of lSin) part.push({ id: l.id, grupo: l.v > 0 ? "debSin" : "credSin", f: l.f, d: `${l.ter} \xB7 ${l.nota}${l.doc ? " \xB7 " + l.doc : ""}`, v: l.v, accion: l.v > 0 ? "Verificar que la consignaci\xF3n s\xED lleg\xF3 al banco" : "Verificar si el pago ya sali\xF3 del banco" });
-  for (const c of deduc) part.push({ id: "d|" + c.b[0].id, grupo: "dat", f: c.b[0].f, d: `Abono ${cmFr(c.b[0].desc)} del ${cmFd(c.b[0].f)}: bruto ${pe(c.bruto, "0")}, comisi\xF3n ${pe(c.com, "0")}, retefuente ${pe(c.rf, "0")}${c.riva ? ", reteIVA " + pe(c.riva, "0") : ""}, reteICA ${pe(c.rica, "0")}`, v: -cmR(c.bruto - c.b[0].v), accion: "Registrar comisi\xF3n y retenciones del dat\xE1fono" });
   for (const c of cruces.filter(c => c.tipo === "casi")) part.push({ id: "v|" + c.b[0].id, grupo: "difv", f: c.b[0].f, d: `${c.b[0].desc} por ${pe(c.b[0].v, "0")} \xB7 en libros ${c.l[0].ter} (${c.l[0].doc}) por ${pe(c.l[0].v, "0")}`, v: -c.dif, accion: "Ajustar la diferencia de valor en libros" });
-  for (const [k, x] of Object.entries(fees)) part.push({ id: "f|" + k, grupo: "fee", f: "", d: `${CBL_FEE[k]} \xB7 ${x.n} movimiento(s)`, v: x.v, accion: k === "int" ? "Registrar los intereses (ingreso financiero)" : "Registrar la nota bancaria del mes" });
+  /* nota bancaria de fin de mes: gastos, comisiones, 4x1000, intereses y descuentos del datafono, agrupados por concepto */
+  let finMes = [];
+  for (const [k, x] of Object.entries(fees)) {
+    let por = {};
+    for (const m of x.L) { let d = m.desc.replace(/\s+(EL RODADERO|CNB REDES|SUCURSAL).*$/i, "").replace(/\s+/g, " ").trim(), q = por[d] ??= { n: 0, v: 0 }; q.n++; q.v = cmR(q.v + m.v); }
+    for (const [d, q] of Object.entries(por)) finMes.push({ tipo: k, concepto: d, n: q.n, v: q.v });
+  }
+  if (deduc.length) {
+    let sum = k => cmR(deduc.reduce((s, c) => s + c[k], 0));
+    [["datcom", "Comisi\xF3n del dat\xE1fono", "com"], ["datrf", "Retenci\xF3n en la fuente del dat\xE1fono", "rf"], ["datriva", "Retenci\xF3n de IVA del dat\xE1fono", "riva"], ["datrica", "Retenci\xF3n de ICA del dat\xE1fono", "rica"]]
+      .forEach(([t, d, k]) => sum(k) && finMes.push({ tipo: t, concepto: `${d} (${deduc.length} abono(s))`, n: deduc.length, v: -sum(k) }));
+  }
+  finMes.sort((a, b) => Object.keys(CBL_FINMES).indexOf(a.tipo) - Object.keys(CBL_FINMES).indexOf(b.tipo) || a.v - b.v);
   Math.abs(wompi.dif) > 1 && part.push({ id: "w|" + mes, grupo: "wompi", f: "", d: `Wompi: abonado en banco ${pe(wompi.banco, "0")} \xB7 registrado en libros ${pe(wompi.libro, "0")}`, v: wompi.dif, accion: wompi.dif > 0 ? "Registrar los recibos de los pagos Wompi que faltan (y la comisi\xF3n)" : "Verificar recibos Wompi registrados sin abono" });
   /* pistas: posible error de digitacion entre lo que quedo sin cruzar en banco y en libros (mismo signo, fecha cercana) */
   let casi = (a, b) => { let x = String(Math.round(Math.abs(a))), y = String(Math.round(Math.abs(b))); if (x.length !== y.length || x === y) return !1; let d = [...x].map((c, i) => c !== y[i] ? i : -1).filter(i => i >= 0); return d.length === 1 || d.length === 2 && d[1] === d[0] + 1 && x[d[0]] === y[d[1]] && x[d[1]] === y[d[0]]; };
@@ -2029,9 +2041,9 @@ function cblCalcular(D, seg) {
     c && (p.pista = `\xBFError de digitaci\xF3n? Se parece ${c.t} del ${cmFd(c.f)}.`);
   }
   part.forEach(p => { p.e = est(p.id); p.n = seg[p.id]?.n ?? ""; });
-  let res = { porRegistrar: cmR(part.filter(p => ["entSin", "salSin", "fee", "dat", "wompi", "difv"].includes(p.grupo)).reduce((s, p) => s + p.v, 0)), abiertas: part.filter(p => p.e === "pend").length };
+  let res = { finMes: cmR(finMes.reduce((s, x) => s + x.v, 0)), porRegistrar: cmR(part.filter(p => ["entSin", "salSin", "wompi", "difv"].includes(p.grupo)).reduce((s, p) => s + p.v, 0)), abiertas: part.filter(p => p.e === "pend").length };
   return {
-    mes, cuenta: D.cuenta, nombre: D.nombre, generado: new Date().toISOString(), avisos, B, L, cruces, wompi, fees, bSin, lSin, part, conc, res,
+    mes, cuenta: D.cuenta, nombre: D.nombre, generado: new Date().toISOString(), avisos, B, L, cruces, wompi, fees, finMes, bSin, lSin, part, conc, res,
     bancoIni, bancoFin, libroIni, libroFin, ultB, bancoIniFuente: D.bancoIniFuente ?? "", difConsulta, libroFuente: D.libro?.fuente ?? D.libro?.archivo ?? "", ultL: L.length ? L[L.length - 1].f : null, sumB, sumL,
     n: { b: B.length, l: L.length, cB: B.filter(hecho).length, cL: L.filter(hecho).length }
   };
@@ -2193,26 +2205,19 @@ async function cblPendientesPdf(R, D, ent, soloPend = !0) {
   txt("Partidas pendientes por registrar", M, y, { f: FB, z: 17 }); y -= 19;
   txt(`${cta} \xB7 ${mesE}`, M, y, { z: 11.5, c: gris }); y -= 15;
   txt(`Generado el ${new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}${tieneB ? ` \xB7 banco hasta ${cmFd(R.ultB)}` : ""}${tieneL ? ` \xB7 libro: ${R.libroFuente} hasta ${cmFd(D.libro.fin)}` : ""}`, M, y, { z: 8.5, c: gris }); y -= 20;
-  par("Para quien registra: revise cada partida, haga el registro en World Office (o corrija el existente), marque la casilla “Validado” y anote el comprobante o la observaci\xF3n. Las partidas salen de cruzar el movimiento del banco con el libro auxiliar de la cuenta.", { z: 8.6, c: gris });
-  /* resumen de saldos */
-  let c = R.conc, dif = R.libroFin != null && R.bancoFin != null ? cmR(R.libroFin - R.bancoFin) : null;
-  h1("Resumen");
-  tabla([{ t: "Concepto", w: 70 }, { t: "Valor", w: 22, r: 1 }], [
-    [tieneB ? "Saldo seg\xFAn banco" : `Saldo del banco al cierre de ${cmMesEtq(cmMesAnt(R.mes))} (falta el banco de ${mesE})`, (tieneB ? R.bancoFin : R.bancoIni) ?? "—"], ["Saldo seg\xFAn libros (World Office)", R.libroFin ?? "—"], ["Diferencia (libros − banco)", dif ?? "—"],
-    ...(tieneB && tieneL ? [["Explicada por las partidas de este informe y las ya validadas", dif != null && c.residuo != null ? cmR(dif - c.residuo) : "—"], ["Sin explicar", c.residuo ?? "—"]] : [])
-  ], { z: 8.2 });
-  R.avisos.forEach(a => par("Nota: " + a, { z: 8, c: gris, gap: 3 }));
-  let grupos = Object.keys(CBL_GRUPOS).map(g => [g, P.filter(p => p.grupo === g)]).filter(([, L]) => L.length);
+  par("Registre en World Office cada partida de esta lista (o corrija el registro existente), marque la casilla \u201CValidado\u201D y anote el n\xFAmero del comprobante. Los gastos bancarios, comisiones e intereses no est\xE1n aqu\xED: se registran en la nota de fin de mes.", { z: 8.6, c: gris });
+  let grupos = ["salSin", "entSin", "wompi", "difv"].map(g => [g, P.filter(p => p.grupo === g)]).filter(([, L]) => L.length);
+  h1("Qu\xE9 hay que registrar");
   if (grupos.length) {
     tabla([{ t: "Qu\xE9 hay que hacer", w: 62 }, { t: "Partidas", w: 12, r: 1 }, { t: "Valor", w: 20, r: 1 }], grupos.map(([g, L]) => [CBL_GRUPOS[g][0], String(L.length), cmR(L.reduce((s, p) => s + p.v, 0))]), { z: 8 });
-  } else par(tieneB && tieneL ? "No hay partidas pendientes: banco y libros cuadran." : "A\xFAn faltan archivos del mes (banco o libro auxiliar), por eso no hay partidas.", { f: FB, z: 9.5, c: verde });
+  } else par(tieneB && tieneL ? "No hay nada pendiente por registrar." : "A\xFAn faltan archivos del mes (banco o libro auxiliar), por eso no hay partidas.", { f: FB, z: 9.5, c: verde });
   /* detalle por grupo */
   let n = 0;
   for (const [g, L] of grupos) {
     n++;
     h1(`${n}. ${CBL_GRUPOS[g][0]}`, `${L.length} \xB7 ${fmt(cmR(L.reduce((s, p) => s + p.v, 0)))}`);
     par(CBL_GRUPOS[g][1], { z: 8.4, c: gris, gap: 2 });
-    par("Qu\xE9 hacer: " + (g === "fee" ? "Registrar la nota bancaria del mes: comisiones, IVA y 4 x 1000 como gasto, e intereses como ingreso financiero." : L[0].accion ?? ""), { z: 8.4, f: FB, gap: 6 });
+    par("Qu\xE9 hacer: " + (L[0].accion ?? ""), { z: 8.4, f: FB, gap: 6 });
     if (g === "fee") {
       /* notas bancarias: detalle por concepto para armar la nota */
       let rows = [];
@@ -2260,6 +2265,7 @@ function CblResultado({ R, D, idx, sel, setSel, guardarSeg, soloLectura, ses, no
       let H = [
         { nombre: "Conciliacion", titulo: !0, enc: 2, filas: [...cab("Banco frente a libros"), ["Concepto", "Valor"], ["Saldo seg\xFAn banco", R.bancoFin], ["(−) Entradas al banco sin recibo en libros", -c.entSin], ["(+) Salidas del banco sin registrar", -c.salSin], ["(\xB1) Gastos e ingresos bancarios sin registrar", -c.fees], ["(−) Wompi: diferencia banco − libros", -c.wompi], ["(+) Descuentos del dat\xE1fono sin registrar", c.dedTot], ["(+) Recibos en libros que no est\xE1n en el banco", c.debSin], ["(−) Pagos en libros que no han salido del banco", c.credSin], ["(\xB1) Redondeos de centavos", c.difCr], ["(\xB1) Diferencias de valor en movimientos cruzados", c.difV], ["Saldo calculado de libros", c.calc], ["Saldo seg\xFAn libros (World Office)", R.libroFin], ["Diferencia que viene del saldo inicial", c.residuo]] },
         { nombre: "Por registrar", titulo: !0, enc: 2, filas: [...cab("Partidas"), ["Grupo", "Fecha", "Detalle", "Valor", "Qu\xE9 hacer", "Estado", "Nota", "Pista"], ...R.part.map(p => [CBL_GRUPOS[p.grupo][0], p.f, p.d, p.v, p.accion, CM_ESTADOS[p.e], p.n, p.pista ?? ""])] },
+        { nombre: "Nota fin de mes", titulo: !0, enc: 2, filas: [...cab("Nota bancaria de fin de mes"), ["Registrar como", "Concepto del banco", "Movimientos", "Valor"], ...R.finMes.map(x => [CBL_FINMES[x.tipo], x.concepto, x.n, x.v]), ["Total", "", "", R.res.finMes]] },
         { nombre: "Wompi por dia", titulo: !0, enc: 2, filas: [...cab("Wompi por d\xEDa"), ["Fecha", "Recibos en libros", "Abonos en banco", "Acumulado libros", "Acumulado banco", "Diferencia acumulada"], ...R.wompi.dias.map(x => [x.f, x.l, x.b, x.acL, x.acB, x.dif])] },
         { nombre: "Cruzados", titulo: !0, enc: 2, filas: [...cab("Movimientos cruzados"), ["Tipo", "Fecha banco", "Banco", "Valor banco", "Fecha libros", "Libros", "Valor libros"], ...R.cruces.flatMap(x => { let k = Math.max(x.b.length, x.l.length); return Array.from({ length: k }, (_, i) => [i ? "" : { "1a1": "Uno a uno", nx1: "Un pago del banco = varios en libros", "1xn": "Varios en banco = uno en libros", dat: "Dat\xE1fono", casi: "Con diferencia de valor", notas: "Notas bancarias" }[x.tipo], x.b[i]?.f ?? "", x.b[i]?.desc ?? "", x.b[i]?.v ?? "", x.l[i]?.f ?? "", x.l[i] ? `${x.l[i].ter} \xB7 ${x.l[i].nota} ${x.l[i].doc}` : "", x.l[i]?.v ?? ""]); })] }
       ];
@@ -2295,9 +2301,10 @@ function CblResultado({ R, D, idx, sel, setSel, guardarSeg, soloLectura, ses, no
           fila("Salidas del banco sin registrar (pagos, traslados, impuestos)", -c.salSin, { cl: "cm-sub", n: `${n("salSin")}` }),
           fila("Entradas al banco sin recibo de caja", -c.entSin, { cl: "cm-sub", n: `${n("entSin")}` }),
           fila("Wompi: abonado en banco y no registrado en libros", -c.wompi, { cl: "cm-sub" }),
+          c.difV ? fila("Diferencias de valor en movimientos cruzados", c.difV, { cl: "cm-sub", n: `${n("difv")}` }) : null,
+          cmH("tr", { className: "cm-tit" }, cmH("td", { colSpan: 3 }, "Nota bancaria de fin de mes")),
           fila("Comisiones, 4 x 1000 e intereses del banco", -c.fees, { cl: "cm-sub" }),
           c.dedTot ? fila("Comisi\xF3n y retenciones del dat\xE1fono", c.dedTot, { cl: "cm-sub" }) : null,
-          c.difV ? fila("Diferencias de valor en movimientos cruzados", c.difV, { cl: "cm-sub", n: `${n("difv")}` }) : null,
           cmH("tr", { className: "cm-tit" }, cmH("td", { colSpan: 3 }, "Est\xE1 en libros y no en el banco")),
           fila("Recibos en libros que no aparecen en el banco", c.debSin, { cl: "cm-sub", n: `${n("debSin")}` }),
           fila("Pagos en libros que no han salido del banco", c.credSin, { cl: "cm-sub", n: `${n("credSin")}` }),
@@ -2307,13 +2314,18 @@ function CblResultado({ R, D, idx, sel, setSel, guardarSeg, soloLectura, ses, no
           fila("Sin explicar (viene del saldo inicial)", c.residuo, { cl: "cm-tot " + (Math.abs(c.residuo) <= 1 ? "ok" : "") }))))),
     cmH("section", { className: "panel" },
       cmH("div", { className: "panel-tit" },
-        cmH("div", null, cmH("h2", null, "Qu\xE9 hay que hacer"), cmH("p", { className: "sub" }, "Cada grupo dice qu\xE9 registrar. Marque cada partida cuando quede registrada; al cargar el libro actualizado desaparecen solas.")),
+        cmH("div", null, cmH("h2", null, "Qu\xE9 hay que hacer"), cmH("p", { className: "sub" }, "Cada grupo dice qu\xE9 registrar. Marque cada partida cuando quede registrada; al cargar el libro actualizado desaparecen solas. Los gastos bancarios y comisiones est\xE1n aparte, en \u201CPara registrar a fin de mes\u201D.")),
         cmH("label", { className: "cm-chk" }, cmH("input", { type: "checkbox", checked: soloPend, onChange: e => setSoloPend(e.target.checked) }), " Solo pendientes")),
       grupos.length ? grupos.map(([g, L]) => cmH("div", { key: g, className: "cm-grupo" },
         cmH("h3", null, CBL_GRUPOS[g][0], cmH("span", { className: "tenue" }, ` \xB7 ${L.length} \xB7 ${cmMon(sumV(L))}`)),
         cmH("p", { className: "tenue cm-grupo-d" }, CBL_GRUPOS[g][1]),
         cmH("ul", { className: "cm-parts" }, L.map(p => cmH(CmPartida, { key: p.id, p, soloLectura, guardarSeg }))))) :
         cmH("p", { className: tieneB && tieneL ? "ok" : "tenue" }, !(tieneB && tieneL) ? "Se ver\xE1 cuando est\xE9n el banco y el libro del mes." : soloPend ? "No quedan partidas pendientes." : "Banco y libros coinciden: no hay nada por registrar.")),
+    R.finMes.length > 0 && cmH("section", { className: "panel" },
+      cmH("h2", null, "Para registrar a fin de mes"),
+      cmH("p", { className: "sub" }, `Gastos bancarios, comisiones, 4 x 1000, intereses y descuentos del dat\xE1fono de ${cmMesEtq(R.mes)}, agrupados por concepto. Se registran en una sola nota bancaria al cierre del mes; no hace falta registrarlos uno por uno.`),
+      cmH(CmTabla, { cols: [["Registrar como"], ["Concepto del banco"], ["Movs.", 1], ["Valor", 1]], rows: R.finMes.map(x => [CBL_FINMES[x.tipo], x.concepto, x.n, x.v]), tot: ["Total de la nota", "", R.finMes.reduce((s, x) => s + (x.tipo.startsWith("dat") ? 0 : x.n), 0), R.res.finMes], filtro: !1 }),
+      cmH("p", { className: "tenue" }, "Valores negativos: gasto o anticipo de impuesto (sale del banco). Positivos: ingreso (intereses).")),
     R.wompi.dias.length > 0 && cmH(CmBloque, { t: "Wompi por d\xEDa", sub: `banco ${cmMon(R.wompi.banco)} \xB7 libros ${cmMon(R.wompi.libro)}` },
       cmH("p", { className: "tenue" }, "Wompi paga al d\xEDa siguiente un neto de los pagos recibidos. Si la diferencia acumulada crece y no vuelve a bajar, hay recibos Wompi que faltan en libros."),
       cmH(CmTabla, { cols: [["Fecha"], ["Recibos en libros", 1], ["Abonos en banco", 1], ["Diferencia acumulada", 1]], rows: R.wompi.dias.map(x => [cmFd(x.f), x.l, x.b, x.dif]), tot: ["Total", R.wompi.libro, R.wompi.banco, R.wompi.dif], filtro: !1 })),
