@@ -34,7 +34,7 @@ service cloud.firestore {
     }
     function revision() {
       return ['verif_idx', 'verif_raw', 'dianv', 'dianv_aux', 'dianv_cfg', 'dianv_idx', 'dianv_notas',
-              'cman_raw', 'cman_idx', 'cman_seg', 'cman_cfg',
+              'cman_raw', 'cman_idx', 'cman_seg', 'cman_cfg', 'cbl_raw', 'cbl_idx', 'cbl_seg',
               // datos de la conciliación anterior: protegidos hasta eliminarlos desde la app
               'concb', 'concb_cfg', 'concb_expl', 'concb_idx', 'concb_notas', 'concb_raw', 'concb_wo'];
     }
