@@ -264,11 +264,56 @@
       }
       usuarioActual = usuario;
       const db = envolverFirestore(fs);
+      if (esEditor()) await sembrarAclaraciones(db);
       db.doc("_usuarios/" + usuario.uid).set({ name: usuario.displayName || usuario.email || "", email: usuario.email || "", visto: new Date().toISOString() }, { merge: true }).catch(() => {});
       ponerUsuario(usuario, salir, db);
       return db;
     })();
     return promesaFirebase;
+  }
+
+  /* ------------------------------------------------------------------ aclaraciones sembradas */
+  /* Aclaraciones redactadas fuera de la app que se cargan una sola vez al entrar el editor.
+     La marca en config/semillas evita que vuelvan a aparecer si después se borran en la app. */
+  const ACL_SEMILLAS = [{
+    id: "caso-824-1124", anio: 2026, mes: 10, fecha: "2026-10-29",
+    titulo: "Coeficientes invertidos y sanción en disputa – Aptos 824 T2 y 1124 T2",
+    nota: "10", revelar: false,
+    documento: "Sin comprobante todavía: el ajuste se registra cuando se tome la decisión",
+    soporte: "Pendiente: concepto jurídico y decisión del Consejo de Administración",
+    descripcion: [
+      "En noviembre de 2024 las propietarias de los apartamentos 824 T2 (Sra. Constanza Pinilla de Vovk) y 1124 T2 (Sra. Maritza Arroliga) permutaron únicamente sus apartamentos; cada una conservó sus parqueaderos y su depósito. Está pendiente validar si informaron la permuta a la administración.",
+      "Desde el presupuesto 2025 la cuota de administración de estas dos unidades se liquida con los coeficientes invertidos. Al 824 (apto + depósito 126 + parqueaderos 162 y 269) le corresponde 0,163 y se le factura con 0,141. Al 1124 (apto + depósito 103 + parqueadero 180) le corresponde 0,141 y se le factura con 0,163. En noviembre y diciembre de 2024 la facturación fue correcta.",
+      "Efecto estimado de enero de 2025 a octubre de 2026: al 1124 se le cobró de más cerca de $2.017.834 y al 824 se le cobró de menos cerca de $2.209.582. Para la copropiedad el efecto neto es casi cero; el problema es de reparto entre las dos unidades.",
+      "Además, en noviembre de 2024 se cargó al 824 una sanción de $492.769 por inasistencia a una asamblea realizada antes de la permuta, cuando el apartamento era de la Sra. Maritza. La propietaria actual no la reconoce. Como la sanción quedó como deuda, sus pagos se aplicaron primero a ella y la unidad ha generado intereses y perdido el descuento por pronto pago, aunque paga a tiempo.",
+      "Por estas situaciones, los saldos, intereses y descuentos que muestran hoy los estados de cuenta de ambas unidades no son definitivos."
+    ].join("\n"),
+    tratamiento: [
+      "Pendiente de decisión. Propuesta de la administración, sujeta al concepto jurídico:",
+      "1. Corregir los coeficientes en World Office desde la próxima facturación: 824 = 0,163 y 1124 = 0,141 (confirmar 0,115 o 0,116 en la Tabla 2 del RPH).",
+      "2. Apto 1124: reversar cuotas cobradas de más ($2.017.834, cuenta 41701001), intereses ($28.117, 42100502) y reconocer descuentos ($556.538, 41750101). Saldo a favor estimado: $1.343.098 (cuenta 28050501). World Office hoy la muestra debiendo $1.258.713; revisar las notas NC-586 y NC-589, que aparecen sumando a la deuda.",
+      "3. Apto 824: causar la diferencia de cuota y decidir sobre la sanción, los intereses y los descuentos. Saldo estimado a 31-oct-2026: $2.016.512 sin sanción ni intereses y con descuento en los meses pagados; $2.509.281 con sanción y sin intereses; cerca de $4,89 millones con criterio estricto. World Office hoy muestra $2.256.501."
+    ].join("\n"),
+    sustento: "Análisis de la administración (Libro1_1.xlsx: Hoja1, Hoja2, 824, 824 (2), 1124 (SIMULACION), COEFICIENTES 2025 y 2026); estados de cuenta de World Office a octubre de 2026; reglamento de propiedad horizontal (Tabla 2 y régimen de sanciones); Ley 675 de 2001, arts. 29, 59 y 60; Código Civil, arts. 1653 y 1654 (imputación del pago). Pendientes: acta de la asamblea de la inasistencia, soporte del proceso sancionatorio, comunicación de la permuta y concepto jurídico.",
+    partidas: [
+      { grupo: "Cuotas de administración", tercero: "1124 T2 Maritza Arroliga", concepto: "Cobro de más por coeficiente invertido (0,163 en vez de 0,141), enero 2025 a octubre 2026", cuentasBalance: "13050501 / 28050501", cuentasResultado: "41701001 / 42100502 / 41750101", activo: 0, pasivo: 0, efecto: 0, sustento: "", estado: "Soporte pendiente", obs: "A devolver o abonar (estimado): cuotas $2.017.834, intereses $28.117, descuentos $556.538. Saldo correcto: a favor $1.343.098." },
+      { grupo: "Cuotas de administración", tercero: "824 T2 Constanza Pinilla de Vovk", concepto: "Cobro de menos por coeficiente invertido (0,141 en vez de 0,163) y sanción por inasistencia anterior a la permuta", cuentasBalance: "13050501 / 13050503", cuentasResultado: "41701001 / 42100502", activo: 0, pasivo: 0, efecto: 0, sustento: "", estado: "Soporte pendiente", obs: "Diferencia de cuota estimada $2.209.582. Sanción en disputa $492.769. Saldo propuesto $2.016.512 (sin sanción ni intereses)." }
+    ],
+    movimientos: [], observaciones: [], anexos: [], estado: "Borrador"
+  }];
+  async function sembrarAclaraciones(db) {
+    try {
+      const marca = db.doc("config/semillas");
+      const hechas = ((await marca.get()).data() || {}).aclaraciones || [];
+      const nuevas = ACL_SEMILLAS.filter((a) => !hechas.includes(a.id));
+      if (!nuevas.length) return;
+      const ahora = new Date().toISOString();
+      for (const a of nuevas) {
+        const ref = db.doc("aclaraciones/" + a.id);
+        if (!(await ref.get()).exists) await ref.set({ ...a, creadoEn: ahora, actualizadoEn: ahora });
+      }
+      await marca.set({ aclaraciones: [...hechas, ...nuevas.map((a) => a.id)], actualizado: ahora });
+    } catch (e) { console.warn("No se pudo cargar una aclaración nueva:", e); }
   }
 
   /* ------------------------------------------------------------------ usuario */
@@ -410,18 +455,27 @@
     ponerChip(`<span title="Los datos se guardan solo en este navegador">Datos en este equipo${esEditor() ? "" : " · " + escapar(PERFILES[perfil.rol])}</span>`, db, "en este equipo", null, !esEditor());
   }
 
-  /* Chip inferior: estado + Respaldar / Restaurar (+ Salir en modo compartido). */
+  /* Botón Actualizar: recarga la app para traer lo último (firmas, aclaraciones, cambios de otros
+     usuarios o una versión nueva de la app) sin cerrar la ventana. Atajo: F5 o Ctrl + R. */
+  const BTN_ACT = '<button type="button" data-a="act" title="Traer los últimos cambios sin cerrar la app (F5)">↻ Actualizar</button>';
+  function botonActualizar(c) {
+    const b = c.querySelector('[data-a="act"]');
+    if (b) b.onclick = () => { b.disabled = true; b.textContent = "Actualizando…"; location.reload(); };
+  }
+
+  /* Chip inferior: estado + Actualizar + Respaldar / Restaurar (+ Salir en modo compartido). */
   function ponerChip(etiqueta, db, donde, salir, soloConsulta) {
     alCargar(() => {
       estilos();
       const c = document.createElement("div"); c.className = "pf-chip";
       if (soloConsulta) {
-        c.innerHTML = `${etiqueta}${salir ? '<button type="button" data-a="salir">Salir</button>' : ""}`;
+        c.innerHTML = `${etiqueta}${BTN_ACT}${salir ? '<button type="button" data-a="salir">Salir</button>' : ""}`;
+        botonActualizar(c);
         if (salir) c.querySelector('[data-a="salir"]').onclick = salir;
         document.body.appendChild(c);
         return;
       }
-      c.innerHTML = `${etiqueta}<button type="button" data-a="exp">Respaldar</button><button type="button" data-a="imp">Restaurar</button>${salir ? '<button type="button" data-a="salir">Salir</button>' : ""}<input type="file" accept=".json,application/json" hidden>`;
+      c.innerHTML = `${etiqueta}${BTN_ACT}<button type="button" data-a="exp">Respaldar</button><button type="button" data-a="imp">Restaurar</button>${salir ? '<button type="button" data-a="salir">Salir</button>' : ""}<input type="file" accept=".json,application/json" hidden>`;
       const inp = c.querySelector("input"), bExp = c.querySelector('[data-a="exp"]'), bImp = c.querySelector('[data-a="imp"]');
       bExp.onclick = async () => {
         const t = bExp.textContent; bExp.disabled = true; bExp.textContent = "Preparando…";
@@ -432,6 +486,7 @@
         } catch (err) { alert("No se pudo generar el respaldo: " + (err.message || err)); }
         finally { bExp.disabled = false; bExp.textContent = t; }
       };
+      botonActualizar(c);
       bImp.onclick = () => inp.click();
       if (salir) c.querySelector('[data-a="salir"]').onclick = salir;
       inp.onchange = async () => {
