@@ -231,10 +231,10 @@ body.pdf .solo-pdf{display:block}
   <h2 id="cr-t">9. Qué pasó, en orden</h2>
   <ol class="timeline">
     <li style="--k:var(--err)"><span class="w">Antes de nov-2024</span><span class="d"></span><div class="t"><b>Asamblea con inasistencia del 824</b>En ese momento el 824 era de la Sra. Maritza. La fecha del acta está por confirmar.</div></li>
-    <li><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Permuta de los apartamentos</b>Cambian de dueña solo el 824 y el 1124. Está por validar si se informó a la administración.</div></li>
+    <li><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Permuta de los apartamentos</b>Cambian de dueña solo el 824 y el 1124. Las propietarias informan la permuta a la administración por correo electrónico.</div></li>
     <li style="--k:var(--err)"><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Se carga la sanción de $492.769 al 824</b>Se carga al inmueble, como dice el reglamento, cuando ya era de la Sra. Constanza. Desde ahí sus pagos se aplican primero a la sanción, le queda saldo pendiente y pierde el descuento.</div></li>
     <li><span class="w">Nov–dic 2024</span><span class="d"></span><div class="t"><b>La facturación todavía está bien</b>A cada una se le cobra con su coeficiente real.</div></li>
-    <li style="--k:var(--aviso)"><span class="w">Presupuesto 2025</span><span class="d"></span><div class="t"><b>Se cruzan los coeficientes</b>Al 824 se le factura con 0,141 y al 1124 con 0,163. El error sigue hasta hoy.</div></li>
+    <li style="--k:var(--aviso)"><span class="w">Presupuesto 2025</span><span class="d"></span><div class="t"><b>Se cruzan los coeficientes</b>Aunque la administración ya conocía la permuta, al 824 se le factura con 0,141 y al 1124 con 0,163. El error sigue hasta hoy.</div></li>
     <li><span class="w">Feb 2025</span><span class="d"></span><div class="t"><b>El 1124 paga un anticipo de $4.665.537</b>Con eso cubre de marzo a diciembre de 2025.</div></li>
     <li><span class="w">2025</span><span class="d"></span><div class="t"><b>La asamblea no alcanza a tratar la sanción</b></div></li>
     <li style="--k:var(--aviso)"><span class="w">Dic 2025 – ene 2026</span><span class="d"></span><div class="t"><b>Notas NC-586 ($1.000.733) y NC-589 ($83.394) al 1124</b>Son notas crédito, pero en su estado de cuenta suman a la deuda. Hay que revisarlas en el auxiliar.</div></li>
@@ -246,7 +246,7 @@ body.pdf .solo-pdf{display:block}
   <h2 id="de-t">10. Detalle mes a mes</h2>
   <details><summary>Apto 824 T2</summary><div class="scroll" id="t824"></div></details>
   <details><summary>Apto 1124 T2</summary><div class="scroll" id="t1124"></div></details>
-  <p class="nota">Pendientes por verificar: si se informó la permuta; el acta y el proceso de la sanción; el coeficiente del apartamento en el RPH (0,115 o 0,116); las notas NC-586 y NC-589 del 1124; y los pagos del 824 de marzo y abril de 2026, que en el análisis aparecen como no pagado y $96.955.</p>
+  <p class="nota">Soporte de la permuta: correo de las propietarias a la administración de noviembre de 2024 (adjuntarlo a la aclaración). Pendientes por verificar: el acta y el proceso de la sanción; el coeficiente del apartamento en el RPH (0,115 o 0,116); las notas NC-586 y NC-589 del 1124; y los pagos del 824 de marzo y abril de 2026, que en el análisis aparecen como no pagado y $96.955.</p>
   <p class="tenue" style="font-size:13px">Fuente: análisis de la administración (Libro1_1.xlsx) y estados de cuenta de World Office a octubre de 2026. Los intereses, si se cobran, se calculan sin capitalizar, sobre cuotas vencidas, con la tasa mensual de cada mes.</p>
 </section>
 </main>
@@ -448,7 +448,7 @@ function seccion824(R) {
   waterfall("w824", steps, css("--a824"));
   const li = [
     `Con su coeficiente correcto (${coefTxt(R.c.a824)}) debía pagar <b>${fmt(R.debia824)}</b>, incluidas las cuotas extraordinarias y la matrícula inmobiliaria.`,
-    `World Office solo le facturó con 0,141. Por eso, entre 2025 y 2026, quedaron cerca de <b>${fmt(R.dif824)}</b> sin cobrarle. Esa es la parte principal de su deuda y no es culpa suya.`,
+    `World Office solo le facturó con 0,141. Por eso, entre 2025 y 2026, quedaron cerca de <b>${fmt(R.dif824)}</b> sin cobrarle. Esa es la parte principal de su deuda y no es culpa suya: las propietarias informaron la permuta por correo en noviembre de 2024.`,
     `Pagó <b>${fmt(R.pag824)}</b>. En marzo de 2026 no aparece pago y en abril solo $96.955: esa parte sí corresponde a pagos atrasados.`,
     st.desc === "pago" ? `Se le reconocen <b>${fmt(r.tDesc)}</b> de descuento en los meses que pagó a tiempo.` : st.desc === "aldia" ? (r.tDesc ? `Se le reconocen ${fmt(r.tDesc)} de descuento, solo en los meses en que estaba al día.` : `Como siempre figuró con saldo, con la regla de estar al día no gana ningún descuento.`) : `No se le reconoce descuento por pronto pago.`,
     san ? `La sanción de $492.769 se mantiene en su cuenta.${st.orden === "sancion" ? " Como sus pagos se aplican primero a la sanción, sus cuotas quedan vencidas." : ""}` : st.sancion === "1124" ? `La sanción sale de su cuenta y pasa al 1124.` : `La sanción sale de su cuenta.`,

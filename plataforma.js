@@ -282,7 +282,7 @@
     documento: "Sin comprobante todavía: el ajuste se registra cuando se tome la decisión",
     soporte: "Pendiente: concepto jurídico y decisión del Consejo de Administración",
     descripcion: [
-      "En noviembre de 2024 las propietarias de los apartamentos 824 T2 (Sra. Constanza Pinilla de Vovk) y 1124 T2 (Sra. Maritza Arroliga) permutaron únicamente sus apartamentos; cada una conservó sus parqueaderos y su depósito. Está pendiente validar si informaron la permuta a la administración.",
+      "En noviembre de 2024 las propietarias de los apartamentos 824 T2 (Sra. Constanza Pinilla de Vovk) y 1124 T2 (Sra. Maritza Arroliga) permutaron únicamente sus apartamentos; cada una conservó sus parqueaderos y su depósito. En noviembre de 2024 las propietarias informaron la permuta a la administración por correo electrónico.",
       "Desde el presupuesto 2025 la cuota de administración de estas dos unidades se liquida con los coeficientes invertidos. Al 824 (apto + depósito 126 + parqueaderos 162 y 269) le corresponde 0,163 y se le factura con 0,141. Al 1124 (apto + depósito 103 + parqueadero 180) le corresponde 0,141 y se le factura con 0,163. En noviembre y diciembre de 2024 la facturación fue correcta.",
       "Efecto estimado de enero de 2025 a octubre de 2026: al 1124 se le cobró de más cerca de $2.017.834 y al 824 se le cobró de menos cerca de $2.209.582. Para la copropiedad el efecto neto es casi cero; el problema es de reparto entre las dos unidades.",
       "Además, en noviembre de 2024 se cargó al 824 una sanción de $492.769 por inasistencia a una asamblea realizada antes de la permuta, cuando el apartamento era de la Sra. Maritza. La propietaria actual no la reconoce. Como la sanción quedó como deuda, sus pagos se aplicaron primero a ella y la unidad ha generado intereses y perdido el descuento por pronto pago, aunque paga a tiempo.",
@@ -294,7 +294,7 @@
       "2. Apto 1124: reversar cuotas cobradas de más ($2.017.834, cuenta 41701001), intereses ($28.117, 42100502) y reconocer descuentos ($556.538, 41750101). Saldo a favor estimado: $1.343.098 (cuenta 28050501). World Office hoy la muestra debiendo $1.258.713; revisar las notas NC-586 y NC-589, que aparecen sumando a la deuda.",
       "3. Apto 824: causar la diferencia de cuota y decidir sobre la sanción, los intereses y los descuentos. Saldo estimado a 31-oct-2026: $2.016.512 sin sanción ni intereses y con descuento en los meses pagados; $2.509.281 con sanción y sin intereses; cerca de $4,89 millones con criterio estricto. World Office hoy muestra $2.256.501."
     ].join("\n"),
-    sustento: "Análisis de la administración (Libro1_1.xlsx: Hoja1, Hoja2, 824, 824 (2), 1124 (SIMULACION), COEFICIENTES 2025 y 2026); estados de cuenta de World Office a octubre de 2026; reglamento de propiedad horizontal (Tabla 2 y régimen de sanciones); Ley 675 de 2001, arts. 29, 59 y 60; Código Civil, arts. 1653 y 1654 (imputación del pago). Pendientes: acta de la asamblea de la inasistencia, soporte del proceso sancionatorio, comunicación de la permuta y concepto jurídico.",
+    sustento: "Análisis de la administración (Libro1_1.xlsx: Hoja1, Hoja2, 824, 824 (2), 1124 (SIMULACION), COEFICIENTES 2025 y 2026); estados de cuenta de World Office a octubre de 2026; reglamento de propiedad horizontal (Tabla 2 y régimen de sanciones); Ley 675 de 2001, arts. 29, 59 y 60; Código Civil, arts. 1653 y 1654 (imputación del pago). Correo de las propietarias de noviembre de 2024 en el que informan la permuta a la administración. Pendientes: acta de la asamblea de la inasistencia, soporte del proceso sancionatorio y concepto jurídico.",
     partidas: [
       { grupo: "Cuotas de administración", tercero: "1124 T2 Maritza Arroliga", concepto: "Cobro de más por coeficiente invertido (0,163 en vez de 0,141), enero 2025 a octubre 2026", cuentasBalance: "13050501 / 28050501", cuentasResultado: "41701001 / 42100502 / 41750101", activo: 0, pasivo: 0, efecto: 0, sustento: "", estado: "Soporte pendiente", obs: "A devolver o abonar (estimado): cuotas $2.017.834, intereses $28.117, descuentos $556.538. Saldo correcto: a favor $1.343.098." },
       { grupo: "Cuotas de administración", tercero: "824 T2 Constanza Pinilla de Vovk", concepto: "Cobro de menos por coeficiente invertido (0,141 en vez de 0,163) y sanción por inasistencia anterior a la permuta", cuentasBalance: "13050501 / 13050503", cuentasResultado: "41701001 / 42100502", activo: 0, pasivo: 0, efecto: 0, sustento: "", estado: "Soporte pendiente", obs: "Diferencia de cuota estimada $2.209.582. Sanción en disputa $492.769. Saldo propuesto $2.016.512 (sin sanción ni intereses)." }
@@ -304,6 +304,7 @@
   const ACL_PARCHES = [
     { marca: "caso-824-1124:visual", id: "caso-824-1124", campos: { visual: "caso-824-1124.html" } },
     { marca: "caso-824-1124:nota6", id: "caso-824-1124", campos: { nota: "6.0" } },
+    { marca: "caso-824-1124:correo", id: "caso-824-1124", campos: { descripcion: ACL_SEMILLAS[0].descripcion, sustento: ACL_SEMILLAS[0].sustento } },
   ];
   async function sembrarAclaraciones(db) {
     try {
