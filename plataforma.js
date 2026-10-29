@@ -460,7 +460,20 @@
   const BTN_ACT = '<button type="button" data-a="act" title="Traer los últimos cambios sin cerrar la app (F5)">↻ Actualizar</button>';
   function botonActualizar(c) {
     const b = c.querySelector('[data-a="act"]');
-    if (b) b.onclick = () => { b.disabled = true; b.textContent = "Actualizando…"; location.reload(); };
+    if (!b) return;
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = "Actualizando…";
+      /* Antes de recargar, se piden de nuevo los archivos de la app al servidor (sin copia guardada),
+         para que la recarga muestre siempre la última versión, con este mismo botón. */
+      try {
+        const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+        await Promise.all([
+          ...["./", "index.html", "plataforma.js", "config.js", "sw.js"].map((u) => fetch(u, { cache: "reload" }).catch(() => {})),
+          reg ? reg.update().catch(() => {}) : null,
+        ]);
+      } catch (e) { /* si falla, igual se recarga */ }
+      location.reload();
+    };
   }
 
   /* Chip inferior: estado + Actualizar + Respaldar / Restaurar (+ Salir en modo compartido). */
