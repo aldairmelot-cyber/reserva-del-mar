@@ -177,8 +177,21 @@ details summary{cursor:pointer;font-weight:600;color:var(--oro-texto)}
   <div class="chart" id="l824"></div>
 </section>
 
+<section class="panel" aria-labelledby="reg-t">
+  <h2 id="reg-t">8. Cómo se registra y cómo le queda a la copropiedad</h2>
+  <p class="lead">Los asientos parten de lo que hoy muestra World Office y llegan al saldo que debe quedar con las decisiones elegidas. Se registran con nota de contabilidad en el mes en que se apruebe la decisión.</p>
+  <div class="ctl"><span>Forma de registrar las cuotas</span><div class="seg" data-k="registro"><button data-v="conceptos">Cada apartamento por separado</button><button data-v="cruce">Cruce entre las dos cuentas</button></div></div>
+  <div class="ctl"><span>Saldo a favor del 1124</span><div class="seg" data-k="favor"><button data-v="abonar">Se abona a sus próximas cuotas</button><button data-v="devolver">Se le devuelve</button></div></div>
+  <p class="tenue" id="reg-explica"></p>
+  <div id="asientos" style="display:grid;gap:16px"></div>
+  <h3>Qué asume o reversa la copropiedad</h3>
+  <div class="chart" id="wcop"></div>
+  <div class="scroll"><table class="num" id="tcop"></table></div>
+  <ul class="porque" id="whycop"></ul>
+</section>
+
 <section class="panel" aria-labelledby="cr-t">
-  <h2 id="cr-t">6. Qué pasó, en orden</h2>
+  <h2 id="cr-t">9. Qué pasó, en orden</h2>
   <ol class="timeline">
     <li style="--k:var(--err)"><span class="w">Antes de nov-2024</span><span class="d"></span><div class="t"><b>Asamblea con inasistencia del 824</b>En ese momento el 824 era de la Sra. Maritza. La fecha del acta está por confirmar.</div></li>
     <li><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Permuta de los apartamentos</b>Cambian de dueña solo el 824 y el 1124. Está por validar si se informó a la administración.</div></li>
@@ -193,7 +206,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--oro-texto)}
 </section>
 
 <section class="panel" aria-labelledby="de-t">
-  <h2 id="de-t">7. Detalle mes a mes</h2>
+  <h2 id="de-t">10. Detalle mes a mes</h2>
   <details><summary>Apto 824 T2</summary><div class="scroll" id="t824"></div></details>
   <details><summary>Apto 1124 T2</summary><div class="scroll" id="t1124"></div></details>
   <p class="nota">Pendientes por verificar: si se informó la permuta; el acta y el proceso de la sanción; el coeficiente del apartamento en el RPH (0,115 o 0,116); las notas NC-586 y NC-589 del 1124; y los pagos del 824 de marzo y abril de 2026, que en el análisis aparecen como no pagado y $96.955.</p>
@@ -269,7 +282,7 @@ const BIENES = {
   a824: [["Apto 824", null], ["Dep. 126", 0.003], ["Parq. 162", 0.021], ["Parq. 269", 0.024]],
   a1124: [["Apto 1124", null], ["Dep. 103", 0.005], ["Parq. 180", 0.021]],
 };
-const PROPUESTA = { sancion: "quitar", intereses: false, desc: "pago", orden: "cuotas", coefApto: 0.116 };
+const PROPUESTA = { sancion: "quitar", intereses: false, desc: "pago", orden: "cuotas", coefApto: 0.116, registro: "conceptos", favor: "abonar" };
 let st = { ...PROPUESTA }, guardada = null, editor = false, db = null;
 
 const coefs = () => ({ a824: +(st.coefApto + 0.048).toFixed(3), a1124: +(st.coefApto + 0.026).toFixed(3) });
@@ -294,7 +307,7 @@ function calcular() {
 function niceStep(range) { const raw = range / 5, p = Math.pow(10, Math.floor(Math.log10(raw))); for (const k of [1, 2, 2.5, 5, 10]) if (k * p >= raw) return k * p; }
 const mill = (v) => (v < 0 ? "−" : "") + (Math.abs(v) / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " M";
 
-function waterfall(id, steps, color) {
+function waterfall(id, steps, color, positivoBueno = false) {
   const W = 900, H = 300, L = 70, R = 16, T = 26, B = 58, n = steps.length;
   let run = 0; const bars = steps.map((s) => { if (s.total) { const b = { ...s, a: 0, b: s.v }; run = s.v; return b; } const a = run; run += s.v; return { ...s, a, b: run }; });
   const vals = bars.flatMap((b) => [b.a, b.b]).concat(0);
@@ -304,10 +317,11 @@ function waterfall(id, steps, color) {
   for (let v = lo; v <= hi + 1; v += st_) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--linea")}" stroke-width="${v === 0 ? 1.6 : 1}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="${css("--suave")}">${mill(v)}</text>`;
   bars.forEach((b, i) => {
     const x = L + gw * i + (gw - bw) / 2, top = y(Math.max(b.a, b.b)), h = Math.max(2, Math.abs(y(b.a) - y(b.b)));
-    const fill = b.total ? (b.final ? (b.v > 0 ? css("--err") : css("--ok")) : color) : b.v < 0 ? css("--ok") : css("--err");
+    const bueno = positivoBueno ? b.v > 0 : b.v < 0;
+    const fill = b.total && !b.final ? color : bueno ? css("--ok") : css("--err");
     g += `<rect x="${x}" y="${top}" width="${bw}" height="${h}" rx="2" fill="${fill}" opacity="${b.total ? 1 : 0.85}"/>`;
     if (i < n - 1) g += `<line x1="${x + bw}" x2="${x + gw}" y1="${y(b.b)}" y2="${y(b.b)}" stroke="${css("--linea-fuerte")}" stroke-dasharray="3 3"/>`;
-    const lab = b.total ? (b.final ? saldoTxt(b.v) : fmt(b.v)) : (b.v < 0 ? "− " : "+ ") + fmt(b.v);
+    const lab = b.total && !b.signo ? (b.final ? saldoTxt(b.v) : fmt(b.v)) : (b.v < 0 ? "− " : "+ ") + fmt(b.v);
     g += `<text x="${x + bw / 2}" y="${top - 7}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${css("--tinta")}">${lab}</text>`;
     const words = b.label.split(" "), lines = []; let cur = "";
     for (const w of words) { if ((cur + " " + w).trim().length > 16) { lines.push(cur.trim()); cur = w; } else cur += " " + w; } lines.push(cur.trim());
@@ -422,6 +436,91 @@ function resultado(R) {
   $("r1124s").textContent = `${st.sancion === "1124" ? "con la sanción trasladada, " : ""}${st.desc !== "nunca" ? "con descuentos" : "sin descuentos"}, coeficiente ${coefTxt(R.c.a1124)}`;
 }
 
+
+/* ===== registro contable ===== */
+const INT1124 = 28117; /* intereses que el sistema le liquidó al 1124 (nota de ajuste del análisis) */
+const CTA = {
+  "13050501": "Deudores nacionales (cuotas)", "13050503": "Deudores · intereses", "28050501": "Saldos a favor / anticipos",
+  "41701001": "Cuotas de administración", "41750101": "Descuentos por pronto pago", "42100502": "Intereses de mora",
+  "4250": "Multas y sanciones (la cuenta donde se causó)", "1110": "Bancos",
+};
+function asientos(R) {
+  const T824 = R.r824.final, T1124 = st.sancion === "1124" ? R.r1124.final - SANCION : R.r1124.final;
+  const all = (k) => R.anual[k].reduce((s, x) => s + (k === "a824" ? x.deb - x.cob : x.cob - x.deb), 0);
+  const dif824 = all("a824"), dif1124 = all("a1124");
+  const desc1124 = WO.a1124 - T1124 - dif1124 - INT1124;
+  const sanQuit = st.sancion !== "824" ? SANCION : 0;
+  const D824 = R.r824.tDesc;
+  const int824 = WO.a824 + dif824 - sanQuit - D824 - T824; /* intereses del sistema menos los decididos */
+  const L = []; const ln = (blk, cuenta, ter, db, cr, con) => { if (Math.round(db) || Math.round(cr)) L.push({ blk, cuenta, ter, db: Math.round(db), cr: Math.round(cr), con }); };
+  const t8 = "824 T2 Constanza Pinilla", t11 = "1124 T2 Maritza Arroliga", cruce = st.registro === "cruce";
+  /* 1124 */
+  if (cruce) ln("c", "13050501", t8, dif1124, 0, "cuotas");
+  else ln("b", "41701001", t11, dif1124, 0, "cuotas1124");
+  ln("b", "42100502", t11, INT1124, 0, "int1124");
+  desc1124 >= 0 ? ln("b", "41750101", t11, desc1124, 0, "desc1124") : ln("b", "41750101", t11, 0, -desc1124, "desc1124");
+  ln("b", "13050501", t11, 0, WO.a1124 - Math.max(T1124, 0), "");
+  ln("b", "28050501", t11, 0, Math.max(-T1124, 0), "");
+  if (cruce) { L.forEach((x) => { if (x.blk === "c") x.blk = "b"; }); }
+  /* 824 */
+  const resto = cruce ? dif824 - dif1124 : dif824;
+  ln("a", "13050501", t8, resto, 0, ""); ln("a", "41701001", t8, 0, resto, "cuotas824");
+  ln("a", "41750101", t8, D824, 0, "desc824"); ln("a", "13050501", t8, 0, D824, "");
+  if (int824 >= 0) { ln("a", "42100502", t8, int824, 0, "int824"); ln("a", "13050503", t8, 0, int824, ""); }
+  else { ln("a", "13050503", t8, -int824, 0, ""); ln("a", "42100502", t8, 0, -int824, "int824"); }
+  /* sanción */
+  if (st.sancion === "quitar") { ln("s", "4250", t8, SANCION, 0, "sancion"); ln("s", "13050501", t8, 0, SANCION, ""); }
+  if (st.sancion === "1124") {
+    ln("s", "13050501", t11, SANCION, 0, ""); ln("s", "13050501", t8, 0, SANCION, "");
+    const fav = Math.max(-T1124, 0), cr = Math.min(fav, SANCION);
+    if (cr > 0) { ln("s", "28050501", t11, cr, 0, ""); ln("s", "13050501", t11, 0, cr, ""); }
+  }
+  /* saldo a favor */
+  const favFinal = Math.max(-R.r1124.final, 0);
+  if (st.favor === "devolver" && favFinal > 0) { ln("f", "28050501", t11, favFinal, 0, ""); ln("f", "1110", t11, 0, favFinal, "caja"); }
+  return { L, dif824, dif1124, desc1124, D824, int824, T824, T1124, favFinal };
+}
+function seccionRegistro(R) {
+  const A = asientos(R), cruce = st.registro === "cruce";
+  $("reg-explica").innerHTML = cruce
+    ? `<b>Cruce entre las dos cuentas:</b> como el error fue cruzar los coeficientes, la cuota que se le cobró de más al 1124 (${fmt(A.dif1124)}) se le carga directamente al 824. Así no se reversa ingreso por ese valor; solo se ajustan en resultados los ${fmt(A.dif824 - A.dif1124)} restantes. Es una reclasificación entre terceros del mismo concepto, no un pago de una propietaria a la otra, y debe quedar soportada en el acta.`
+    : `<b>Cada apartamento por separado:</b> al 1124 se le reversa en el ingreso de cuotas lo cobrado de más (${fmt(A.dif1124)}) y al 824 se le causa como ingreso lo que no se le cobró (${fmt(A.dif824)}). El resultado final es el mismo que con el cruce; cambia solo cómo se ve en las cuentas de ingreso.`;
+  const bloques = [
+    ["b", "Asiento 1 · Apto 1124: corregir lo cobrado de más"],
+    ["a", "Asiento 2 · Apto 824: cobrar la diferencia de cuota y ajustar descuentos e intereses"],
+    ["s", st.sancion === "quitar" ? "Asiento 3 · Se quita la sanción" : "Asiento 3 · La sanción pasa al 1124" + (Math.max(-A.T1124, 0) > 0 ? " y se cruza con su saldo a favor (con su autorización)" : "")],
+    ["f", "Asiento 4 · Devolución del saldo a favor del 1124"],
+  ];
+  $("asientos").innerHTML = bloques.map(([k, tit]) => {
+    const ls = A.L.filter((x) => x.blk === k); if (!ls.length) return "";
+    const td = ls.reduce((s, x) => s + x.db, 0), tc = ls.reduce((s, x) => s + x.cr, 0);
+    return `<div><h3 style="margin-bottom:6px">${tit}</h3><div class="scroll"><table class="num"><thead><tr><th>Cuenta</th><th>Nombre</th><th>Tercero</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${ls.map((x) => `<tr><td>${x.cuenta === "4250" ? "42xxxx" : x.cuenta === "1110" ? "1110xx" : x.cuenta}</td><td style="text-align:left">${CTA[x.cuenta]}</td><td style="text-align:left">${x.ter}</td><td>${x.db ? fmt(x.db) : ""}</td><td>${x.cr ? fmt(x.cr) : ""}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Sumas iguales</td><td>${fmt(td)}</td><td>${fmt(tc)}</td></tr></tfoot></table></div></div>`;
+  }).join("") + (st.sancion === "824" ? `<p class="tenue">La sanción se mantiene en el 824: no requiere asiento.</p>` : "") + (st.favor === "abonar" && A.favFinal > 0 ? `<p class="tenue">El saldo a favor del 1124 (${fmt(A.favFinal)}) queda en la cuenta 28050501 y se aplica a sus próximas facturas: no sale dinero de la copropiedad.</p>` : "");
+  /* efecto en resultados */
+  const ef = {}; for (const x of A.L) if (x.cuenta[0] === "4") ef[x.con] = (ef[x.con] || 0) + x.cr - x.db;
+  const filas = [
+    ["cuotas824", "Cuotas que se le cobran al 824", "Se causa el ingreso que no se facturó"],
+    ["cuotas1124", "Cuotas que se le reversan al 1124", "Se reversa el ingreso cobrado de más"],
+    ["desc824", "Descuentos que se le reconocen al 824", "La copropiedad asume el descuento que no dio"],
+    ["desc1124", "Descuentos que se le reconocen al 1124", "La copropiedad asume el descuento que no dio"],
+    ["int824", "Intereses del 824", st.intereses ? "Diferencia entre lo que liquidó el sistema y lo decidido" : "Se reversan los intereses que liquidó el sistema"],
+    ["int1124", "Intereses del 1124", "Se reversan: nunca estuvo en mora"],
+    ["sancion", "Sanción que se quita", "Se reversa el ingreso por la sanción"],
+  ].filter(([k]) => ef[k]);
+  const neto = filas.reduce((s, [k]) => s + ef[k], 0);
+  waterfall("wcop", [...filas.map(([k, n]) => ({ label: n, v: ef[k] })), { label: "Efecto neto en el excedente", v: neto, total: true, final: true, signo: true }], css("--acento"), true);
+  $("tcop").innerHTML = `<thead><tr><th>Concepto</th><th style="text-align:left">Qué significa</th><th>Efecto en el excedente</th></tr></thead><tbody>${filas.map(([k, n, q]) => `<tr><td>${n}</td><td style="text-align:left">${q}</td><td class="${ef[k] < 0 ? "deuda" : "favor"}">${ef[k] < 0 ? "−" : "+"}${fmt(ef[k])}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="2">Efecto neto: ${neto < 0 ? "menor excedente" : "mayor excedente"}</td><td class="${neto < 0 ? "deuda" : "favor"}">${neto < 0 ? "−" : "+"}${fmt(neto)}</td></tr></tfoot>`;
+  const cuotasNeto = (ef.cuotas824 || 0) + (ef.cuotas1124 || 0);
+  const li = [
+    `<b>Cuotas:</b> lo que se le cobra al 824 compensa casi todo lo que se le reversa al 1124. Por cuotas, la copropiedad queda con ${cuotasNeto >= 0 ? "un mayor ingreso" : "un menor ingreso"} de ${fmt(cuotasNeto)}, que es el efecto de usar los coeficientes correctos.`,
+    `<b>Lo que asume la copropiedad</b> son los descuentos que no dio${st.sancion === "quitar" ? ", la sanción que se retira" : ""} y los intereses que se reversan. Son el costo del error de facturación: las dos propietarias pagaron a tiempo y no se les debe castigar por él.`,
+    `<b>Periodo:</b> frente a ingresos del año de cerca de $6.552 millones, el ajuste no es material. Por eso se puede registrar en el periodo en que se aprueba, sin reexpresar 2025, y revelarse en la Nota 10. Si la Revisoría Fiscal pide separar lo de 2025, se puede llevar esa parte como ajuste de ejercicios anteriores.`,
+    st.favor === "devolver" && A.favFinal > 0 ? `<b>Caja:</b> devolverle el saldo al 1124 implica pagarle ${fmt(A.favFinal)}. Si se abona a sus próximas cuotas, no sale dinero de la copropiedad.` : `<b>Caja:</b> no sale dinero. El saldo a favor del 1124 se aplica a sus próximas facturas.`,
+    `<b>Por confirmar con los auxiliares:</b> los intereses que el sistema ya le liquidó al 824 (aquí se estiman en ${fmt(Math.max(A.int824 + (st.intereses ? R.r824.tInt : 0), 0))}, calculados por diferencia), la cuenta exacta donde se causó la sanción, y las notas NC-586 y NC-589 del 1124.`,
+  ];
+  $("whycop").innerHTML = li.map((x) => `<li>${x}</li>`).join("");
+}
+
 /* ===== decisiones ===== */
 const parse = (v) => (v === "true" ? true : v === "false" ? false : !isNaN(+v) && v.includes(".") ? +v : v);
 const igual = (a, b) => !!a && !!b && Object.keys(PROPUESTA).every((k) => a[k] === b[k]);
@@ -434,7 +533,7 @@ function syncCtl() {
   $("guardar").hidden = !(editor && db && !ok);
   $("volver").hidden = !(guardada && !ok);
 }
-function render() { const R = calcular(); syncCtl(); resultado(R); seccionCoef(R); seccionEjemplo(R); barras(R); seccion1124(R); seccion824(R); ajustarAlto(); }
+function render() { const R = calcular(); syncCtl(); resultado(R); seccionCoef(R); seccionEjemplo(R); barras(R); seccion1124(R); seccion824(R); seccionRegistro(R); ajustarAlto(); }
 
 document.querySelectorAll(".seg[data-k] button").forEach((b) => b.addEventListener("click", () => { st[b.parentElement.dataset.k] = parse(b.dataset.v); render(); }));
 $("volver").addEventListener("click", () => { Object.keys(PROPUESTA).forEach((k) => (st[k] = guardada[k])); render(); });
@@ -461,7 +560,7 @@ function ajustarAlto() { try { if (window.frameElement) window.frameElement.styl
       editor = (P.EFPH_PERFIL || {}).rol === "editor";
       db = await P.claude.use("db");
       const d = (await db.doc("config/caso_824_1124").get()).data();
-      if (d && d.decision) { guardada = d.decision; Object.keys(PROPUESTA).forEach((k) => { if (k in guardada) st[k] = guardada[k]; }); }
+      if (d && d.decision) { guardada = { ...PROPUESTA, ...d.decision }; Object.keys(PROPUESTA).forEach((k) => (st[k] = guardada[k])); }
     } catch (e) { db = null; }
   }
   render();
