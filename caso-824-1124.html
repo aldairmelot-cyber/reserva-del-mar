@@ -93,13 +93,14 @@ details summary{cursor:pointer;font-weight:600;color:var(--oro-texto)}
 body.pdf{background:#fff}
 body.pdf main{max-width:1000px;width:1000px;padding:8px 0}
 body.pdf .decision{position:static;box-shadow:none}
-body.pdf .decision .ctl,body.pdf .decision .guardado,body.pdf details,body.pdf .no-pdf{display:none!important}
+body.pdf details,body.pdf .no-pdf,body.pdf #guardar,body.pdf #volver,body.pdf #pdf,body.pdf #dec-resumen{display:none!important}
 body.pdf .solo-pdf{display:block}
 @page{size:letter;margin:12mm 10mm 14mm;@bottom-center{content:"Aclaración aptos 824 T2 y 1124 T2 · página " counter(page) " de " counter(pages);font:8pt "Source Sans 3",sans-serif;color:#777}}
 @media print{
   html,body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   /* En papel, flujo normal de página (la cuadrícula hace que Chrome deje huecos o monte bloques) */
-  main,section,.panel,.decision,.porque,.coefrow,.res{display:block!important}
+  main,section,.panel,.decision,.porque,.coefrow,.res,#asientos{display:block!important}
+  #asientos>*+*{margin-top:12px}
   body.pdf main{width:auto;max-width:none;padding:0}
   main>*+*{margin-top:14px}
   .panel>*+*,section>*+*,.res>*+*,.coefrow>*+*{margin-top:9px}
@@ -107,11 +108,12 @@ body.pdf .solo-pdf{display:block}
   .panel{box-shadow:none;padding:14px 16px}
   .dos{display:flex!important;gap:12px;align-items:flex-start}
   .dos>*{flex:1 1 0;min-width:0}
-  .ctl,.decision .guardado,details,.no-pdf{display:none!important}
+  details,.no-pdf,#guardar,#volver,#pdf,#dec-resumen{display:none!important}
+  .decision{break-inside:avoid}
   .solo-pdf{display:block!important}
-  .res,.chart,tr,li,.nota,.cmp,.timeline li,.pdf-cab,#asientos>div,#valida .dos>div{break-inside:avoid}
+  .res,.chart,tr,li,.nota,.cmp,.timeline li,.pdf-cab,.asiento,#valida .dos>div{break-inside:avoid}
   h2,h3,.lead,.legend{break-after:avoid}
-  .coefrow,#coef .dos,#tcorr,#tej,.legend+.chart{break-inside:avoid}
+  .coefrow,#tcorr,#tej,.legend+.chart{break-inside:avoid}
   p{orphans:3;widows:3}
   .chart svg{min-width:0}
   .scroll,.chart{overflow:visible}
@@ -543,7 +545,7 @@ function seccionRegistro(R) {
   const asi = bloques.map(([k, tit]) => {
     const ls = A.L.filter((x) => x.blk === k); if (!ls.length) return "";
     const td = ls.reduce((s, x) => s + x.db, 0), tc = ls.reduce((s, x) => s + x.cr, 0);
-    return `<div><h3 style="margin-bottom:6px">${tit}</h3><div class="scroll"><table class="num"><thead><tr><th>Cuenta</th><th>Nombre</th><th>Tercero</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${ls.map((x) => `<tr><td>${x.cuenta === "4EA" ? "4xxxxx" : x.cuenta === "1110" ? "1110xx" : x.cuenta}</td><td style="text-align:left">${CTA[x.cuenta]}</td><td style="text-align:left">${x.ter}</td><td>${x.db ? fmt(x.db) : ""}</td><td>${x.cr ? fmt(x.cr) : ""}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Sumas iguales</td><td>${fmt(td)}</td><td>${fmt(tc)}</td></tr></tfoot></table></div></div>`;
+    return `<div class="asiento"><h3 style="margin-bottom:6px">${tit}</h3><div class="scroll"><table class="num"><thead><tr><th>Cuenta</th><th>Nombre</th><th>Tercero</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${ls.map((x) => `<tr><td>${x.cuenta === "4EA" ? "4xxxxx" : x.cuenta === "1110" ? "1110xx" : x.cuenta}</td><td style="text-align:left">${CTA[x.cuenta]}</td><td style="text-align:left">${x.ter}</td><td>${x.db ? fmt(x.db) : ""}</td><td>${x.cr ? fmt(x.cr) : ""}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Sumas iguales</td><td>${fmt(td)}</td><td>${fmt(tc)}</td></tr></tfoot></table></div></div>`;
   }).join("");
   $("asientos").innerHTML = tabla + soloCruce + `<h3>Asientos</h3>` + asi + (st.favor === "abonar" && A.fav > 0 ? `<p class="tenue">El saldo a favor del 1124 (${fmt(A.fav)}) queda en la cuenta 28050501 y se aplica a sus próximas facturas: no sale dinero de la copropiedad.</p>` : "");
   /* efecto en resultados */
