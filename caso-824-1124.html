@@ -89,10 +89,33 @@ details summary{cursor:pointer;font-weight:600;color:var(--oro-texto)}
 .nota{background:var(--aviso-suave);border-left:4px solid var(--aviso);border-radius:6px;padding:10px 14px;font-size:14px}
 @media (max-width:620px){.cmp{grid-template-columns:1fr}.timeline li{grid-template-columns:86px 18px 1fr}.ctl>span{min-width:100%}}
 @media print{.decision{position:static}}
+.solo-pdf{display:none}
+body.pdf{background:#fff}
+body.pdf main{max-width:1000px;width:1000px;padding:8px 0}
+body.pdf .decision{position:static;box-shadow:none}
+body.pdf .decision .ctl,body.pdf .decision .guardado,body.pdf details,body.pdf .no-pdf{display:none!important}
+body.pdf .solo-pdf{display:block}
+@page{size:letter;margin:12mm 10mm 14mm;@bottom-center{content:"Aclaración aptos 824 T2 y 1124 T2 · página " counter(page) " de " counter(pages);font:8pt "Source Sans 3",sans-serif;color:#777}}
+@media print{
+  html,body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body.pdf main{width:auto;max-width:none;padding:0;gap:14px}
+  .ctl,.decision .guardado,details,.no-pdf{display:none!important}
+  #asientos>div,#valida .dos>div,.dos>div{break-inside:avoid}
+  thead{display:table-row-group}
+  .solo-pdf{display:block!important}
+  .res,.coefrow,.chart,tr,li,h2,h3,.nota,.cmp,.timeline li,.pdf-cab{break-inside:avoid}
+  h2,h3{break-after:avoid}
+  .panel{box-shadow:none}
+  .chart svg{min-width:0}
+  .scroll,.chart{overflow:visible}
+}
+.pdf-cab{border-bottom:2px solid var(--oro);padding-bottom:8px;margin-bottom:4px;font-size:13px;color:var(--suave)}
+.pdf-cab b{color:var(--tinta);font:600 15px var(--f-marca);letter-spacing:.06em;text-transform:uppercase}
 </style>
 </head>
 <body>
 <main>
+<div class="solo-pdf pdf-cab"><b>Agrupación Reserva del Mar P.H.</b> · NIT 900.890.315-7 · Aclaración a los estados financieros · <span id="pdf-fecha"></span></div>
 <header style="display:grid;gap:6px">
   <span class="eyebrow">Aclaración · Aptos 824 T2 y 1124 T2 · corte 31 de octubre de 2026</span>
   <h1>Qué pasó con los apartamentos 824 y 1124, y cuánto debe quedar cada uno</h1>
@@ -105,7 +128,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--oro-texto)}
   <div class="ctl"><span>Descuento por pronto pago</span><div class="seg" data-k="desc"><button data-v="pago">Cada mes que pagó a tiempo</button><button data-v="aldia">Solo si estaba al día</button><button data-v="nunca">No se reconoce</button></div></div>
   <div class="ctl" id="ctl-orden"><span>Pagos del 824 se aplican primero a</span><div class="seg" data-k="orden"><button data-v="cuotas">La cuota del mes</button><button data-v="sancion">La sanción</button></div></div>
   <div class="ctl"><span>Coeficiente del apartamento (RPH)</span><div class="seg" data-k="coefApto"><button data-v="0.116">0,116</button><button data-v="0.115">0,115</button></div></div>
-  <div class="guardado"><span id="estado-dec" class="tenue">Escenario de prueba: los cambios no se guardan.</span><button class="btn" id="guardar" hidden>Guardar como decisión de la administración</button><button class="btn sec" id="volver" hidden>Volver a la decisión guardada</button></div>
+  <div class="solo-pdf" id="dec-resumen"></div>
+  <div class="guardado"><span id="estado-dec" class="tenue">Escenario de prueba: los cambios no se guardan.</span><button class="btn" id="guardar" hidden>Guardar como decisión de la administración</button><button class="btn sec" id="volver" hidden>Volver a la decisión guardada</button><button class="btn sec" id="pdf" title="Se abre la impresión: elija «Guardar como PDF»">Descargar PDF</button></div>
 </div>
 
 <section aria-labelledby="r-t">
@@ -590,6 +614,41 @@ function ajustarAlto() { try { if (window.frameElement) window.frameElement.styl
   if ("ResizeObserver" in window) new ResizeObserver(ajustarAlto).observe(document.body);
   try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render); } catch (e) {}
 })();
+
+/* ===== PDF: el documento tal como se ve, con la decisión seleccionada ===== */
+function resumenDecision() {
+  const t = {
+    sancion: { "824": "se mantiene en el 824", quitar: "se quita", "1124": "se carga al 1124" }[st.sancion],
+    intereses: st.intereses ? "sí se cobran" : "no se cobran",
+    desc: { pago: "se reconoce cada mes que pagó a tiempo", aldia: "solo si estaba al día", nunca: "no se reconoce" }[st.desc],
+    favor: st.favor === "devolver" ? "se le devuelve" : "se abona a sus próximas cuotas",
+  };
+  const est = igual(st, guardada) ? "Decisión de la administración" + (guardada && guardada._fecha ? " guardada el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : "") : "Escenario de análisis (no corresponde a una decisión guardada)";
+  return `<b>${est}.</b> Sanción de $492.769: ${t.sancion}. Intereses de mora al 824: ${t.intereses}. Descuento por pronto pago: ${t.desc}.${st.sancion === "824" ? " Pagos del 824 aplicados primero a " + (st.orden === "sancion" ? "la sanción." : "la cuota del mes.") : ""} Coeficiente del apartamento: ${coefTxt(st.coefApto)}. Saldo a favor del 1124: ${t.favor}.`;
+}
+function prepararPdf() {
+  document.documentElement.setAttribute("data-theme", "light");
+  document.body.classList.add("pdf");
+  $("dec-resumen").innerHTML = resumenDecision();
+  $("pdf-fecha").textContent = "Generado el " + new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+  render();
+}
+let temaAntes = null;
+function restaurarPdf() {
+  document.body.classList.remove("pdf");
+  if (temaAntes) document.documentElement.setAttribute("data-theme", temaAntes); else document.documentElement.removeAttribute("data-theme");
+  render();
+}
+$("pdf").addEventListener("click", () => {
+  temaAntes = document.documentElement.getAttribute("data-theme");
+  prepararPdf();
+  const t0 = document.title;
+  document.title = "Aclaracion_aptos_824_1124_" + new Date().toISOString().slice(0, 10);
+  setTimeout(() => { try { window.focus(); window.print(); } finally { document.title = t0; restaurarPdf(); } }, 200);
+});
+/* Si se imprime con Ctrl + P, también sale la versión para papel */
+addEventListener("beforeprint", () => { if (!document.body.classList.contains("pdf")) { temaAntes = document.documentElement.getAttribute("data-theme"); prepararPdf(); } });
+addEventListener("afterprint", () => { if (document.body.classList.contains("pdf")) restaurarPdf(); });
 
 </script>
 </body>
