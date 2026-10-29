@@ -278,7 +278,7 @@
   const ACL_SEMILLAS = [{
     id: "caso-824-1124", anio: 2026, mes: 10, fecha: "2026-10-29",
     titulo: "Coeficientes invertidos y sanción en disputa – Aptos 824 T2 y 1124 T2",
-    nota: "10", revelar: false,
+    nota: "10", revelar: false, visual: "caso-824-1124.html",
     documento: "Sin comprobante todavía: el ajuste se registra cuando se tome la decisión",
     soporte: "Pendiente: concepto jurídico y decisión del Consejo de Administración",
     descripcion: [
@@ -301,10 +301,19 @@
     ],
     movimientos: [], observaciones: [], anexos: [], estado: "Borrador"
   }];
+  const ACL_PARCHES = [{ marca: "caso-824-1124:visual", id: "caso-824-1124", campos: { visual: "caso-824-1124.html" } }];
   async function sembrarAclaraciones(db) {
     try {
       const marca = db.doc("config/semillas");
       const hechas = ((await marca.get()).data() || {}).aclaraciones || [];
+      /* Parches: campos que se agregan a aclaraciones ya creadas (una sola vez cada uno). */
+      const parches = ((await marca.get()).data() || {}).parches || [];
+      const pend = ACL_PARCHES.filter((x) => !parches.includes(x.marca));
+      for (const x of pend) {
+        const ref = db.doc("aclaraciones/" + x.id), d = (await ref.get()).data();
+        if (d) await ref.set({ ...d, ...x.campos });
+      }
+      if (pend.length) await marca.set({ ...((await marca.get()).data() || {}), parches: [...parches, ...pend.map((x) => x.marca)] });
       const nuevas = ACL_SEMILLAS.filter((a) => !hechas.includes(a.id));
       if (!nuevas.length) return;
       const ahora = new Date().toISOString();
@@ -312,7 +321,7 @@
         const ref = db.doc("aclaraciones/" + a.id);
         if (!(await ref.get()).exists) await ref.set({ ...a, creadoEn: ahora, actualizadoEn: ahora });
       }
-      await marca.set({ aclaraciones: [...hechas, ...nuevas.map((a) => a.id)], actualizado: ahora });
+      await marca.set({ ...((await marca.get()).data() || {}), aclaraciones: [...hechas, ...nuevas.map((a) => a.id)], actualizado: ahora });
     } catch (e) { console.warn("No se pudo cargar una aclaración nueva:", e); }
   }
 

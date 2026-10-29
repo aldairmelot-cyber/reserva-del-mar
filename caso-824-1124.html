@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Caso aptos 824 y 1124</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  /* Mismos colores y letras de la app. Layout: barra de decisiones, resultado, error de coeficientes, ejemplo, por qué cada saldo, cronología, detalle */
+  --bg:#f3f2ef;--hoja:#fff;--tinta:#262a33;--suave:#63676f;--linea:#e4e1db;--linea-fuerte:#c6c1b8;
+  --acento:#3e424f;--oro:#c08a45;--oro-texto:#8a5d21;--oro-suave:#f6eedf;--sobre:#fff;
+  --ok:#1d7a4b;--ok-suave:#e3f3ea;--err:#b42318;--err-suave:#fbe9e7;--aviso:#9a5b0b;--aviso-suave:#fbf0df;
+  --a824:#b87a2c;--a1124:#2f6aa8;
+  --f-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--f-marca:"Josefin Sans","Century Gothic","Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#15161a;--hoja:#1e2026;--tinta:#e8e6e1;--suave:#a4a39d;--linea:#2f3139;--linea-fuerte:#474a54;--acento:#d29c56;--oro:#d6a160;--oro-texto:#e2b679;--oro-suave:#2d261b;--sobre:#1b1407;--ok:#5cc48f;--ok-suave:#14291f;--err:#f08074;--err-suave:#33191a;--aviso:#e5a052;--aviso-suave:#2e2214;--a824:#d6a160;--a1124:#5a8bcb;color-scheme:dark}}
+:root[data-theme=dark]{--bg:#15161a;--hoja:#1e2026;--tinta:#e8e6e1;--suave:#a4a39d;--linea:#2f3139;--linea-fuerte:#474a54;--acento:#d29c56;--oro:#d6a160;--oro-texto:#e2b679;--oro-suave:#2d261b;--sobre:#1b1407;--ok:#5cc48f;--ok-suave:#14291f;--err:#f08074;--err-suave:#33191a;--aviso:#e5a052;--aviso-suave:#2e2214;--a824:#d6a160;--a1124:#5a8bcb;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--tinta);font:15px/1.55 var(--f-ui)}
+main{max-width:1180px;margin:0 auto;padding:20px 18px 40px;display:grid;gap:22px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font:600 24px/1.25 var(--f-marca);letter-spacing:.01em}
+h2{font:600 19px/1.3 var(--f-marca);letter-spacing:.01em}
+h3{font:600 16px/1.3 var(--f-ui)}
+p{margin:0;max-width:78ch}
+.eyebrow{font:600 12px var(--f-marca);letter-spacing:.12em;text-transform:uppercase;color:var(--oro-texto)}
+.tenue{color:var(--suave)}.num{font-variant-numeric:tabular-nums}
+.panel{background:var(--hoja);border:1px solid var(--linea);border-radius:8px;padding:18px;display:grid;gap:14px}
+.panel>.lead{color:var(--suave)}
+section{display:grid;gap:12px}
+.dos{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+.deuda{color:var(--err)}.favor{color:var(--ok)}
+/* barra de decisiones */
+.decision{position:sticky;top:0;z-index:5;background:var(--hoja);border:1px solid var(--linea);border-top:3px solid var(--oro);border-radius:8px;padding:12px 16px;display:grid;gap:8px;box-shadow:0 4px 14px rgba(38,42,51,.06)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.ctl>span{min-width:190px;font-size:14px;color:var(--suave)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--linea-fuerte);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-right:1px solid var(--linea-fuerte);background:transparent;color:var(--tinta);padding:5px 11px;font:500 13.5px var(--f-ui);cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--acento);color:var(--sobre)}
+.seg button:disabled{cursor:default}
+.guardado{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13.5px}
+.btn{border:1px solid var(--acento);background:var(--acento);color:var(--sobre);border-radius:6px;padding:6px 14px;font:600 13.5px var(--f-ui);cursor:pointer}
+.btn.sec{background:transparent;color:var(--acento)}
+.btn:disabled{opacity:.55;cursor:default}
+:focus-visible{outline:2px solid var(--oro);outline-offset:2px}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font:600 12px var(--f-ui);background:var(--oro-suave);color:var(--oro-texto)}
+.pill.ok{background:var(--ok-suave);color:var(--ok)}.pill.err{background:var(--err-suave);color:var(--err)}
+/* tarjetas de resultado */
+.res{border-top:4px solid var(--c);display:grid;gap:10px}
+.res .quien{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.res .tag{font:600 12px var(--f-marca);letter-spacing:.1em;text-transform:uppercase;color:var(--c)}
+.big{font:700 30px/1.1 var(--f-ui)}
+.cmp{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.cmp div{border:1px solid var(--linea);border-radius:6px;padding:8px 10px;display:grid;gap:2px}
+.cmp small{color:var(--suave);font-size:12px}
+.cmp b{font-size:16px}
+/* coeficientes */
+.coefrow{display:grid;gap:6px}
+.coefrow .lbl{display:flex;justify-content:space-between;font-size:13.5px}
+.stack{display:flex;height:30px;border-radius:5px;overflow:hidden;background:var(--bg);border:1px solid var(--linea)}
+.stack>div{display:flex;align-items:center;justify-content:center;font:600 11.5px var(--f-ui);color:#fff;white-space:nowrap;overflow:hidden;border-right:1px solid rgba(255,255,255,.5)}
+.stack .mal{background:repeating-linear-gradient(45deg,var(--err),var(--err) 6px,color-mix(in srgb,var(--err) 80%,#fff) 6px,color-mix(in srgb,var(--err) 80%,#fff) 12px)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:7px 9px;border-bottom:1px solid var(--linea);text-align:right;vertical-align:top}
+th:first-child,td:first-child{text-align:left}
+th{font:600 12px var(--f-marca);letter-spacing:.06em;text-transform:uppercase;color:var(--suave);border-bottom:2px solid var(--acento)}
+tfoot td{font-weight:700;border-top:2px solid var(--linea-fuerte)}
+.scroll{overflow-x:auto}
+.pasos{margin:0;padding-left:20px;display:grid;gap:6px}
+.chart{overflow-x:auto}.chart svg{display:block;width:100%;min-width:600px;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--suave)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.porque{display:grid;gap:8px}
+.porque li{margin-left:2px}
+.timeline{list-style:none;margin:0;padding:0}
+.timeline li{display:grid;grid-template-columns:130px 18px 1fr;gap:10px}
+.timeline .w{font:600 13px var(--f-ui);color:var(--suave);text-align:right}
+.timeline .d{position:relative}
+.timeline .d::before{content:"";position:absolute;left:4px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--k,var(--acento))}
+.timeline .d::after{content:"";position:absolute;left:8.5px;top:18px;bottom:-4px;width:1px;background:var(--linea-fuerte)}
+.timeline li:last-child .d::after{display:none}
+.timeline .t{padding-bottom:12px}.timeline .t b{display:block}
+details summary{cursor:pointer;font-weight:600;color:var(--oro-texto)}
+.nota{background:var(--aviso-suave);border-left:4px solid var(--aviso);border-radius:6px;padding:10px 14px;font-size:14px}
+@media (max-width:620px){.cmp{grid-template-columns:1fr}.timeline li{grid-template-columns:86px 18px 1fr}.ctl>span{min-width:100%}}
+@media print{.decision{position:static}}
+</style>
+</head>
+<body>
+<main>
+<header style="display:grid;gap:6px">
+  <span class="eyebrow">Aclaración · Aptos 824 T2 y 1124 T2 · corte 31 de octubre de 2026</span>
+  <h1>Qué pasó con los apartamentos 824 y 1124, y cuánto debe quedar cada uno</h1>
+  <p class="tenue">Hay dos problemas mezclados. El primero: desde 2025 a cada propietaria se le cobra con el coeficiente de la otra. El segundo: al 824 se le cargó una sanción que viene de cuando el apartamento era de la otra propietaria. Con los botones de abajo se ve cómo cambia el resultado según lo que se decida.</p>
+</header>
+
+<div class="decision" role="region" aria-label="Decisiones">
+  <div class="ctl"><span>Sanción de $492.769</span><div class="seg" data-k="sancion"><button data-v="824">Se mantiene en el 824</button><button data-v="quitar">Se quita</button><button data-v="1124">Se carga al 1124</button></div></div>
+  <div class="ctl"><span>Intereses de mora al 824</span><div class="seg" data-k="intereses"><button data-v="false">No se cobran</button><button data-v="true">Sí se cobran</button></div></div>
+  <div class="ctl"><span>Descuento por pronto pago</span><div class="seg" data-k="desc"><button data-v="pago">Cada mes que pagó a tiempo</button><button data-v="aldia">Solo si estaba al día</button><button data-v="nunca">No se reconoce</button></div></div>
+  <div class="ctl" id="ctl-orden"><span>Pagos del 824 se aplican primero a</span><div class="seg" data-k="orden"><button data-v="cuotas">La cuota del mes</button><button data-v="sancion">La sanción</button></div></div>
+  <div class="ctl"><span>Coeficiente del apartamento (RPH)</span><div class="seg" data-k="coefApto"><button data-v="0.116">0,116</button><button data-v="0.115">0,115</button></div></div>
+  <div class="guardado"><span id="estado-dec" class="tenue">Escenario de prueba: los cambios no se guardan.</span><button class="btn" id="guardar" hidden>Guardar como decisión de la administración</button><button class="btn sec" id="volver" hidden>Volver a la decisión guardada</button></div>
+</div>
+
+<section aria-labelledby="r-t">
+  <h2 id="r-t">Resultado a 31 de octubre de 2026</h2>
+  <div class="dos">
+    <article class="panel res" style="--c:var(--a824)">
+      <div class="quien"><span class="tag">Apto 824 T2 · Constanza Pinilla de Vovk</span><span class="pill err">se le cobró de menos</span></div>
+      <div><div class="big num" id="r824">–</div><div class="tenue" id="r824s"></div></div>
+      <div class="cmp num">
+        <div><small>Hoy en World Office</small><b class="deuda">Debe $2.256.501</b></div>
+        <div><small>Debe quedar</small><b id="c824">–</b></div>
+        <div><small>Ajuste a registrar</small><b id="a824">–</b></div>
+      </div>
+    </article>
+    <article class="panel res" style="--c:var(--a1124)">
+      <div class="quien"><span class="tag">Apto 1124 T2 · Maritza Arroliga</span><span class="pill ok">se le cobró de más</span></div>
+      <div><div class="big num" id="r1124">–</div><div class="tenue" id="r1124s"></div></div>
+      <div class="cmp num">
+        <div><small>Hoy en World Office</small><b class="deuda">Debe $1.258.713</b></div>
+        <div><small>Debe quedar</small><b id="c1124">–</b></div>
+        <div><small>Ajuste a registrar</small><b id="a1124">–</b></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="panel" aria-labelledby="co-t">
+  <h2 id="co-t">1. El error en los coeficientes</h2>
+  <p class="lead">En la permuta solo cambiaron de dueña los apartamentos. Cada propietaria se quedó con sus parqueaderos y su depósito. Pero al armar el presupuesto 2025, a cada apartamento se le dejó el coeficiente total de su dueña anterior, con parqueaderos y depósito incluidos. Así quedaron cruzados.</p>
+  <div id="coef"></div>
+  <h3>Cómo se corrige</h3>
+  <div class="scroll"><table class="num" id="tcorr"></table></div>
+  <ol class="pasos">
+    <li>En World Office, cambiar el coeficiente de cada inmueble antes de la próxima factura, con los valores de la tabla.</li>
+    <li>Confirmar en la Tabla 2 del reglamento si el apartamento es 0,115 o 0,116 (arriba se puede ver la diferencia).</li>
+    <li>Cuando haya permutas o ventas parciales, actualizar por separado el dueño de cada apartamento, parqueadero y depósito, y no el coeficiente total de la unidad.</li>
+  </ol>
+</section>
+
+<section class="panel" aria-labelledby="ej-t">
+  <h2 id="ej-t">2. Ejemplo con un mes: octubre de 2026</h2>
+  <p class="lead">La cuota de cada mes es el presupuesto anual dividido entre 12, multiplicado por el coeficiente. Con el presupuesto 2026 de $481.725.943:</p>
+  <div class="scroll"><table class="num" id="tej"></table></div>
+  <p class="tenue" id="ej-nota"></p>
+</section>
+
+<section class="panel" aria-labelledby="an-t">
+  <h2 id="an-t">3. Lo que se cobró y lo que debía cobrarse, año por año</h2>
+  <div class="legend"><span><i style="background:var(--linea-fuerte)"></i>Se cobró</span><span><i style="background:var(--acento)"></i>Debió cobrarse</span></div>
+  <div class="chart" id="bars"></div>
+  <p class="tenue">Lo que le faltó al 824 es casi lo mismo que le sobró al 1124. Para la copropiedad el efecto es casi cero: el problema es cómo se repartió entre las dos.</p>
+</section>
+
+<section class="panel" aria-labelledby="p1124-t">
+  <h2 id="p1124-t">4. Por qué el 1124 debe quedar con saldo a favor</h2>
+  <p class="lead">Se suma lo que debía pagar con su coeficiente correcto, se restan los descuentos que se ganó al pagar a tiempo y se compara con lo que de verdad pagó.</p>
+  <div class="chart" id="w1124"></div>
+  <ul class="porque" id="why1124"></ul>
+  <div class="legend"><span><i style="background:var(--a1124)"></i>Saldo mes a mes con el coeficiente correcto (debajo de cero = a favor)</span><span><i style="background:var(--err)"></i>Lo que muestra hoy World Office</span></div>
+  <div class="chart" id="l1124"></div>
+</section>
+
+<section class="panel" aria-labelledby="p824-t">
+  <h2 id="p824-t">5. Por qué el 824 queda debiendo</h2>
+  <p class="lead">Mismo ejercicio: lo que debía pagar con su coeficiente correcto, menos descuentos, más la sanción o los intereses si se decide cobrarlos, menos lo que pagó.</p>
+  <div class="chart" id="w824"></div>
+  <ul class="porque" id="why824"></ul>
+  <div class="legend"><span><i style="background:var(--a824)"></i>Saldo mes a mes con las decisiones elegidas</span><span><i style="background:var(--err)"></i>Lo que muestra hoy World Office</span></div>
+  <div class="chart" id="l824"></div>
+</section>
+
+<section class="panel" aria-labelledby="cr-t">
+  <h2 id="cr-t">6. Qué pasó, en orden</h2>
+  <ol class="timeline">
+    <li style="--k:var(--err)"><span class="w">Antes de nov-2024</span><span class="d"></span><div class="t"><b>Asamblea con inasistencia del 824</b>En ese momento el 824 era de la Sra. Maritza. La fecha del acta está por confirmar.</div></li>
+    <li><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Permuta de los apartamentos</b>Cambian de dueña solo el 824 y el 1124. Está por validar si se informó a la administración.</div></li>
+    <li style="--k:var(--err)"><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Se carga la sanción de $492.769 al 824</b>Se carga al inmueble, como dice el reglamento, cuando ya era de la Sra. Constanza. Desde ahí sus pagos se aplican primero a la sanción, le queda saldo pendiente y pierde el descuento.</div></li>
+    <li><span class="w">Nov–dic 2024</span><span class="d"></span><div class="t"><b>La facturación todavía está bien</b>A cada una se le cobra con su coeficiente real.</div></li>
+    <li style="--k:var(--aviso)"><span class="w">Presupuesto 2025</span><span class="d"></span><div class="t"><b>Se cruzan los coeficientes</b>Al 824 se le factura con 0,141 y al 1124 con 0,163. El error sigue hasta hoy.</div></li>
+    <li><span class="w">Feb 2025</span><span class="d"></span><div class="t"><b>El 1124 paga un anticipo de $4.665.537</b>Con eso cubre de marzo a diciembre de 2025.</div></li>
+    <li><span class="w">2025</span><span class="d"></span><div class="t"><b>La asamblea no alcanza a tratar la sanción</b></div></li>
+    <li style="--k:var(--aviso)"><span class="w">Dic 2025 – ene 2026</span><span class="d"></span><div class="t"><b>Notas NC-586 ($1.000.733) y NC-589 ($83.394) al 1124</b>Son notas crédito, pero en su estado de cuenta suman a la deuda. Hay que revisarlas en el auxiliar.</div></li>
+    <li style="--k:var(--err)"><span class="w">Oct 2026</span><span class="d"></span><div class="t"><b>Hoy</b>World Office muestra al 824 debiendo $2.256.501 y al 1124 debiendo $1.258.713.</div></li>
+  </ol>
+</section>
+
+<section class="panel" aria-labelledby="de-t">
+  <h2 id="de-t">7. Detalle mes a mes</h2>
+  <details><summary>Apto 824 T2</summary><div class="scroll" id="t824"></div></details>
+  <details><summary>Apto 1124 T2</summary><div class="scroll" id="t1124"></div></details>
+  <p class="nota">Pendientes por verificar: si se informó la permuta; el acta y el proceso de la sanción; el coeficiente del apartamento en el RPH (0,115 o 0,116); las notas NC-586 y NC-589 del 1124; y los pagos del 824 de marzo y abril de 2026, que en el análisis aparecen como no pagado y $96.955.</p>
+  <p class="tenue" style="font-size:13px">Fuente: análisis de la administración (Libro1_1.xlsx) y estados de cuenta de World Office a octubre de 2026. Los intereses, si se cobran, se calculan sin capitalizar, sobre cuotas vencidas, con la tasa mensual de cada mes.</p>
+</section>
+</main>
+<script>
+// ===== Datos (fuente: Libro1_1.xlsx, hojas 824, 1124 (SIMULACION), Hoja2) =====
+const M = ["Nov 24","Dic 24","Ene 25","Feb 25","Mar 25","Abr 25","May 25","Jun 25","Jul 25","Ago 25","Sep 25","Oct 25","Nov 25","Dic 25","Ene 26","Feb 26","Mar 26","Abr 26","May 26","Jun 26","Jul 26","Ago 26","Sep 26","Oct 26"];
+// 824: cuota correcta con coef. 0,164 (Hoja1), extraordinaria, matrícula, pago, tasa mora mensual %
+const D824 = [
+ [568850,0,0,443492,0],[568850,0,0,512689,1.971],[568850,0,0,701036,1.869],[598246,29396,0,566008,1.964],
+ [598246,0,0,539348,1.871],[654562,56316,0,640861,1.919],[654562,56316,21900,733908,1.919],[654562,56316,0,640861,1.914],
+ [654562,0,0,590105,1.862],[654562,0,0,590105,1.888],[654562,0,0,590105,1.877],[654562,0,0,590105,1.833],
+ [654562,0,0,590105,1.876],[654562,0,0,590105,1.878],[654562,0,0,590105,1.833],[687945,33383,0,558149,1.893],
+ [687945,0,0,0,1.912],[790031,102085,23000,96955,1.996],[790031,102085,0,690292,2.09],[790031,102085,0,690292,2.13],
+ [790031,0,0,611311,2.13],[790031,0,0,611311,2.188],[790031,0,0,611311,2.16],[790031,0,0,611311,2.118]];
+// 1124: cuota correcta con coef. 0,142 (Hoja1), extraordinaria, descuento, pagos del mes
+const D1124 = [
+ [492541,0,49254,443492],[492541,0,49254,443287],[492541,0,49254,443492],[517994,25453,54376,5155151],
+ [517994,0,51815,0],[566755,48761,61567,0],[566755,48761,61567,0],[566755,48761,61567,0],
+ [566755,0,56691,0],[566755,0,56691,0],[566755,0,56691,0],[566755,0,56691,526800],
+ [566755,0,56691,0],[566755,0,56691,0],[566755,0,56691,510459],[595659,28904,62474,716929],
+ [595659,0,59583,683750],[684051,88391,76944,797997],[684051,88391,76944,798000],[684051,88391,76944,798000],
+ [684051,0,68105,798000],[684051,0,68105,798000],[684051,0,68105,798000],[684051,0,68105,798000]];
+const SANCION = 492769;
+
+// opts: {coef:0.164|0.163, sancion:bool, intereses:bool, orden:"cuotas"|"sancion", desc:"pago"|"aldia"|"nunca"}
+function sim824(o){
+  const f = o.coef/0.164; let intr=0, cuota=0, san=0; const out=[]; let tInt=0, tDesc=0;
+  D824.forEach((r,i)=>{
+    const [e0,x0,h,pay,rate]=r; const e=e0*f, x=x0*f;
+    if(o.intereses && i>0){ const add=Math.round(cuota*rate/100); intr+=add; tInt+=add; }
+    if(o.sancion && i===0) san+=SANCION;
+    const prevBal = intr+cuota+san;
+    let d=0;
+    if(pay>=0.45*(e+x)){ if(o.desc==="pago") d=0.10*(e+x); else if(o.desc==="aldia" && prevBal<=1000) d=0.10*(e+x); }
+    d=Math.round(d); tDesc+=d;
+    cuota += Math.round(e+x+h)-d;
+    let p=pay; const take=(v)=>{const t=Math.min(Math.max(v,0),p); p-=t; return t;};
+    intr-=take(intr);
+    if(o.orden==="sancion"){ san-=take(san); cuota-=take(cuota); } else { cuota-=take(cuota); san-=take(san); }
+    cuota-=p; // excedente queda como anticipo
+    out.push({m:M[i], bal:intr+cuota+san, intr, cuota, san, pay, d});
+  });
+  return {rows:out, final:out[out.length-1].bal, tInt, tDesc};
+}
+// opts: {coef:0.142|0.141, desc:bool, sancion:bool}
+function sim1124(o){
+  const f=o.coef/0.142; let bal=0; const out=[]; let tDesc=0;
+  D1124.forEach((r,i)=>{
+    const [e0,x0,d0,pay]=r; const d=o.desc?Math.round(d0*f):0; tDesc+=d;
+    bal += Math.round((e0+x0)*f) - d - pay;
+    out.push({m:M[i], bal, pay, d});
+  });
+  const final = out[out.length-1].bal + (o.sancion?SANCION:0);
+  return {rows:out, final, tDesc};
+}
+
+/* ===== utilidades ===== */
+const $ = (id) => document.getElementById(id);
+const fmt = (v) => "$" + Math.round(Math.abs(v)).toLocaleString("es-CO");
+const sgn = (v) => (v < 0 ? "−" : "") + fmt(v);
+const coefTxt = (c) => c.toFixed(3).replace(".", ",");
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const saldoTxt = (v) => (v > 0 ? "Debe " + fmt(v) : v < 0 ? "A favor " + fmt(v) : "$0");
+const WO = { a824: 2256501, a1124: 1258713 };
+const PPTO = { 2024: 346859580, 2025: 399123370, 2026: 481725943 };
+const COBRADO = { a824: { 2024: 1139308, 2025: 6753167, 2026: 6792304 }, a1124: { 2024: 985538, 2025: 7806856, 2026: 7852091 } };
+const MESES = { 2024: 2, 2025: 12, 2026: 10 };
+const FACT = { a824: 0.141, a1124: 0.163 };
+const BIENES = {
+  a824: [["Apto 824", null], ["Dep. 126", 0.003], ["Parq. 162", 0.021], ["Parq. 269", 0.024]],
+  a1124: [["Apto 1124", null], ["Dep. 103", 0.005], ["Parq. 180", 0.021]],
+};
+const PROPUESTA = { sancion: "quitar", intereses: false, desc: "pago", orden: "cuotas", coefApto: 0.116 };
+let st = { ...PROPUESTA }, guardada = null, editor = false, db = null;
+
+const coefs = () => ({ a824: +(st.coefApto + 0.048).toFixed(3), a1124: +(st.coefApto + 0.026).toFixed(3) });
+const cuotaMes = (anio, c) => (PPTO[anio] * c) / 100;
+
+function calcular() {
+  const c = coefs();
+  const r824 = sim824({ coef: c.a824, sancion: st.sancion === "824", intereses: st.intereses, orden: st.orden, desc: st.desc });
+  const r1124 = sim1124({ coef: c.a1124, desc: st.desc !== "nunca", sancion: st.sancion === "1124" });
+  const f824 = c.a824 / 0.164, f1124 = c.a1124 / 0.142;
+  const debia824 = D824.reduce((s, r) => s + Math.round((r[0] + r[1]) * f824 + r[2]), 0);
+  const pag824 = D824.reduce((s, r) => s + r[3], 0);
+  const debia1124 = D1124.reduce((s, r) => s + Math.round((r[0] + r[1]) * f1124), 0);
+  const pag1124 = D1124.reduce((s, r) => s + r[3], 0);
+  const anual = {};
+  for (const k of ["a824", "a1124"]) anual[k] = [2024, 2025, 2026].map((y) => ({ y, cob: COBRADO[k][y], deb: Math.round(cuotaMes(y, c[k]) * MESES[y]) }));
+  const dif = (k) => anual[k].filter((x) => x.y > 2024).reduce((s, x) => s + x.cob - x.deb, 0);
+  return { c, r824, r1124, debia824, pag824, debia1124, pag1124, anual, dif824: -dif("a824"), dif1124: dif("a1124") };
+}
+
+/* ===== gráficos ===== */
+function niceStep(range) { const raw = range / 5, p = Math.pow(10, Math.floor(Math.log10(raw))); for (const k of [1, 2, 2.5, 5, 10]) if (k * p >= raw) return k * p; }
+const mill = (v) => (v < 0 ? "−" : "") + (Math.abs(v) / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " M";
+
+function waterfall(id, steps, color) {
+  const W = 900, H = 300, L = 70, R = 16, T = 26, B = 58, n = steps.length;
+  let run = 0; const bars = steps.map((s) => { if (s.total) { const b = { ...s, a: 0, b: s.v }; run = s.v; return b; } const a = run; run += s.v; return { ...s, a, b: run }; });
+  const vals = bars.flatMap((b) => [b.a, b.b]).concat(0);
+  let lo = Math.min(...vals), hi = Math.max(...vals); const st_ = niceStep(hi - lo); lo = Math.floor(lo / st_) * st_; hi = Math.ceil(hi / st_) * st_;
+  const y = (v) => T + ((hi - v) * (H - T - B)) / (hi - lo), gw = (W - L - R) / n, bw = Math.min(90, gw * 0.62);
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cálculo del saldo paso a paso">`;
+  for (let v = lo; v <= hi + 1; v += st_) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--linea")}" stroke-width="${v === 0 ? 1.6 : 1}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="${css("--suave")}">${mill(v)}</text>`;
+  bars.forEach((b, i) => {
+    const x = L + gw * i + (gw - bw) / 2, top = y(Math.max(b.a, b.b)), h = Math.max(2, Math.abs(y(b.a) - y(b.b)));
+    const fill = b.total ? (b.final ? (b.v > 0 ? css("--err") : css("--ok")) : color) : b.v < 0 ? css("--ok") : css("--err");
+    g += `<rect x="${x}" y="${top}" width="${bw}" height="${h}" rx="2" fill="${fill}" opacity="${b.total ? 1 : 0.85}"/>`;
+    if (i < n - 1) g += `<line x1="${x + bw}" x2="${x + gw}" y1="${y(b.b)}" y2="${y(b.b)}" stroke="${css("--linea-fuerte")}" stroke-dasharray="3 3"/>`;
+    const lab = b.total ? (b.final ? saldoTxt(b.v) : fmt(b.v)) : (b.v < 0 ? "− " : "+ ") + fmt(b.v);
+    g += `<text x="${x + bw / 2}" y="${top - 7}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${css("--tinta")}">${lab}</text>`;
+    const words = b.label.split(" "), lines = []; let cur = "";
+    for (const w of words) { if ((cur + " " + w).trim().length > 16) { lines.push(cur.trim()); cur = w; } else cur += " " + w; } lines.push(cur.trim());
+    lines.slice(0, 3).forEach((ln, k) => (g += `<text x="${x + bw / 2}" y="${H - B + 18 + k * 14}" text-anchor="middle" font-size="12" fill="${css("--suave")}">${ln}</text>`));
+  });
+  $(id).innerHTML = g + "</svg>";
+}
+
+function lineChart(id, data, color, ref) {
+  const W = 900, H = 250, L = 70, R = 170, T = 14, B = 30, n = M.length;
+  let lo = Math.min(0, ...data, ref), hi = Math.max(0, ...data, ref); const s = niceStep(hi - lo || 1); lo = Math.floor(lo / s) * s; hi = Math.ceil(hi / s) * s;
+  const x = (i) => L + (i * (W - L - R)) / (n - 1), y = (v) => T + ((hi - v) * (H - T - B)) / (hi - lo);
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Saldo mes a mes">`;
+  for (let v = lo; v <= hi + 1; v += s) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--linea")}" stroke-width="${v === 0 ? 1.6 : 1}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="${css("--suave")}">${mill(v)}</text>`;
+  M.forEach((m, i) => { if (i % 3 === 0 || i === n - 1) g += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="${css("--suave")}">${m}</text>`; });
+  const pts = data.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  g += `<polygon points="${x(0)},${y(0)} ${pts} ${x(n - 1)},${y(0)}" fill="${color}" opacity=".13"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
+  const v = data[n - 1], gap = Math.abs(y(v) - y(ref)) < 18 ? 9 : 0, yv = y(v) + (v < ref ? gap : -gap), yr = y(ref) + (v < ref ? -gap : gap);
+  g += `<circle cx="${x(n - 1)}" cy="${y(v)}" r="4.5" fill="${color}"/><text x="${x(n - 1) + 12}" y="${yv + 4}" font-size="12.5" font-weight="700" fill="${color}">${saldoTxt(v)}</text>`;
+  g += `<rect x="${x(n - 1) - 5}" y="${y(ref) - 5}" width="10" height="10" fill="${css("--err")}" transform="rotate(45 ${x(n - 1)} ${y(ref)})"/><text x="${x(n - 1) + 12}" y="${yr + 4}" font-size="12" fill="${css("--err")}">World Office: debe ${fmt(ref)}</text>`;
+  $(id).innerHTML = g + "</svg>";
+}
+
+function barras(R) {
+  const data = [...R.anual.a824.map((x) => ["824 · " + x.y + (x.y === 2026 ? " (ene–oct)" : x.y === 2024 ? " (nov–dic)" : ""), x.cob, x.deb]), ...R.anual.a1124.map((x) => ["1124 · " + x.y + (x.y === 2026 ? " (ene–oct)" : x.y === 2024 ? " (nov–dic)" : ""), x.cob, x.deb])];
+  const W = 900, H = 270, L = 56, R_ = 10, T = 26, B = 40, max = 9e6, gw = (W - L - R_) / data.length, bw = Math.min(32, gw / 3.2), y = (v) => T + ((max - v) * (H - T - B)) / max;
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cobrado frente a debido por año">`;
+  for (let v = 0; v <= max; v += 3e6) g += `<line x1="${L}" x2="${W - R_}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--linea")}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="${css("--suave")}">${v / 1e6} M</text>`;
+  data.forEach((d, i) => {
+    const cx = L + gw * i + gw / 2, dif = d[1] - d[2];
+    g += `<rect x="${cx - bw - 2}" y="${y(d[1])}" width="${bw}" height="${y(0) - y(d[1])}" fill="${css("--linea-fuerte")}"/><rect x="${cx + 2}" y="${y(d[2])}" width="${bw}" height="${y(0) - y(d[2])}" fill="${css("--acento")}"/>`;
+    g += `<text x="${cx}" y="${H - 20}" text-anchor="middle" font-size="11.5" fill="${css("--tinta")}">${d[0]}</text>`;
+    if (Math.abs(dif) > 20000) g += `<text x="${cx}" y="${y(Math.max(d[1], d[2])) - 8}" text-anchor="middle" font-size="12" font-weight="700" fill="${dif < 0 ? css("--err") : css("--ok")}">${dif < 0 ? "faltó " : "sobró "}${fmt(dif)}</text>`;
+  });
+  g += `<line x1="${L + gw * 3}" x2="${L + gw * 3}" y1="${T}" y2="${H - B + 6}" stroke="${css("--linea-fuerte")}" stroke-dasharray="3 3"/>`;
+  $("bars").innerHTML = g + "</svg>";
+}
+
+/* ===== secciones ===== */
+function seccionCoef(R) {
+  const max = 0.17;
+  const fila = (k, nombre, otro) => {
+    const items = BIENES[k].map(([n, v]) => [n, v ?? st.coefApto]);
+    const tot = R.c[k], col = k === "a824" ? "--a824" : "--a1124";
+    const segs = items.map(([n, v], i) => `<div style="width:${(v / max) * 100}%;background:var(${col});opacity:${1 - i * 0.16}" title="${n}: ${coefTxt(v)}">${v >= 0.05 ? n + " " + coefTxt(v) : ""}</div>`).join("");
+    return `<div class="coefrow"><div class="lbl"><b>${nombre} · le corresponde</b><b class="num">${coefTxt(tot)}</b></div><div class="stack">${segs}</div>
+      <div class="lbl"><span class="deuda">Se le factura hoy (era el total de la dueña anterior del ${otro})</span><b class="num deuda">${coefTxt(FACT[k])}</b></div>
+      <div class="stack"><div class="mal" style="width:${(FACT[k] / max) * 100}%">${coefTxt(FACT[k])}</div></div>
+      <div class="tenue" style="font-size:13px">${items.map(([n, v]) => n + " " + coefTxt(v)).join(" + ")} = ${coefTxt(tot)}. ${FACT[k] < tot ? "Se le cobra de menos." : "Se le cobra de más."}</div></div>`;
+  };
+  $("coef").innerHTML = `<div class="dos">${fila("a824", "Apto 824", "1124")}${fila("a1124", "Apto 1124", "824")}</div>`;
+  const row = (k, n) => { const hoy = cuotaMes(2026, FACT[k]), ok = cuotaMes(2026, R.c[k]); return `<tr><td><b>${n}</b></td><td>${coefTxt(FACT[k])}</td><td><b>${coefTxt(R.c[k])}</b></td><td>${fmt(hoy)}</td><td><b>${fmt(ok)}</b></td><td class="${ok > hoy ? "deuda" : "favor"}">${ok > hoy ? "+" : "−"}${fmt(ok - hoy)}</td></tr>`; };
+  $("tcorr").innerHTML = `<thead><tr><th>Inmueble</th><th>Coeficiente hoy</th><th>Coeficiente correcto</th><th>Cuota 2026 hoy</th><th>Cuota 2026 correcta</th><th>Cambio al mes</th></tr></thead><tbody>${row("a824", "824 T2")}${row("a1124", "1124 T2")}</tbody>`;
+}
+
+function seccionEjemplo(R) {
+  const row = (k, n) => { const f = cuotaMes(2026, FACT[k]), c = cuotaMes(2026, R.c[k]), d = c - f; return `<tr><td><b>${n}</b></td><td>${coefTxt(FACT[k])} → ${fmt(f)}</td><td>${coefTxt(R.c[k])} → <b>${fmt(c)}</b></td><td class="${d > 0 ? "deuda" : "favor"}">${d > 0 ? "Se le cobraron " + fmt(d) + " de menos" : "Se le cobraron " + fmt(d) + " de más"}</td><td>${fmt(c * 0.9)}</td></tr>`; };
+  $("tej").innerHTML = `<thead><tr><th>Apto</th><th>Se facturó</th><th>Debía facturarse</th><th>Diferencia en el mes</th><th>Correcta con 10 % de descuento</th></tr></thead><tbody>${row("a824", "824")}${row("a1124", "1124")}</tbody>`;
+  $("ej-nota").textContent = `Esa diferencia se repite cada mes desde enero de 2025. En 22 meses suma cerca de ${fmt(R.dif824)} que no se le cobraron al 824 y ${fmt(R.dif1124)} que se le cobraron de más al 1124.`;
+}
+
+function seccion1124(R) {
+  const r = R.r1124, san = st.sancion === "1124";
+  const steps = [{ label: "Cuotas que debía pagar", v: R.debia1124, total: true }, { label: "Descuentos por pagar a tiempo", v: -r.tDesc }];
+  if (san) steps.push({ label: "Sanción que se le traslada", v: 492769 });
+  steps.push({ label: "Lo que pagó", v: -R.pag1124 }, { label: "Saldo", v: r.final, total: true, final: true });
+  waterfall("w1124", steps, css("--a1124"));
+  const li = [
+    `Entre noviembre de 2024 y octubre de 2026 pagó <b>${fmt(R.pag1124)}</b>, incluido un anticipo de $4.665.537 en febrero de 2025.`,
+    `Con su coeficiente correcto (${coefTxt(R.c.a1124)}) debía pagar <b>${fmt(R.debia1124)}</b> en cuotas ordinarias y extraordinarias.`,
+    st.desc !== "nunca" ? `Siempre pagó a tiempo o con anticipo, así que le corresponden <b>${fmt(r.tDesc)}</b> de descuento por pronto pago.` : `No se le reconoce descuento por pronto pago.`,
+    san ? `Se le traslada la sanción de <b>$492.769</b>, porque la inasistencia fue cuando ella era la dueña del 824.` : null,
+    `Resultado: <b class="${r.final < 0 ? "favor" : "deuda"}">${saldoTxt(r.final)}</b>. World Office la muestra <b class="deuda">debiendo $1.258.713</b> porque le factura con 0,163 (cerca de ${fmt(R.dif1124)} de más), le quitó los descuentos y le cobró intereses. Además, las notas NC-586 y NC-589 aparecen sumando a su deuda.`,
+  ].filter(Boolean);
+  $("why1124").innerHTML = li.map((x) => `<li>${x}</li>`).join("");
+  lineChart("l1124", r.rows.map((x) => x.bal), css("--a1124"), WO.a1124);
+  $("t1124").innerHTML = tabla(r.rows, [["Mes", (x) => x.m], ["Pagó", (x) => (x.pay ? fmt(x.pay) : "—")], ["Descuento", (x) => (x.d ? fmt(x.d) : "—")], ["Saldo", (x) => saldoTxt(x.bal)]]);
+}
+
+function seccion824(R) {
+  const r = R.r824, san = st.sancion === "824";
+  const steps = [{ label: "Cuotas que debía pagar", v: R.debia824, total: true }];
+  if (r.tDesc) steps.push({ label: "Descuentos por pagar a tiempo", v: -r.tDesc });
+  if (san) steps.push({ label: "Sanción por inasistencia", v: 492769 });
+  if (r.tInt) steps.push({ label: "Intereses de mora", v: r.tInt });
+  steps.push({ label: "Lo que pagó", v: -R.pag824 }, { label: "Saldo", v: r.final, total: true, final: true });
+  waterfall("w824", steps, css("--a824"));
+  const li = [
+    `Con su coeficiente correcto (${coefTxt(R.c.a824)}) debía pagar <b>${fmt(R.debia824)}</b>, incluidas las cuotas extraordinarias y la matrícula inmobiliaria.`,
+    `World Office solo le facturó con 0,141. Por eso, entre 2025 y 2026, quedaron cerca de <b>${fmt(R.dif824)}</b> sin cobrarle. Esa es la parte principal de su deuda y no es culpa suya.`,
+    `Pagó <b>${fmt(R.pag824)}</b>. En marzo de 2026 no aparece pago y en abril solo $96.955: esa parte sí corresponde a pagos atrasados.`,
+    st.desc === "pago" ? `Se le reconocen <b>${fmt(r.tDesc)}</b> de descuento en los meses que pagó a tiempo.` : st.desc === "aldia" ? (r.tDesc ? `Se le reconocen ${fmt(r.tDesc)} de descuento, solo en los meses en que estaba al día.` : `Como siempre figuró con saldo, con la regla de estar al día no gana ningún descuento.`) : `No se le reconoce descuento por pronto pago.`,
+    san ? `La sanción de $492.769 se mantiene en su cuenta.${st.orden === "sancion" ? " Como sus pagos se aplican primero a la sanción, sus cuotas quedan vencidas." : ""}` : st.sancion === "1124" ? `La sanción sale de su cuenta y pasa al 1124.` : `La sanción sale de su cuenta.`,
+    st.intereses ? `Se le cobran <b>${fmt(r.tInt)}</b> de intereses sobre las cuotas vencidas.` : `No se le cobran intereses: el faltante viene de un error de facturación.`,
+    `Resultado: <b class="${r.final > 0 ? "deuda" : "favor"}">${saldoTxt(r.final)}</b>, frente a ${fmt(WO.a824)} que muestra hoy World Office.`,
+  ];
+  $("why824").innerHTML = li.map((x) => `<li>${x}</li>`).join("");
+  lineChart("l824", r.rows.map((x) => x.bal), css("--a824"), WO.a824);
+  $("t824").innerHTML = tabla(r.rows, [["Mes", (x) => x.m], ["Pagó", (x) => (x.pay ? fmt(x.pay) : "—")], ["Descuento", (x) => (x.d ? fmt(x.d) : "—")], ["Cuotas pendientes", (x) => sgn(x.cuota)], ["Sanción", (x) => (x.san ? fmt(x.san) : "—")], ["Intereses", (x) => (x.intr ? fmt(x.intr) : "—")], ["Saldo", (x) => saldoTxt(x.bal)]]);
+}
+
+const tabla = (rows, cols) => `<table class="num"><thead><tr>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+
+function resultado(R) {
+  const put = (k, v) => { const big = $("r" + k), c = $("c" + k), a = $("a" + k), wo = WO["a" + k];
+    big.textContent = saldoTxt(v); big.className = "big num " + (v > 0 ? "deuda" : "favor");
+    c.textContent = saldoTxt(v); c.className = v > 0 ? "deuda" : "favor";
+    const adj = v - wo; a.textContent = (adj > 0 ? "Cargar " : "Abonar ") + fmt(adj); };
+  put("824", R.r824.final); put("1124", R.r1124.final);
+  const sanTxt = { "824": "con la sanción", quitar: "sin la sanción", "1124": "sin la sanción (pasa al 1124)" }[st.sancion];
+  $("r824s").textContent = `${sanTxt}, ${st.intereses ? "con intereses" : "sin intereses"}, coeficiente ${coefTxt(R.c.a824)}`;
+  $("r1124s").textContent = `${st.sancion === "1124" ? "con la sanción trasladada, " : ""}${st.desc !== "nunca" ? "con descuentos" : "sin descuentos"}, coeficiente ${coefTxt(R.c.a1124)}`;
+}
+
+/* ===== decisiones ===== */
+const parse = (v) => (v === "true" ? true : v === "false" ? false : !isNaN(+v) && v.includes(".") ? +v : v);
+const igual = (a, b) => !!a && !!b && Object.keys(PROPUESTA).every((k) => a[k] === b[k]);
+function syncCtl() {
+  document.querySelectorAll(".seg[data-k]").forEach((seg) => seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(parse(b.dataset.v) === st[seg.dataset.k]))));
+  $("ctl-orden").style.display = st.sancion === "824" ? "" : "none";
+  const ok = igual(st, guardada);
+  const quien = guardada ? `Decisión de la administración guardada${guardada._por ? " por " + guardada._por : ""}${guardada._fecha ? " el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : ""}.` : "Todavía no hay una decisión guardada. Se muestra la propuesta de la administración.";
+  $("estado-dec").innerHTML = ok ? `<span class="pill ok">Decisión vigente</span> ${quien}` : `<span class="pill">Escenario de prueba</span> ${guardada ? "Es distinto de la decisión guardada. " : ""}${editor ? "" : "Los cambios no se guardan."}`;
+  $("guardar").hidden = !(editor && db && !ok);
+  $("volver").hidden = !(guardada && !ok);
+}
+function render() { const R = calcular(); syncCtl(); resultado(R); seccionCoef(R); seccionEjemplo(R); barras(R); seccion1124(R); seccion824(R); ajustarAlto(); }
+
+document.querySelectorAll(".seg[data-k] button").forEach((b) => b.addEventListener("click", () => { st[b.parentElement.dataset.k] = parse(b.dataset.v); render(); }));
+$("volver").addEventListener("click", () => { Object.keys(PROPUESTA).forEach((k) => (st[k] = guardada[k])); render(); });
+$("guardar").addEventListener("click", async () => {
+  const b = $("guardar"); b.disabled = true; b.textContent = "Guardando…";
+  try {
+    const R = calcular(), P = window.parent.EFPH_PERFIL || {};
+    const dec = { ...Object.fromEntries(Object.keys(PROPUESTA).map((k) => [k, st[k]])), _por: P.nombre || P.email || "", _fecha: new Date().toISOString() };
+    await db.doc("config/caso_824_1124").set({ decision: dec, saldos: { a824: R.r824.final, a1124: R.r1124.final } });
+    guardada = dec; render();
+  } catch (e) { $("estado-dec").textContent = "No se pudo guardar: " + (e.message || e); }
+  b.disabled = false; b.textContent = "Guardar como decisión de la administración";
+});
+
+/* ===== dentro de la app: tema, alto y decisión guardada ===== */
+function padre() { try { return window.parent !== window && window.parent.claude ? window.parent : null; } catch (e) { return null; } }
+function ajustarAlto() { try { if (window.frameElement) window.frameElement.style.height = Math.ceil(document.querySelector("main").getBoundingClientRect().height) + "px"; } catch (e) {} }
+(async () => {
+  const P = padre();
+  if (P) {
+    const tema = () => { const t = P.document.documentElement.getAttribute("data-theme"); if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); render(); };
+    try { new MutationObserver(tema).observe(P.document.documentElement, { attributes: true, attributeFilter: ["data-theme"] }); const t = P.document.documentElement.getAttribute("data-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+    try {
+      editor = (P.EFPH_PERFIL || {}).rol === "editor";
+      db = await P.claude.use("db");
+      const d = (await db.doc("config/caso_824_1124").get()).data();
+      if (d && d.decision) { guardada = d.decision; Object.keys(PROPUESTA).forEach((k) => { if (k in guardada) st[k] = guardada[k]; }); }
+    } catch (e) { db = null; }
+  }
+  render();
+  if ("ResizeObserver" in window) new ResizeObserver(ajustarAlto).observe(document.body);
+  try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render); } catch (e) {}
+})();
+
+</script>
+</body>
+</html>

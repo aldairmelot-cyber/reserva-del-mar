@@ -2,7 +2,7 @@
    Siempre busca primero la versión en línea (los datos y la app quedan al día);
    solo usa la copia guardada si no hay conexión. No toca Firebase ni Google. */
 const CACHE = "reserva-del-mar-v2";
-const BASE = ["./", "./index.html", "./config.js", "./plataforma.js", "./manifest.webmanifest", "./iconos/icon-192.png"];
+const BASE = ["./", "./index.html", "./caso-824-1124.html", "./config.js", "./plataforma.js", "./manifest.webmanifest", "./iconos/icon-192.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(BASE)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", (e) => {
