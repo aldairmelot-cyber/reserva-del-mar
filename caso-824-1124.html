@@ -98,16 +98,25 @@ body.pdf .solo-pdf{display:block}
 @page{size:letter;margin:12mm 10mm 14mm;@bottom-center{content:"Aclaración aptos 824 T2 y 1124 T2 · página " counter(page) " de " counter(pages);font:8pt "Source Sans 3",sans-serif;color:#777}}
 @media print{
   html,body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  body.pdf main{width:auto;max-width:none;padding:0;gap:14px}
+  /* En papel, flujo normal de página (la cuadrícula hace que Chrome deje huecos o monte bloques) */
+  main,section,.panel,.decision,.porque,.coefrow,.res{display:block!important}
+  body.pdf main{width:auto;max-width:none;padding:0}
+  main>*+*{margin-top:14px}
+  .panel>*+*,section>*+*,.res>*+*,.coefrow>*+*{margin-top:9px}
+  .decision{position:static!important;box-shadow:none;padding:10px 14px}
+  .panel{box-shadow:none;padding:14px 16px}
+  .dos{display:flex!important;gap:12px;align-items:flex-start}
+  .dos>*{flex:1 1 0;min-width:0}
   .ctl,.decision .guardado,details,.no-pdf{display:none!important}
-  #asientos>div,#valida .dos>div,.dos>div{break-inside:avoid}
-  thead{display:table-row-group}
   .solo-pdf{display:block!important}
-  .res,.coefrow,.chart,tr,li,h2,h3,.nota,.cmp,.timeline li,.pdf-cab{break-inside:avoid}
-  h2,h3{break-after:avoid}
-  .panel{box-shadow:none}
+  .res,.chart,tr,li,.nota,.cmp,.timeline li,.pdf-cab,#asientos>div,#valida .dos>div{break-inside:avoid}
+  h2,h3,.lead,.legend{break-after:avoid}
+  .coefrow,#coef .dos,#tcorr,#tej,.legend+.chart{break-inside:avoid}
+  p{orphans:3;widows:3}
   .chart svg{min-width:0}
   .scroll,.chart{overflow:visible}
+  .big{font-size:26px}
+}
 }
 .pdf-cab{border-bottom:2px solid var(--oro);padding-bottom:8px;margin-bottom:4px;font-size:13px;color:var(--suave)}
 .pdf-cab b{color:var(--tinta);font:600 15px var(--f-marca);letter-spacing:.06em;text-transform:uppercase}
