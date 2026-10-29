@@ -278,7 +278,7 @@
   const ACL_SEMILLAS = [{
     id: "caso-824-1124", anio: 2026, mes: 10, fecha: "2026-10-29",
     titulo: "Coeficientes invertidos y sanción en disputa – Aptos 824 T2 y 1124 T2",
-    nota: "10", revelar: false, visual: "caso-824-1124.html",
+    nota: "6.0", revelar: false, visual: "caso-824-1124.html",
     documento: "Sin comprobante todavía: el ajuste se registra cuando se tome la decisión",
     soporte: "Pendiente: concepto jurídico y decisión del Consejo de Administración",
     descripcion: [
@@ -301,7 +301,10 @@
     ],
     movimientos: [], observaciones: [], anexos: [], estado: "Borrador"
   }];
-  const ACL_PARCHES = [{ marca: "caso-824-1124:visual", id: "caso-824-1124", campos: { visual: "caso-824-1124.html" } }];
+  const ACL_PARCHES = [
+    { marca: "caso-824-1124:visual", id: "caso-824-1124", campos: { visual: "caso-824-1124.html" } },
+    { marca: "caso-824-1124:nota6", id: "caso-824-1124", campos: { nota: "6.0" } },
+  ];
   async function sembrarAclaraciones(db) {
     try {
       const marca = db.doc("config/semillas");

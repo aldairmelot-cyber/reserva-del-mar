@@ -444,7 +444,7 @@ const INT1124 = 28117;          /* intereses que el sistema le liquidó al 1124 
 const SIS824 = 1831003;         /* lo que el sistema debió cargarle al 824: cuotas con 0,141 + sanción − pagos */
 const CTA = {
   "13050501": "Deudores nacionales (cuotas)", "28050501": "Saldos a favor / anticipos", "41701001": "Cuotas de administración",
-  "41750101": "Descuentos por pronto pago", "42100502": "Intereses de mora", "4250": "Multas y sanciones (cuenta donde se causó)", "1110": "Bancos",
+  "531520": "Gastos de ejercicios anteriores (no presupuestado)", "4EA": "Ingresos de ejercicios anteriores (no presupuestado)", "1110": "Bancos",
 };
 function difCoef(R) {
   /* Diferencia por coeficiente desde enero de 2025 (nov-dic 2024 se facturó bien), con cuotas ordinarias y extraordinarias */
@@ -469,16 +469,16 @@ function asientos(R) {
   const aDeuda = Math.min(X, WO.a1124);
   ln("x", "13050501", t8, X, 0, ""); ln("x", "13050501", t11, 0, aDeuda, ""); ln("x", "28050501", t11, 0, X - aDeuda, "");
   /* 2. diferencia de coeficiente que no se compensa */
-  if (resto >= 0) { ln("r", "13050501", t8, resto, 0, ""); ln("r", "41701001", t8, 0, resto, "coef"); } else { ln("r", "41701001", t8, -resto, 0, "coef"); ln("r", "13050501", t8, 0, -resto, ""); }
+  if (resto >= 0) { ln("r", "13050501", t8, resto, 0, ""); ln("r", "4EA", t8, 0, resto, "coef"); } else { ln("r", "531520", t8, -resto, 0, "coef"); ln("r", "13050501", t8, 0, -resto, ""); }
   /* 3. sanción */
-  if (sanQuit) { ln("s", "4250", t8, SANCION, 0, "sancion"); ln("s", "13050501", t8, 0, SANCION, ""); }
+  if (sanQuit) { ln("s", "531520", t8, SANCION, 0, "sancion"); ln("s", "13050501", t8, 0, SANCION, ""); }
   if (sanTras) { ln("s", "28050501", t11, Math.min(SANCION, Math.max(X - aDeuda, 0)), 0, ""); ln("s", "13050501", t11, SANCION - Math.min(SANCION, Math.max(X - aDeuda, 0)), 0, ""); ln("s", "13050501", t8, 0, SANCION, ""); }
   /* 4. intereses */
-  if (int824 >= 0) { ln("i", "42100502", t8, int824, 0, "int824"); ln("i", "13050501", t8, 0, int824, ""); } else { ln("i", "13050501", t8, -int824, 0, ""); ln("i", "42100502", t8, 0, -int824, "int824"); }
-  ln("i", "42100502", t11, INT1124, 0, "int1124"); ln("i", "28050501", t11, 0, INT1124, "");
+  if (int824 >= 0) { ln("i", "531520", t8, int824, 0, "int824"); ln("i", "13050501", t8, 0, int824, ""); } else { ln("i", "13050501", t8, -int824, 0, ""); ln("i", "4EA", t8, 0, -int824, "int824"); }
+  ln("i", "531520", t11, INT1124, 0, "int1124"); ln("i", "28050501", t11, 0, INT1124, "");
   /* 5. descuentos */
-  ln("d", "41750101", t8, D824, 0, "desc824"); ln("d", "13050501", t8, 0, D824, "");
-  if (desc1124 >= 0) { ln("d", "41750101", t11, desc1124, 0, "desc1124"); ln("d", "28050501", t11, 0, desc1124, ""); } else { ln("d", "28050501", t11, -desc1124, 0, ""); ln("d", "41750101", t11, 0, -desc1124, "desc1124"); }
+  ln("d", "531520", t8, D824, 0, "desc824"); ln("d", "13050501", t8, 0, D824, "");
+  if (desc1124 >= 0) { ln("d", "531520", t11, desc1124, 0, "desc1124"); ln("d", "28050501", t11, 0, desc1124, ""); } else { ln("d", "28050501", t11, -desc1124, 0, ""); ln("d", "4EA", t11, 0, -desc1124, "desc1124"); }
   /* 6. devolución */
   const fav = Math.max(-T1124, 0);
   if (st.favor === "devolver" && fav > 0) { ln("f", "28050501", t11, fav, 0, ""); ln("f", "1110", t11, 0, fav, "caja"); }
@@ -495,8 +495,8 @@ function seccionRegistro(R) {
     ["4. Intereses", -A.int824, -INT1124, st.intereses ? "Se ajustan los intereses del sistema a los decididos" : "Se reversan los intereses que liquidó el sistema", "pyg"],
     ["5. Descuentos por pronto pago", -A.D824, -A.desc1124, st.desc === "nunca" ? "No se reconocen" : "Se reconocen los descuentos que no se aplicaron", "pyg"],
   ];
-  const tag = { base: "", cruce: '<span class="pill ok">sin resultados</span>', pyg: '<span class="pill">afecta resultados</span>' };
-  $("reg-explica").innerHTML = `<b>Primero se cruza, después se decide.</b> El error de coeficientes no cambió lo que la copropiedad cobró en total: lo cobró a la propietaria equivocada. Por eso la mayor parte se corrige pasando el saldo de una cuenta a la otra, sin tocar ingresos ni gastos. Solo afectan resultados la pequeña diferencia de coeficiente que no se compensa y lo que se decida sobre la sanción, los intereses y los descuentos.`;
+  const tag = { base: "", cruce: '<span class="pill ok">sin resultados</span>', pyg: '<span class="pill">no presupuestado · Nota 6.0</span>' };
+  $("reg-explica").innerHTML = `<b>Primero se cruza, después se decide.</b> El error de coeficientes no cambió lo que la copropiedad cobró en total: lo cobró a la propietaria equivocada. Por eso la mayor parte se corrige pasando el saldo de una cuenta a la otra, sin tocar ingresos ni gastos. Solo afectan resultados la pequeña diferencia de coeficiente que no se compensa y lo que se decida sobre la sanción, los intereses y los descuentos. Como corresponden a periodos anteriores, <b>no se llevan a cuentas ordinarias</b>: los gastos van a 531520 Gastos de ejercicios anteriores y los ingresos a la cuenta de ingresos de ejercicios anteriores. Así salen en el estado de resultados como no presupuestados (Nota 6.0) y no distorsionan la ejecución del presupuesto.`;
   const tabla = `<div class="scroll"><table class="num"><thead><tr><th>Paso</th><th>Apto 824</th><th>Apto 1124</th><th style="text-align:left">Qué es</th></tr></thead><tbody>${filas.map(([n, a, b, q, t]) => `<tr><td>${n}</td><td>${t === "base" ? saldoTxt(a) : pos(a)}</td><td>${t === "base" ? saldoTxt(b) : pos(b)}</td><td style="text-align:left">${t === "base" ? q : tag[t] + " " + q}</td></tr>`).join("")}</tbody><tfoot><tr><td>Saldo que debe quedar</td><td class="${A.T824 > 0 ? "deuda" : "favor"}">${saldoTxt(A.T824)}</td><td class="${A.T1124 > 0 ? "deuda" : "favor"}">${saldoTxt(A.T1124)}</td><td></td></tr></tfoot></table></div>`;
   const soloCruce = `<p class="nota">Si solo se hace el cruce (paso 1) y la diferencia de coeficiente (paso 2), sin decidir nada más, el 824 quedaría debiendo <b>${fmt(WO.a824 + A.X + A.resto)}</b> y el 1124 con <b>${fmt(WO.a1124 - A.X)} ${WO.a1124 - A.X < 0 ? "a favor" : "de deuda"}</b>. El efecto en resultados sería solo de ${pos(A.resto)}.</p>`;
   const bloques = [
@@ -510,13 +510,13 @@ function seccionRegistro(R) {
   const asi = bloques.map(([k, tit]) => {
     const ls = A.L.filter((x) => x.blk === k); if (!ls.length) return "";
     const td = ls.reduce((s, x) => s + x.db, 0), tc = ls.reduce((s, x) => s + x.cr, 0);
-    return `<div><h3 style="margin-bottom:6px">${tit}</h3><div class="scroll"><table class="num"><thead><tr><th>Cuenta</th><th>Nombre</th><th>Tercero</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${ls.map((x) => `<tr><td>${x.cuenta === "4250" ? "42xxxx" : x.cuenta === "1110" ? "1110xx" : x.cuenta}</td><td style="text-align:left">${CTA[x.cuenta]}</td><td style="text-align:left">${x.ter}</td><td>${x.db ? fmt(x.db) : ""}</td><td>${x.cr ? fmt(x.cr) : ""}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Sumas iguales</td><td>${fmt(td)}</td><td>${fmt(tc)}</td></tr></tfoot></table></div></div>`;
+    return `<div><h3 style="margin-bottom:6px">${tit}</h3><div class="scroll"><table class="num"><thead><tr><th>Cuenta</th><th>Nombre</th><th>Tercero</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${ls.map((x) => `<tr><td>${x.cuenta === "4EA" ? "4xxxxx" : x.cuenta === "1110" ? "1110xx" : x.cuenta}</td><td style="text-align:left">${CTA[x.cuenta]}</td><td style="text-align:left">${x.ter}</td><td>${x.db ? fmt(x.db) : ""}</td><td>${x.cr ? fmt(x.cr) : ""}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3">Sumas iguales</td><td>${fmt(td)}</td><td>${fmt(tc)}</td></tr></tfoot></table></div></div>`;
   }).join("");
   $("asientos").innerHTML = tabla + soloCruce + `<h3>Asientos</h3>` + asi + (st.favor === "abonar" && A.fav > 0 ? `<p class="tenue">El saldo a favor del 1124 (${fmt(A.fav)}) queda en la cuenta 28050501 y se aplica a sus próximas facturas: no sale dinero de la copropiedad.</p>` : "");
   /* efecto en resultados */
-  const ef = {}; for (const x of A.L) if (x.cuenta[0] === "4") ef[x.con] = (ef[x.con] || 0) + x.cr - x.db;
+  const ef = {}; for (const x of A.L) if ("45".includes(x.cuenta[0])) ef[x.con] = (ef[x.con] || 0) + x.cr - x.db;
   const conc = [
-    ["coef", "Diferencia de coeficiente", "Sí: es la parte del error que no se compensa entre ellas"],
+    ["coef", "Diferencia de coeficiente", "Sí: es la parte del error que no se compensa entre ellas. Ingreso de ejercicios anteriores"],
     ["sancion", "Sanción que se quita", "Solo si se decide quitarla"],
     ["int824", "Intereses del 824", "Solo si se decide no cobrarlos"],
     ["int1124", "Intereses del 1124", "Sí: nunca estuvo en mora con el coeficiente correcto"],
@@ -529,7 +529,7 @@ function seccionRegistro(R) {
   $("whycop").innerHTML = [
     `<b>El cruce no afecta resultados:</b> se mueven ${fmt(A.X)} de la cuenta del 1124 a la del 824. El ingreso ya estaba bien reconocido en total; solo estaba en el tercero equivocado.`,
     `<b>Lo que sí afecta resultados</b> depende de las decisiones: quitar la sanción, no cobrar intereses y reconocer descuentos son costos que asume la copropiedad por el error de facturación. Si se mantienen la sanción y los intereses, y no se reconocen descuentos, el efecto en resultados se reduce mucho.`,
-    `<b>Periodo:</b> frente a ingresos del año de cerca de $6.552 millones, el ajuste no es material. Se puede registrar en el mes en que se apruebe, sin reexpresar 2025, y revelarse en la Nota 10.`,
+    `<b>Dónde se presenta:</b> la cuenta 5315 ya sale en el estado de resultados como «Gastos extraordinarios – No presupuestados» (Nota 6.0). Para el ingreso de ejercicios anteriores, use la subcuenta que tenga la copropiedad y, al cargar el comprobante en esta aclaración, marque «Presentar sus ingresos y gastos en el ERI como no presupuestados». Así ninguna cifra cae en cuotas, intereses o descuentos del año.`,
     st.favor === "devolver" && A.fav > 0 ? `<b>Caja:</b> devolverle el saldo al 1124 implica pagarle ${fmt(A.fav)}.` : `<b>Caja:</b> no sale dinero; el saldo a favor del 1124 se aplica a sus próximas facturas.`,
   ].map((x) => `<li>${x}</li>`).join("");
   /* validación */
