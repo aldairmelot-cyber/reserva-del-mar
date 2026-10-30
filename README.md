@@ -12,6 +12,10 @@ Es un sitio estático: un solo `index.html` que se ejecuta completo en el navega
 
 > En el plan gratuito de GitHub, Pages solo funciona con repositorios **públicos**. El código queda visible, pero los datos contables no, porque viven en Firebase y no en el repositorio.
 
+## Reglamento de propiedad horizontal
+
+En **Datos → Reglamento de PH** (y en **Reglamento** para los perfiles de consulta) están las escrituras que conforman el reglamento, los artículos de consulta frecuente con su página y los coeficientes revisados. El editor carga allí una vez el PDF de la Escritura 753 de 2023; queda en la base (colecciones `rph` y `rph_pdf`, no en este repositorio) y todos los perfiles lo pueden ver y descargar. No entra en los respaldos `.json`, por su tamaño: guarde aparte el PDF original.
+
 ## Dónde se guardan los datos
 
 La app trae dos modos; se elige en `config.js`.

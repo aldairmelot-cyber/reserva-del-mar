@@ -38,7 +38,7 @@ section{display:grid;gap:12px}
 .decision{position:sticky;top:0;z-index:5;background:var(--hoja);border:1px solid var(--linea);border-top:3px solid var(--oro);border-radius:8px;padding:12px 16px;display:grid;gap:8px;box-shadow:0 4px 14px rgba(38,42,51,.06)}
 .ctl{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
 .ctl>span{min-width:190px;font-size:14px;color:var(--suave)}
-.ctl-nota{font-size:13px;color:var(--suave)}#coef-tot{display:grid;gap:2px}#aviso-1124{color:var(--aviso)}
+.ctl-nota{font-size:13px;color:var(--suave)}.rph td{text-align:left;vertical-align:top}.rph td:first-child{white-space:nowrap}#coef-tot{display:grid;gap:2px}#aviso-1124{color:var(--aviso)}
 .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--linea-fuerte);border-radius:6px;overflow:hidden}
 .seg button{border:0;border-right:1px solid var(--linea-fuerte);background:transparent;color:var(--tinta);padding:5px 11px;font:500 13.5px var(--f-ui);cursor:pointer}
 .seg button:last-child{border-right:0}
@@ -138,9 +138,9 @@ body.pdf .solo-pdf{display:block}
   <div class="ctl"><span>Sanción de $492.769</span><div class="seg" data-k="sancion"><button data-v="824">Se mantiene en el 824</button><button data-v="quitar">Se quita</button><button data-v="1124">Se carga al 1124</button></div><small class="ctl-nota" id="aviso-1124" hidden>Se cruza con el saldo a favor del 1124: requiere autorización escrita de la Sra. Maritza.</small></div>
   <div class="ctl"><span>Intereses de mora al 824</span><div class="seg" data-k="intereses"><button data-v="false">No se cobran</button><button data-v="true">Sí se cobran</button></div></div>
   <div class="ctl"><span>Descuento por pronto pago (824 y 1124)</span><div class="seg" data-k="desc"><button data-v="pago">Cada mes que pagó a tiempo</button><button data-v="aldia">Solo si estaba al día</button><button data-v="nunca">No se reconoce</button></div></div>
-  <div class="ctl" id="ctl-orden"><span>Pagos del 824 se aplican primero a</span><div class="seg" data-k="orden"><button data-v="cuotas">La cuota del mes</button><button data-v="sancion">La sanción</button></div></div>
+  <div class="ctl" id="ctl-orden"><span>Pagos del 824</span><small class="ctl-nota">Por el art. 42.3 del reglamento, cada pago se aplica primero a la sanción y a los intereses, y después a las cuotas.</small></div>
   <div class="ctl"><span>Saldo a favor del 1124</span><div class="seg" data-k="favor"><button data-v="abonar">Se abona a sus próximas cuotas</button><button data-v="devolver">Se le devuelve</button></div><small class="ctl-nota" id="favor-caja"></small></div>
-  <div class="ctl"><span>Coeficiente solo del apartamento, sin parqueaderos ni depósito (igual para el 824 y el 1124)</span><div class="seg" data-k="coefApto"><button data-v="0.116">0,116</button><button data-v="0.115">0,115 · certificados</button></div><small class="ctl-nota" id="coef-tot"></small></div>
+  <div class="ctl"><span>Coeficiente del apartamento (reglamento)</span><b class="num">0,115</b><small class="ctl-nota">Tabla de coeficientes definitiva (E.P. 381 de 2022, conservada por la E.P. 753 de 2023). Es igual para el 824 y el 1124.</small><small class="ctl-nota" id="coef-tot"></small></div>
   <div class="solo-pdf" id="dec-resumen"></div>
   <div class="guardado"><span id="estado-dec" class="tenue">Escenario de prueba: los cambios no se guardan.</span><button class="btn" id="guardar" hidden>Guardar como decisión de la administración</button><button class="btn sec" id="volver" hidden>Volver a la decisión guardada</button><button class="btn sec" id="pdf" title="Se abre la impresión: elija «Guardar como PDF»">Descargar PDF</button></div>
 </div>
@@ -177,7 +177,7 @@ body.pdf .solo-pdf{display:block}
   <div class="scroll"><table class="num" id="tcorr"></table></div>
   <ol class="pasos">
     <li>En World Office, cambiar el coeficiente de cada inmueble antes de la próxima factura, con los valores de la tabla.</li>
-    <li>Confirmar en la Tabla 2 del reglamento si el apartamento es 0,115 o 0,116 (arriba se puede ver la diferencia).</li>
+    <li>Usar los coeficientes del reglamento: apartamentos 824 y 1124, 0,115 cada uno; depósito 126, 0,003; depósito 103, 0,005; parqueaderos 162 y 180, 0,021 cada uno; parqueadero 269, 0,024 (Tabla de coeficientes definitiva, E.P. 381 de 2022, conservada sin cambios por la E.P. 753 de 2023). El 0,116 es el del apartamento 825, el vecino.</li>
     <li>Cuando haya permutas o ventas parciales, actualizar por separado el dueño de cada apartamento, parqueadero y depósito, y no el coeficiente total de la unidad.</li>
   </ol>
 </section>
@@ -232,9 +232,11 @@ body.pdf .solo-pdf{display:block}
 <section class="panel" aria-labelledby="cr-t">
   <h2 id="cr-t">9. Qué pasó, en orden</h2>
   <ol class="timeline">
-    <li style="--k:var(--err)"><span class="w">Antes de nov-2024</span><span class="d"></span><div class="t"><b>Asamblea con inasistencia del 824</b>En ese momento el 824 era de la Sra. Maritza. La fecha del acta está por confirmar.</div></li>
-    <li><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Permuta de los apartamentos</b>Cambian de dueña solo el 824 y el 1124. Las propietarias informan la permuta a la administración por correo electrónico.</div></li>
-    <li style="--k:var(--err)"><span class="w">Nov 2024</span><span class="d"></span><div class="t"><b>Se carga la sanción de $492.769 al 824</b>Se carga al inmueble, como dice el reglamento, cuando ya era de la Sra. Constanza. Desde ahí sus pagos se aplican primero a la sanción, le queda saldo pendiente y pierde el descuento.</div></li>
+    <li><span class="w">1 ago 2024</span><span class="d"></span><div class="t"><b>Permuta de los apartamentos</b>Escritura 1682 de la Notaría Segunda de Santa Marta, registrada el 12-09-2024. Cambian de dueña solo el 824 y el 1124; cada una conserva sus parqueaderos y su depósito (certificados de tradición de los dos apartamentos).</div></li>
+    <li style="--k:var(--err)"><span class="w">17 ago 2024</span><span class="d"></span><div class="t"><b>Asamblea con inasistencia del 824 (Acta 184)</b>La permuta ya estaba firmada (1 ago) pero aún no registrada (12 sep). Como el dominio cambia con el registro, en esa fecha la dueña del 824 seguía siendo la Sra. Maritza.</div></li>
+    <li><span class="w">14 oct 2024</span><span class="d"></span><div class="t"><b>La administración informa a contabilidad</b>Correo de la Asistente Administrativa a Contabilidad T-Solfin: pide ajustar las cuentas de cobro desde noviembre; las dos ya habían pagado octubre.</div></li>
+    <li style="--k:var(--err)"><span class="w">7 nov 2024</span><span class="d"></span><div class="t"><b>Se carga la sanción de $492.769 al 824</b>Se carga al inmueble, como dice el reglamento, cuando ya era de la Sra. Constanza. Desde ahí sus pagos se aplican primero a la sanción, le queda saldo pendiente y pierde el descuento.</div></li>
+    <li style="--k:var(--err)"><span class="w">Acta 190</span><span class="d"></span><div class="t"><b>Se reconfirma la sanción</b>El Acta 190 reconfirma la sanción impuesta por la inasistencia del 17-08-2024 (Acta 184). Fecha del acta por confirmar.</div></li>
     <li><span class="w">Nov–dic 2024</span><span class="d"></span><div class="t"><b>La facturación todavía está bien</b>A cada una se le cobra con su coeficiente real.</div></li>
     <li style="--k:var(--aviso)"><span class="w">Presupuesto 2025</span><span class="d"></span><div class="t"><b>Se cruzan los coeficientes</b>Aunque la administración ya conocía la permuta, al 824 se le factura con 0,141 y al 1124 con 0,163. El error sigue hasta hoy.</div></li>
     <li><span class="w">Feb 2025</span><span class="d"></span><div class="t"><b>El 1124 paga un anticipo de $4.665.537</b>Con eso cubre de marzo a diciembre de 2025.</div></li>
@@ -244,11 +246,28 @@ body.pdf .solo-pdf{display:block}
   </ol>
 </section>
 
+<section class="panel" aria-labelledby="rph-t">
+  <h2 id="rph-t">Qué dice el reglamento</h2>
+  <p class="lead">Escritura 753 del 27 de febrero de 2023 de la Notaría 27 de Bogotá, que reforma integralmente el reglamento de propiedad horizontal. Las páginas son las de esa escritura.</p>
+  <div class="scroll"><table class="rph">
+    <thead><tr><th>Artículo</th><th>Qué dice</th><th>Qué significa para este caso</th></tr></thead>
+    <tbody>
+      <tr><td>Art. 34 y tabla de coeficientes<br><span class="tenue">págs. 159-219</span></td><td>Los coeficientes de la E.P. 381 de 2022 se conservan sin modificación. Cada bien privado (apartamento, parqueadero, depósito) tiene el suyo.</td><td>824 = 0,115 + Dep. 126 0,003 + Parq. 162 0,021 + Parq. 269 0,024 = <b>0,163</b>. 1124 = 0,115 + Dep. 103 0,005 + Parq. 180 0,021 = <b>0,141</b>. Hoy se facturan al revés.</td></tr>
+      <tr><td>Art. 42.9 y 44.3<br><span class="tenue">págs. 276 y 278</span></td><td>Las expensas se facturan y cobran al propietario de la unidad.</td><td>Desde la permuta, cada propietaria debe pagar por su apartamento y por sus propios parqueaderos y depósito.</td></tr>
+      <tr><td>Art. 42.3<br><span class="tenue">pág. 275</span></td><td>Las multas se causan cuando queda en firme la resolución que las impone. Los pagos se aplican primero a multas, sanciones e intereses y después a las cuotas. La mora causa intereses de 1,5 veces el bancario corriente.</td><td>Si la sanción se mantiene en el 824, sus pagos se aplican primero a ella: por eso sus cuotas quedan vencidas. La nota ya aplica esta regla.</td></tr>
+      <tr><td>Art. 42.4, 42.6 y 44<br><span class="tenue">págs. 275-278</span></td><td>Las cuotas de sostenimiento siguen al inmueble y hay solidaridad entre el propietario anterior y el nuevo por las expensas no pagadas al transferir.</td><td>La regla habla de expensas e intereses, no de multas. Que la sanción por inasistencia pase a la nueva dueña no se desprende directamente del texto: es punto del concepto jurídico.</td></tr>
+      <tr><td>Art. 44.6<br><span class="tenue">pág. 279</span></td><td>Quien paga dentro de los 15 primeros días de cada mes tiene el descuento que fije la Asamblea.</td><td>El descuento se gana mes a mes por pagar a tiempo; el reglamento no lo condiciona a estar al día en todo.</td></tr>
+      <tr><td>Art. 54<br><span class="tenue">pág. 302</span></td><td>La Asamblea la forman los propietarios que a la fecha de la reunión tengan el documento que acredite la propiedad y estén inscritos en el libro de registro de copropietarios.</td><td>El 17-08-2024 la permuta estaba firmada pero no registrada, y la administración no la conocía (la informó el 14-10-2024). Para la administración, la copropietaria del 824 seguía siendo la Sra. Maritza (verificar el libro de registro de copropietarios).</td></tr>
+      <tr><td>Art. 82.3, parágrafo 1, y 82.4<br><span class="tenue">págs. 327-328</span></td><td>La inasistencia injustificada acarrea para el respectivo copropietario la multa que fije el Consejo; debe anunciarse en la convocatoria; el Consejo decide sobre las excusas y la impone con resolución motivada dentro de 30 días hábiles desde que conoce el hecho.</td><td>Verificar: que la convocatoria de la asamblea del 17-08-2024 anunciara la multa; la resolución del Consejo, a quién se impuso y su fecha (30 días hábiles desde el 17-08-2024 vencían a finales de septiembre de 2024; se cargó el 07-11-2024); y qué decidió el Acta 190.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
 <section class="panel" aria-labelledby="de-t">
   <h2 id="de-t">10. Detalle mes a mes</h2>
   <details><summary>Apto 824 T2</summary><div class="scroll" id="t824"></div></details>
   <details><summary>Apto 1124 T2</summary><div class="scroll" id="t1124"></div></details>
-  <p class="nota">Soporte de la permuta: correo de las propietarias a la administración de noviembre de 2024 (adjuntarlo a la aclaración). Pendientes por verificar: el acta y el proceso de la sanción; el coeficiente del apartamento en el RPH (0,115 o 0,116); las notas NC-586 y NC-589 del 1124; y los pagos del 824 de marzo y abril de 2026, que en el análisis aparecen como no pagado y $96.955.</p>
+  <p class="nota">Soportes de la permuta: certificados de tradición de los dos apartamentos y correo de la administración del 14 de octubre de 2024. Pendientes por verificar: la convocatoria y la resolución del Consejo que impuso la sanción del Acta 184 (17-08-2024), su fecha frente al plazo de 30 días hábiles del art. 82.4, y la fecha y el contenido del Acta 190, que la reconfirma; las notas NC-586 y NC-589 del 1124; y los pagos del 824 de marzo y abril de 2026, que en el análisis aparecen como no pagado y $96.955.</p>
   <p class="tenue" style="font-size:13px">Fuente: análisis de la administración (Libro1_1.xlsx) y estados de cuenta de World Office a octubre de 2026. Los intereses, si se cobran, se calculan sin capitalizar, sobre cuotas vencidas, con la tasa mensual de cada mes.</p>
 </section>
 </main>
@@ -321,7 +340,9 @@ const BIENES = {
   a824: [["Apto 824", null], ["Dep. 126", 0.003], ["Parq. 162", 0.021], ["Parq. 269", 0.024]],
   a1124: [["Apto 1124", null], ["Dep. 103", 0.005], ["Parq. 180", 0.021]],
 };
-const PROPUESTA = { sancion: "quitar", intereses: false, desc: "pago", orden: "cuotas", coefApto: 0.115, favor: "abonar" };
+const COEF_RPH = 0.115; /* Tabla de coeficientes definitiva: E.P. 381/2022, conservada por la E.P. 753/2023 (págs. 175-176) */
+const PROPUESTA = { sancion: "quitar", intereses: false, desc: "pago", orden: "sancion", coefApto: COEF_RPH, favor: "abonar" };
+const fijarReglamento = () => { st.coefApto = COEF_RPH; st.orden = "sancion"; };
 let st = { ...PROPUESTA }, guardada = null, editor = false, db = null;
 
 const coefs = () => ({ a824: +(st.coefApto + 0.048).toFixed(3), a1124: +(st.coefApto + 0.026).toFixed(3) });
@@ -592,15 +613,16 @@ function syncCtl() {
     $("coef-tot").innerHTML = `<span>Total a facturar a cada una (apartamento + sus parqueaderos y depósito):</span>` + linea("a824", "824 (Sra. Constanza)") + linea("a1124", "1124 (Sra. Maritza)"); }
   { const f = calcular().r1124.final; $("favor-caja").textContent = f < 0 ? (st.favor === "devolver" ? `Sale de caja ${fmt(-f)}.` : `No sale dinero de caja.`) : "Con esta decisión el 1124 no queda con saldo a favor."; }
   const ok = igual(st, guardada);
+  const viejo = guardada && (guardada.coefApto !== COEF_RPH || (guardada.sancion === "824" && guardada.orden !== "sancion"));
   const quien = guardada ? `Decisión de la administración guardada${guardada._por ? " por " + guardada._por : ""}${guardada._fecha ? " el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : ""}.` : "Todavía no hay una decisión guardada. Se muestra la propuesta de la administración.";
-  $("estado-dec").innerHTML = ok ? `<span class="pill ok">Decisión vigente</span> ${quien}` : `<span class="pill">Escenario de prueba</span> ${guardada ? "Es distinto de la decisión guardada. " : ""}${editor ? "" : "Los cambios no se guardan."}`;
+  $("estado-dec").innerHTML = ok ? `<span class="pill ok">Decisión vigente</span> ${quien}` : `<span class="pill">Escenario de prueba</span> ${viejo ? "La decisión guardada se calculó con criterios que no son los del reglamento (coeficiente " + coefTxt(guardada.coefApto) + (guardada.sancion === "824" && guardada.orden !== "sancion" ? " y pagos aplicados primero a la cuota" : "") + "). Guárdela de nuevo para actualizar los saldos. " : guardada ? "Es distinto de la decisión guardada. " : ""}${editor ? "" : "Los cambios no se guardan."}`;
   $("guardar").hidden = !(editor && db && !ok);
   $("volver").hidden = !(guardada && !ok);
 }
 function render() { const R = calcular(); syncCtl(); resultado(R); seccionCoef(R); seccionEjemplo(R); barras(R); seccion1124(R); seccion824(R); seccionRegistro(R); ajustarAlto(); }
 
 document.querySelectorAll(".seg[data-k] button").forEach((b) => b.addEventListener("click", () => { st[b.parentElement.dataset.k] = parse(b.dataset.v); render(); }));
-$("volver").addEventListener("click", () => { Object.keys(PROPUESTA).forEach((k) => (st[k] = guardada[k])); render(); });
+$("volver").addEventListener("click", () => { Object.keys(PROPUESTA).forEach((k) => (st[k] = guardada[k])); fijarReglamento(); render(); });
 $("guardar").addEventListener("click", async () => {
   const b = $("guardar"); b.disabled = true; b.textContent = "Guardando…";
   try {
@@ -624,7 +646,7 @@ function ajustarAlto() { try { if (window.frameElement) window.frameElement.styl
       editor = (P.EFPH_PERFIL || {}).rol === "editor";
       db = await P.claude.use("db");
       const d = (await db.doc("config/caso_824_1124").get()).data();
-      if (d && d.decision) { guardada = { ...PROPUESTA, ...d.decision }; Object.keys(PROPUESTA).forEach((k) => (st[k] = guardada[k])); }
+      if (d && d.decision) { guardada = { ...PROPUESTA, ...d.decision }; Object.keys(PROPUESTA).forEach((k) => (st[k] = guardada[k])); fijarReglamento(); }
     } catch (e) { db = null; }
   }
   render();
@@ -641,7 +663,7 @@ function resumenDecision() {
     favor: st.favor === "devolver" ? "se le devuelve" : "se abona a sus próximas cuotas",
   };
   const est = igual(st, guardada) ? "Decisión de la administración" + (guardada && guardada._fecha ? " guardada el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : "") : "Escenario de análisis (no corresponde a una decisión guardada)";
-  return `<b>${est}.</b> Sanción de $492.769: ${t.sancion}. Intereses de mora al 824: ${t.intereses}. Descuento por pronto pago: ${t.desc}.${st.sancion === "824" ? " Pagos del 824 aplicados primero a " + (st.orden === "sancion" ? "la sanción." : "la cuota del mes.") : ""} Coeficiente del apartamento: ${coefTxt(st.coefApto)} (con sus parqueaderos y depósito: 824 = ${coefTxt(coefs().a824)}, 1124 = ${coefTxt(coefs().a1124)}). Saldo a favor del 1124: ${t.favor}.`;
+  return `<b>${est}.</b> Sanción de $492.769: ${t.sancion}. Intereses de mora al 824: ${t.intereses}. Descuento por pronto pago: ${t.desc}.${st.sancion === "824" ? " Pagos del 824 aplicados primero a la sanción y los intereses (reglamento, art. 42.3)." : ""} Coeficiente del apartamento según el reglamento: ${coefTxt(st.coefApto)} (con sus parqueaderos y depósito: 824 = ${coefTxt(coefs().a824)}, 1124 = ${coefTxt(coefs().a1124)}). Saldo a favor del 1124: ${t.favor}.`;
 }
 function prepararPdf() {
   document.documentElement.setAttribute("data-theme", "light");
