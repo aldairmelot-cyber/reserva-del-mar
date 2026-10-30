@@ -140,7 +140,7 @@ body.pdf .solo-pdf{display:block}
   <div class="ctl"><span>Descuento por pronto pago (824 y 1124)</span><div class="seg" data-k="desc"><button data-v="pago">Cada mes que pagó a tiempo</button><button data-v="aldia">Solo si estaba al día</button><button data-v="nunca">No se reconoce</button></div></div>
   <div class="ctl" id="ctl-orden"><span>Pagos del 824 se aplican primero a</span><div class="seg" data-k="orden"><button data-v="cuotas">La cuota del mes</button><button data-v="sancion">La sanción</button></div></div>
   <div class="ctl"><span>Saldo a favor del 1124</span><div class="seg" data-k="favor"><button data-v="abonar">Se abona a sus próximas cuotas</button><button data-v="devolver">Se le devuelve</button></div><small class="ctl-nota" id="favor-caja"></small></div>
-  <div class="ctl"><span>Coeficiente del apartamento (RPH) · 824 y 1124</span><div class="seg" data-k="coefApto"><button data-v="0.116">0,116</button><button data-v="0.115">0,115 · certificados</button></div><small class="ctl-nota" id="coef-tot"></small></div>
+  <div class="ctl"><span>Coeficiente solo del apartamento, sin parqueaderos ni depósito (igual para el 824 y el 1124)</span><div class="seg" data-k="coefApto"><button data-v="0.116">0,116</button><button data-v="0.115">0,115 · certificados</button></div><small class="ctl-nota" id="coef-tot"></small></div>
   <div class="solo-pdf" id="dec-resumen"></div>
   <div class="guardado"><span id="estado-dec" class="tenue">Escenario de prueba: los cambios no se guardan.</span><button class="btn" id="guardar" hidden>Guardar como decisión de la administración</button><button class="btn sec" id="volver" hidden>Volver a la decisión guardada</button><button class="btn sec" id="pdf" title="Se abre la impresión: elija «Guardar como PDF»">Descargar PDF</button></div>
 </div>
@@ -589,7 +589,7 @@ function syncCtl() {
   $("ctl-orden").style.display = st.sancion === "824" ? "" : "none";
   $("aviso-1124").hidden = st.sancion !== "1124";
   { const c = coefs(), linea = (k, n) => { const it = BIENES[k].map(([x, v]) => [x, v ?? st.coefApto]); return `<span><b>${n}:</b> ${it.map(([x, v]) => `${x} ${coefTxt(v)}`).join(" + ")} = <b>${coefTxt(c[k])}</b></span>`; };
-    $("coef-tot").innerHTML = linea("a824", "824 (Sra. Constanza)") + linea("a1124", "1124 (Sra. Maritza)"); }
+    $("coef-tot").innerHTML = `<span>Total a facturar a cada una (apartamento + sus parqueaderos y depósito):</span>` + linea("a824", "824 (Sra. Constanza)") + linea("a1124", "1124 (Sra. Maritza)"); }
   { const f = calcular().r1124.final; $("favor-caja").textContent = f < 0 ? (st.favor === "devolver" ? `Sale de caja ${fmt(-f)}.` : `No sale dinero de caja.`) : "Con esta decisión el 1124 no queda con saldo a favor."; }
   const ok = igual(st, guardada);
   const quien = guardada ? `Decisión de la administración guardada${guardada._por ? " por " + guardada._por : ""}${guardada._fecha ? " el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : ""}.` : "Todavía no hay una decisión guardada. Se muestra la propuesta de la administración.";
