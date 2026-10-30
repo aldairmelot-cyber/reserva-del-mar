@@ -38,6 +38,7 @@ section{display:grid;gap:12px}
 .decision{position:sticky;top:0;z-index:5;background:var(--hoja);border:1px solid var(--linea);border-top:3px solid var(--oro);border-radius:8px;padding:12px 16px;display:grid;gap:8px;box-shadow:0 4px 14px rgba(38,42,51,.06)}
 .ctl{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
 .ctl>span{min-width:190px;font-size:14px;color:var(--suave)}
+.ctl-nota{font-size:13px;color:var(--suave)}#aviso-1124{color:var(--aviso)}
 .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--linea-fuerte);border-radius:6px;overflow:hidden}
 .seg button{border:0;border-right:1px solid var(--linea-fuerte);background:transparent;color:var(--tinta);padding:5px 11px;font:500 13.5px var(--f-ui);cursor:pointer}
 .seg button:last-child{border-right:0}
@@ -134,11 +135,12 @@ body.pdf .solo-pdf{display:block}
 </header>
 
 <div class="decision" role="region" aria-label="Decisiones">
-  <div class="ctl"><span>Sanción de $492.769</span><div class="seg" data-k="sancion"><button data-v="824">Se mantiene en el 824</button><button data-v="quitar">Se quita</button><button data-v="1124">Se carga al 1124</button></div></div>
+  <div class="ctl"><span>Sanción de $492.769</span><div class="seg" data-k="sancion"><button data-v="824">Se mantiene en el 824</button><button data-v="quitar">Se quita</button><button data-v="1124">Se carga al 1124</button></div><small class="ctl-nota" id="aviso-1124" hidden>Se cruza con el saldo a favor del 1124: requiere autorización escrita de la Sra. Maritza.</small></div>
   <div class="ctl"><span>Intereses de mora al 824</span><div class="seg" data-k="intereses"><button data-v="false">No se cobran</button><button data-v="true">Sí se cobran</button></div></div>
-  <div class="ctl"><span>Descuento por pronto pago</span><div class="seg" data-k="desc"><button data-v="pago">Cada mes que pagó a tiempo</button><button data-v="aldia">Solo si estaba al día</button><button data-v="nunca">No se reconoce</button></div></div>
+  <div class="ctl"><span>Descuento por pronto pago (824 y 1124)</span><div class="seg" data-k="desc"><button data-v="pago">Cada mes que pagó a tiempo</button><button data-v="aldia">Solo si estaba al día</button><button data-v="nunca">No se reconoce</button></div></div>
   <div class="ctl" id="ctl-orden"><span>Pagos del 824 se aplican primero a</span><div class="seg" data-k="orden"><button data-v="cuotas">La cuota del mes</button><button data-v="sancion">La sanción</button></div></div>
-  <div class="ctl"><span>Coeficiente del apartamento (RPH)</span><div class="seg" data-k="coefApto"><button data-v="0.116">0,116</button><button data-v="0.115">0,115</button></div></div>
+  <div class="ctl"><span>Saldo a favor del 1124</span><div class="seg" data-k="favor"><button data-v="abonar">Se abona a sus próximas cuotas</button><button data-v="devolver">Se le devuelve</button></div><small class="ctl-nota" id="favor-caja"></small></div>
+  <div class="ctl"><span>Coeficiente del apartamento (RPH) · 824 y 1124</span><div class="seg" data-k="coefApto"><button data-v="0.116">0,116</button><button data-v="0.115">0,115 · certificados</button></div><small class="ctl-nota" id="coef-tot"></small></div>
   <div class="solo-pdf" id="dec-resumen"></div>
   <div class="guardado"><span id="estado-dec" class="tenue">Escenario de prueba: los cambios no se guardan.</span><button class="btn" id="guardar" hidden>Guardar como decisión de la administración</button><button class="btn sec" id="volver" hidden>Volver a la decisión guardada</button><button class="btn sec" id="pdf" title="Se abre la impresión: elija «Guardar como PDF»">Descargar PDF</button></div>
 </div>
@@ -319,7 +321,7 @@ const BIENES = {
   a824: [["Apto 824", null], ["Dep. 126", 0.003], ["Parq. 162", 0.021], ["Parq. 269", 0.024]],
   a1124: [["Apto 1124", null], ["Dep. 103", 0.005], ["Parq. 180", 0.021]],
 };
-const PROPUESTA = { sancion: "quitar", intereses: false, desc: "pago", orden: "cuotas", coefApto: 0.116, favor: "abonar" };
+const PROPUESTA = { sancion: "quitar", intereses: false, desc: "pago", orden: "cuotas", coefApto: 0.115, favor: "abonar" };
 let st = { ...PROPUESTA }, guardada = null, editor = false, db = null;
 
 const coefs = () => ({ a824: +(st.coefApto + 0.048).toFixed(3), a1124: +(st.coefApto + 0.026).toFixed(3) });
@@ -585,6 +587,9 @@ const igual = (a, b) => !!a && !!b && Object.keys(PROPUESTA).every((k) => a[k] =
 function syncCtl() {
   document.querySelectorAll(".seg[data-k]").forEach((seg) => seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(parse(b.dataset.v) === st[seg.dataset.k]))));
   $("ctl-orden").style.display = st.sancion === "824" ? "" : "none";
+  $("aviso-1124").hidden = st.sancion !== "1124";
+  { const c = coefs(); $("coef-tot").textContent = `Con parqueaderos y depósito: 824 = ${coefTxt(c.a824)} · 1124 = ${coefTxt(c.a1124)}`; }
+  { const f = calcular().r1124.final; $("favor-caja").textContent = f < 0 ? (st.favor === "devolver" ? `Sale de caja ${fmt(-f)}.` : `No sale dinero de caja.`) : "Con esta decisión el 1124 no queda con saldo a favor."; }
   const ok = igual(st, guardada);
   const quien = guardada ? `Decisión de la administración guardada${guardada._por ? " por " + guardada._por : ""}${guardada._fecha ? " el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : ""}.` : "Todavía no hay una decisión guardada. Se muestra la propuesta de la administración.";
   $("estado-dec").innerHTML = ok ? `<span class="pill ok">Decisión vigente</span> ${quien}` : `<span class="pill">Escenario de prueba</span> ${guardada ? "Es distinto de la decisión guardada. " : ""}${editor ? "" : "Los cambios no se guardan."}`;
@@ -635,7 +640,7 @@ function resumenDecision() {
     favor: st.favor === "devolver" ? "se le devuelve" : "se abona a sus próximas cuotas",
   };
   const est = igual(st, guardada) ? "Decisión de la administración" + (guardada && guardada._fecha ? " guardada el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : "") : "Escenario de análisis (no corresponde a una decisión guardada)";
-  return `<b>${est}.</b> Sanción de $492.769: ${t.sancion}. Intereses de mora al 824: ${t.intereses}. Descuento por pronto pago: ${t.desc}.${st.sancion === "824" ? " Pagos del 824 aplicados primero a " + (st.orden === "sancion" ? "la sanción." : "la cuota del mes.") : ""} Coeficiente del apartamento: ${coefTxt(st.coefApto)}. Saldo a favor del 1124: ${t.favor}.`;
+  return `<b>${est}.</b> Sanción de $492.769: ${t.sancion}. Intereses de mora al 824: ${t.intereses}. Descuento por pronto pago: ${t.desc}.${st.sancion === "824" ? " Pagos del 824 aplicados primero a " + (st.orden === "sancion" ? "la sanción." : "la cuota del mes.") : ""} Coeficiente del apartamento: ${coefTxt(st.coefApto)} (con parqueaderos y depósito: 824 = ${coefTxt(coefs().a824)}, 1124 = ${coefTxt(coefs().a1124)}). Saldo a favor del 1124: ${t.favor}.`;
 }
 function prepararPdf() {
   document.documentElement.setAttribute("data-theme", "light");
