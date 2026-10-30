@@ -4701,10 +4701,11 @@ var efH = Ve.createElement;
 var EF_PERFILES = { consejo: "Consejo de Administración", admin: "Administración", revisor: "Revisoría Fiscal" };
 var EF_VISTAS = (() => {
   let sinCarga = L => L.filter(v => !/carga/.test(v));
-  let base = ["portal", "inicio", "consejo", "firmas", ...t8, "ppto", "ppto_rubros", "acl", "cartera"];
+  let base = ["portal", "inicio", "consejo", "firmas", ...t8, "ppto", "ppto_rubros", "acl"];
+  let cart = ["cartera"];
   let imp = ["ret", "iva", "ica", ...PR_VISTAS];
   let rev = ["revision", "fondo", ...sinCarga(VX_VISTAS), ...sinCarga(DV_VISTAS), ...sinCarga(DC_VISTAS)];
-  return { consejo: new Set(base), admin: new Set([...base, ...imp]), revisor: new Set([...base, ...imp, ...rev]) };
+  return { consejo: new Set(base), admin: new Set([...base, ...cart, ...imp]), revisor: new Set([...base, ...cart, ...imp, ...rev]) };
 })();
 var efPerfil = () => (window.EFPH_PERFIL && window.EFPH_PERFIL.rol) || "editor";
 var efConsulta = () => efPerfil() !== "editor";
@@ -4896,7 +4897,7 @@ function EfUsuarios({ ses, notificar }) {
     setOc(!1);
   };
   let quitar = async email => { setOc(!0); try { await ses.store.del("_roles/" + email); notificar("ok", `Se quitó el acceso de ${email}.`); await cargar(); } catch (e) { notificar("error", "No se pudo quitar: " + (e?.message ?? e)); } setConf(null); setOc(!1); };
-  let que = { consejo: "Estados financieros, presupuesto, cartera, aclaraciones e informe al Consejo. Sin impuestos.", admin: "Lo del Consejo más impuestos (retención, IVA, ICA, prorrateo).", revisor: "Lo de la Administración más revisión del balance, auditoría del fondo de imprevistos, libro auxiliar, verificación DIAN y conciliación de manillas." };
+  let que = { consejo: "Estados financieros, presupuesto, aclaraciones e informe al Consejo. Sin cartera ni impuestos.", admin: "Lo del Consejo más cartera e impuestos (retención, IVA, ICA, prorrateo).", revisor: "Lo de la Administración más revisión del balance, auditoría del fondo de imprevistos, libro auxiliar, verificación DIAN y conciliación de manillas." };
   return efH("section", { className: "pantalla" },
     efH("header", { className: "pantalla-enc" }, efH("div", null, efH("h2", { className: "h-sec" }, "Usuarios y perfiles"),
       efH("p", { className: "lead" }, "Agregue a cada persona con su correo de Google y el perfil que le corresponde. Los perfiles de consulta solo ven y descargan informes: no pueden cargar ni modificar nada."))),
@@ -5146,7 +5147,7 @@ function EfPortal({ ses, actual, r, periodos, ir, abrir, retResumen, cartera, ac
   let [cart, setCart] = Ve.useState(null);
   let [met, setMet] = Ve.useState(() => efLS.get("ef.met", "res"));
   let [foco, setFoco] = Ve.useState(null);
-  let tabsDisp = [["ppto", "Presupuesto"], ["cartera", "Cartera"], ["acl", rol === "consejo" ? "Decisiones" : "Aclaraciones"], ["ef", "Informes"], ...(rol !== "consejo" ? [["imp", "Impuestos"]] : []), ...(rol === "revisor" ? [["rev", "Revisión"]] : [])];
+  let tabsDisp = [["ppto", "Presupuesto"], ...(rol !== "consejo" ? [["cartera", "Cartera"]] : []), ["acl", rol === "consejo" ? "Decisiones" : "Aclaraciones"], ["ef", "Informes"], ...(rol !== "consejo" ? [["imp", "Impuestos"]] : []), ...(rol === "revisor" ? [["rev", "Revisión"]] : [])];
   let [tab, setTab] = Ve.useState(() => { let t = efLS.get("ef.tab", "ppto"); return tabsDisp.some(([k]) => k === t) ? t : "ppto"; });
   let anio = actual?.periodo.anio, mes = actual?.periodo.mes;
   Ve.useEffect(() => setFoco(mes), [mes]);
@@ -5365,7 +5366,7 @@ function EfEstado({ ses, pid, nFirmas, definitivo, editor, rojos, onEstado, peri
           nFirmas > 0 && efH("p", { className: "ef-estado-alerta" }, `Tiene ${nFirmas} firma${nFirmas > 1 ? "s" : ""}: al reabrirlo se retira${nFirmas > 1 ? "n" : ""} y habrá que firmar de nuevo.`),
           efH("small", null, "Al reabrirlo el Consejo deja de verlo hasta que lo vuelva a marcar como definitivo. La Administración y la Revisoría Fiscal lo siguen viendo como borrador."))
         : efH(Ve.Fragment, null,
-          efH("p", null, "El Consejo todavía no lo ve; la Administración y la Revisoría Fiscal sí, marcado como borrador. Al marcarlo como definitivo se publica para el Consejo, junto con su cartera, presupuesto y aclaraciones del mes, y queda bloqueado para edición."),
+          efH("p", null, "El Consejo todavía no lo ve; la Administración y la Revisoría Fiscal sí, marcado como borrador. Al marcarlo como definitivo se publica para el Consejo, junto con su presupuesto y aclaraciones del mes, y queda bloqueado para edición."),
           rojos > 0 && efH("p", { className: "ef-estado-alerta" }, `Hay ${rojos} control${rojos > 1 ? "es" : ""} en rojo en la revisión del balance. Corríjalos antes de publicar.`),
           rojos > 0
             ? efH("button", { type: "button", className: "btn btn-sm", onClick: () => { setAb(!1); ir("revision"); } }, "Ir a la revisión del balance")
@@ -5529,7 +5530,7 @@ var c8=Lt(ca(),1);(0,l8.createRoot)(document.getElementById("root")).render((0,c
   var COL = "archivos_cargados";
   var MAX = 15 * 1024 * 1024;
   var SECS = ["Balances de prueba", "Libros auxiliares", "Verificación DIAN", "Conciliación bancaria", "Retenciones", "Cartera", "Presupuesto", "Otros"];
-  function secsVisibles(){ var rol = (window.EFPH_PERFIL && window.EFPH_PERFIL.rol) || "editor"; var oc = { consejo: ["Retenciones", "Verificación DIAN", "Libros auxiliares", "Conciliación bancaria"], admin: ["Verificación DIAN", "Libros auxiliares", "Conciliación bancaria"] }[rol] || []; return SECS.filter(function(x){ return oc.indexOf(x) < 0; }); }
+  function secsVisibles(){ var rol = (window.EFPH_PERFIL && window.EFPH_PERFIL.rol) || "editor"; var oc = { consejo: ["Retenciones", "Cartera", "Verificación DIAN", "Libros auxiliares", "Conciliación bancaria"], admin: ["Verificación DIAN", "Libros auxiliares", "Conciliación bancaria"] }[rol] || []; return SECS.filter(function(x){ return oc.indexOf(x) < 0; }); }
   var caps = { db: null, assets: null, downloads: null, user: null };
   var originales = [], rec = null, recCargando = false, recError = "";
   var listos = false, pendientes = 0;
@@ -5625,7 +5626,7 @@ var c8=Lt(ca(),1);(0,l8.createRoot)(document.getElementById("root")).render((0,c
       return { key: x.id, sec: x.sec, grupo: x.grupo, orden: x.orden || "", nombre: x.nombre, det: x.det, exacto: x.exacto, pesado: x.pesado, pdf: x.pdf, bytes: x.generar };
     });
     var rol = (window.EFPH_PERFIL && window.EFPH_PERFIL.rol) || "editor";
-    var oculto = { consejo: ["Retenciones", "Verificación DIAN", "Libros auxiliares"], admin: ["Verificación DIAN", "Libros auxiliares"] }[rol] || [];
+    var oculto = { consejo: ["Retenciones", "Cartera", "Verificación DIAN", "Libros auxiliares"], admin: ["Verificación DIAN", "Libros auxiliares"] }[rol] || [];
     return o.concat(r).filter(function(x){ return oculto.indexOf(x.sec) < 0; });
   }
 

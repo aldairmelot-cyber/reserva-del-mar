@@ -5,8 +5,8 @@ rules_version = '2';
 //    Lee y escribe todo.
 //  - consulta: cada correo agregado en la app (Datos → Usuarios y perfiles) queda en
 //    _roles/<correo> con su perfil: 'consejo', 'revisor' o 'admin'. Solo lee, según su perfil:
-//      consejo  → estados financieros, presupuesto, cartera, aclaraciones (sin impuestos ni archivos cargados).
-//      admin    → lo del consejo + impuestos.
+//      consejo  → estados financieros, presupuesto, aclaraciones (sin cartera, impuestos ni archivos cargados).
+//      admin    → lo del consejo + cartera e impuestos.
 //      revisor  → lo de admin + verificación contable, auditoría del fondo de imprevistos (usa el libro auxiliar), verificación DIAN y verificación de manillas (banco, Plink y Siigo).
 // Pegue este texto en Firebase → Firestore Database → Reglas y pulse Publicar.
 service cloud.firestore {
@@ -32,6 +32,9 @@ service cloud.firestore {
     function impuestos() {
       return ['retencion', 'retencion_pdf', 'iva', 'ica', 'prorrateo_cfg', 'prorrateo_mes'];
     }
+    function cartera() {
+      return ['cartera', 'cartera_c', 'cartera_p'];
+    }
     function revision() {
       return ['verif_idx', 'verif_raw', 'dianv', 'dianv_aux', 'dianv_cfg', 'dianv_idx', 'dianv_notas',
               'cman_raw', 'cman_idx', 'cman_seg', 'cman_cfg', 'cbl_raw', 'cbl_idx', 'cbl_seg',
@@ -43,7 +46,8 @@ service cloud.firestore {
     }
     function puedeLeer(col) {
       return editor() || (consulta() && (
-        (!(col in impuestos()) && !(col in revision()) && !(col in archivos()))
+        (!(col in impuestos()) && !(col in revision()) && !(col in archivos()) && !(col in cartera()))
+        || (col in cartera() && perfil() in ['admin', 'revisor'])
         || (col in archivos() && perfil() in ['admin', 'revisor'])
         || (col in impuestos() && perfil() in ['admin', 'revisor'])
         || (col in revision() && perfil() == 'revisor')
