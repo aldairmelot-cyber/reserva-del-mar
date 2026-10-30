@@ -38,7 +38,7 @@ section{display:grid;gap:12px}
 .decision{position:sticky;top:0;z-index:5;background:var(--hoja);border:1px solid var(--linea);border-top:3px solid var(--oro);border-radius:8px;padding:12px 16px;display:grid;gap:8px;box-shadow:0 4px 14px rgba(38,42,51,.06)}
 .ctl{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
 .ctl>span{min-width:190px;font-size:14px;color:var(--suave)}
-.ctl-nota{font-size:13px;color:var(--suave)}#aviso-1124{color:var(--aviso)}
+.ctl-nota{font-size:13px;color:var(--suave)}#coef-tot{display:grid;gap:2px}#aviso-1124{color:var(--aviso)}
 .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--linea-fuerte);border-radius:6px;overflow:hidden}
 .seg button{border:0;border-right:1px solid var(--linea-fuerte);background:transparent;color:var(--tinta);padding:5px 11px;font:500 13.5px var(--f-ui);cursor:pointer}
 .seg button:last-child{border-right:0}
@@ -588,7 +588,8 @@ function syncCtl() {
   document.querySelectorAll(".seg[data-k]").forEach((seg) => seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(parse(b.dataset.v) === st[seg.dataset.k]))));
   $("ctl-orden").style.display = st.sancion === "824" ? "" : "none";
   $("aviso-1124").hidden = st.sancion !== "1124";
-  { const c = coefs(); $("coef-tot").textContent = `Con parqueaderos y depósito: 824 = ${coefTxt(c.a824)} · 1124 = ${coefTxt(c.a1124)}`; }
+  { const c = coefs(), linea = (k, n) => { const it = BIENES[k].map(([x, v]) => [x, v ?? st.coefApto]); return `<span><b>${n}:</b> ${it.map(([x, v]) => `${x} ${coefTxt(v)}`).join(" + ")} = <b>${coefTxt(c[k])}</b></span>`; };
+    $("coef-tot").innerHTML = linea("a824", "824 (Sra. Constanza)") + linea("a1124", "1124 (Sra. Maritza)"); }
   { const f = calcular().r1124.final; $("favor-caja").textContent = f < 0 ? (st.favor === "devolver" ? `Sale de caja ${fmt(-f)}.` : `No sale dinero de caja.`) : "Con esta decisión el 1124 no queda con saldo a favor."; }
   const ok = igual(st, guardada);
   const quien = guardada ? `Decisión de la administración guardada${guardada._por ? " por " + guardada._por : ""}${guardada._fecha ? " el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : ""}.` : "Todavía no hay una decisión guardada. Se muestra la propuesta de la administración.";
@@ -640,7 +641,7 @@ function resumenDecision() {
     favor: st.favor === "devolver" ? "se le devuelve" : "se abona a sus próximas cuotas",
   };
   const est = igual(st, guardada) ? "Decisión de la administración" + (guardada && guardada._fecha ? " guardada el " + new Date(guardada._fecha).toLocaleDateString("es-CO") : "") : "Escenario de análisis (no corresponde a una decisión guardada)";
-  return `<b>${est}.</b> Sanción de $492.769: ${t.sancion}. Intereses de mora al 824: ${t.intereses}. Descuento por pronto pago: ${t.desc}.${st.sancion === "824" ? " Pagos del 824 aplicados primero a " + (st.orden === "sancion" ? "la sanción." : "la cuota del mes.") : ""} Coeficiente del apartamento: ${coefTxt(st.coefApto)} (con parqueaderos y depósito: 824 = ${coefTxt(coefs().a824)}, 1124 = ${coefTxt(coefs().a1124)}). Saldo a favor del 1124: ${t.favor}.`;
+  return `<b>${est}.</b> Sanción de $492.769: ${t.sancion}. Intereses de mora al 824: ${t.intereses}. Descuento por pronto pago: ${t.desc}.${st.sancion === "824" ? " Pagos del 824 aplicados primero a " + (st.orden === "sancion" ? "la sanción." : "la cuota del mes.") : ""} Coeficiente del apartamento: ${coefTxt(st.coefApto)} (con sus parqueaderos y depósito: 824 = ${coefTxt(coefs().a824)}, 1124 = ${coefTxt(coefs().a1124)}). Saldo a favor del 1124: ${t.favor}.`;
 }
 function prepararPdf() {
   document.documentElement.setAttribute("data-theme", "light");
