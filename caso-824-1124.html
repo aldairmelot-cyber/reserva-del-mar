@@ -123,6 +123,50 @@ body.pdf .solo-pdf{display:block}
 }
 .pdf-cab{border-bottom:2px solid var(--oro);padding-bottom:8px;margin-bottom:4px;font-size:13px;color:var(--suave)}
 .pdf-cab b{color:var(--tinta);font:600 15px var(--f-marca);letter-spacing:.06em;text-transform:uppercase}
+/* ===== informe individual por apartamento (solo para imprimir / PDF) ===== */
+.inf-acc{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px}
+#informe{display:none}
+body.inf{background:#fff}
+body.inf main{display:none!important}
+body.inf #informe{display:block}
+.inf-doc{max-width:900px;margin:0 auto;padding:6px 0 20px;color:var(--tinta);font:13px/1.5 var(--f-ui)}
+.inf-doc>*+*{margin-top:14px}
+.inf-cab{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;border-bottom:3px solid var(--oro);padding-bottom:8px}
+.inf-cab .ent{font:600 15px var(--f-marca);letter-spacing:.08em;text-transform:uppercase}
+.inf-cab .ent small{display:block;font:400 12px var(--f-ui);letter-spacing:0;text-transform:none;color:var(--suave)}
+.inf-cab .fch{text-align:right;font-size:12px;color:var(--suave)}
+.inf-doc h1{font:600 21px/1.25 var(--f-marca)}
+.inf-doc h2{font:600 15.5px/1.3 var(--f-marca);border-bottom:1px solid var(--linea-fuerte);padding-bottom:3px;margin-top:20px}
+.inf-doc h3{font:600 13.5px var(--f-ui);margin-top:10px}
+.inf-doc p,.inf-doc li{max-width:none}
+.inf-doc p+p{margin-top:6px}
+.inf-doc table{font-size:12px}
+.inf-doc th,.inf-doc td{padding:4px 7px}
+.inf-doc td.izq,.inf-doc th.izq{text-align:left}
+.inf-doc tr.sub td{font-weight:700;border-top:1px solid var(--linea-fuerte)}
+.inf-doc td:not(.izq),.inf-doc th:not(.izq){white-space:nowrap}
+.inf-doc .det td,.inf-doc .det th{white-space:nowrap}
+.inf-doc tfoot{display:table-row-group}
+.inf-doc .det{font-size:11px}.inf-doc .det th,.inf-doc .det td{padding:3px 5px}
+.inf-para{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:13px}
+.inf-para b{font-weight:600}
+.inf-res{border:1px solid var(--linea-fuerte);border-left:6px solid var(--c);border-radius:6px;padding:12px 16px;display:grid;gap:8px}
+.inf-res .big{font-size:26px}
+.inf-res .cmp div{padding:6px 9px}
+.inf-borr{border:2px dashed var(--err);color:var(--err);border-radius:6px;padding:6px 12px;font-weight:600;text-align:center}
+.inf-causas{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.inf-causas li{display:grid;grid-template-columns:1fr auto;gap:2px 16px;border-bottom:1px solid var(--linea);padding-bottom:7px}
+.inf-causas li>b:last-of-type{text-align:right;white-space:nowrap}
+.inf-causas li>span{grid-column:1/-1;color:var(--suave)}
+.inf-causas li.tot{border-bottom:0;border-top:2px solid var(--acento);padding-top:7px;font-size:14px}
+.inf-firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:46px!important}
+.inf-firmas div{border-top:1px solid var(--tinta);padding-top:4px;font-size:12px}
+@media print{
+  body.inf #informe{display:block!important}
+  .inf-doc{max-width:none;padding:0}
+  .inf-doc h2,.inf-doc h3{break-after:avoid}
+  .inf-res,.inf-causas li,.inf-firmas,.inf-doc tr{break-inside:avoid}
+}
 </style>
 </head>
 <body>
@@ -156,6 +200,7 @@ body.pdf .solo-pdf{display:block}
         <div><small>Debe quedar</small><b id="c824">–</b></div>
         <div><small>Ajuste a registrar</small><b id="a824">–</b></div>
       </div>
+      <div class="no-pdf inf-acc"><button class="btn sec" data-inf="824" title="Se abre la impresión: elija «Guardar como PDF»">Informe individual del 824 (PDF)</button><small class="tenue">Para entregar a la Sra. Constanza: qué queda debiendo y por qué, con la decisión elegida arriba.</small></div>
     </article>
     <article class="panel res" style="--c:var(--a1124)">
       <div class="quien"><span class="tag">Apto 1124 T2 · Maritza Arroliga</span><span class="pill ok">se le cobró de más</span></div>
@@ -165,6 +210,7 @@ body.pdf .solo-pdf{display:block}
         <div><small>Debe quedar</small><b id="c1124">–</b></div>
         <div><small>Ajuste a registrar</small><b id="a1124">–</b></div>
       </div>
+      <div class="no-pdf inf-acc"><button class="btn sec" data-inf="1124" title="Se abre la impresión: elija «Guardar como PDF»">Informe individual del 1124 (PDF)</button><small class="tenue">Para entregar a la Sra. Maritza: qué queda debiendo y por qué, con la decisión elegida arriba.</small></div>
     </article>
   </div>
 </section>
@@ -271,6 +317,7 @@ body.pdf .solo-pdf{display:block}
   <p class="tenue" style="font-size:13px">Fuente: análisis de la administración (Libro1_1.xlsx) y estados de cuenta de World Office a octubre de 2026. Los intereses, si se cobran, se calculan sin capitalizar, sobre cuotas vencidas, con la tasa mensual de cada mes.</p>
 </section>
 </main>
+<div id="informe" aria-hidden="true"></div>
 <script>
 // ===== Datos (fuente: Libro1_1.xlsx, hojas 824, 1124 (SIMULACION), Hoja2) =====
 const M = ["Nov 24","Dic 24","Ene 25","Feb 25","Mar 25","Abr 25","May 25","Jun 25","Jul 25","Ago 25","Sep 25","Oct 25","Nov 25","Dic 25","Ene 26","Feb 26","Mar 26","Abr 26","May 26","Jun 26","Jul 26","Ago 26","Sep 26","Oct 26"];
@@ -296,8 +343,8 @@ const SANCION = 492769;
 function sim824(o){
   const f = o.coef/0.164; let intr=0, cuota=0, san=0; const out=[]; let tInt=0, tDesc=0;
   D824.forEach((r,i)=>{
-    const [e0,x0,h,pay,rate]=r; const e=e0*f, x=x0*f;
-    if(o.intereses && i>0){ const add=Math.round(cuota*rate/100); intr+=add; tInt+=add; }
+    const [e0,x0,h,pay,rate]=r; const e=e0*f, x=x0*f; let add=0;
+    if(o.intereses && i>0){ add=Math.round(cuota*rate/100); intr+=add; tInt+=add; }
     if(o.sancion && i===0) san+=SANCION;
     const prevBal = intr+cuota+san;
     let d=0;
@@ -308,7 +355,7 @@ function sim824(o){
     intr-=take(intr);
     if(o.orden==="sancion"){ san-=take(san); cuota-=take(cuota); } else { cuota-=take(cuota); san-=take(san); }
     cuota-=p; // excedente queda como anticipo
-    out.push({m:M[i], bal:intr+cuota+san, intr, cuota, san, pay, d});
+    out.push({m:M[i], bal:intr+cuota+san, intr, cuota, san, pay, d, cargo:Math.round(e+x+h), ext:Math.round(x), otros:h, intAdd:add, sanAdd:(o.sancion&&i===0)?SANCION:0, tasa:rate});
   });
   return {rows:out, final:out[out.length-1].bal, tInt, tDesc};
 }
@@ -317,8 +364,9 @@ function sim1124(o){
   const f=o.coef/0.142; let bal=0; const out=[]; let tDesc=0;
   D1124.forEach((r,i)=>{
     const [e0,x0,d0,pay]=r; const d=o.desc?Math.round(d0*f):0; tDesc+=d;
-    bal += Math.round((e0+x0)*f) - d - pay;
-    out.push({m:M[i], bal, pay, d});
+    const cargo=Math.round((e0+x0)*f);
+    bal += cargo - d - pay;
+    out.push({m:M[i], bal, pay, d, cargo, ext:Math.round(x0*f), otros:0, intAdd:0, sanAdd:0});
   });
   const final = out[out.length-1].bal + (o.sancion?SANCION:0);
   return {rows:out, final, tDesc};
@@ -685,8 +733,245 @@ $("pdf").addEventListener("click", () => {
   document.title = "Aclaracion_aptos_824_1124_" + new Date().toISOString().slice(0, 10);
   setTimeout(() => { try { window.focus(); window.print(); } finally { document.title = t0; restaurarPdf(); } }, 200);
 });
+/* ===== Informe individual por apartamento: para entregar a cada propietaria ===== */
+const PROP = {
+  "824": { k: "a824", nombre: "Constanza Pinilla de Vovk", otro: "1124", col: "--a824" },
+  "1124": { k: "a1124", nombre: "Maritza Arroliga", otro: "824", col: "--a1124" },
+};
+const DOCS_WO = {
+  "824": [["FV-28306 · julio de 2026 (saldo)", 218799], ["FV-28912 · agosto de 2026", 679234], ["FV-29517 · septiembre de 2026", 679234], ["FV-30121 · octubre de 2026", 679234]],
+  "1124": [["NC-586 · 31 de diciembre de 2025", 1000733], ["NC-589 · 31 de enero de 2026", 83394], ["FV-30139 · octubre de 2026 (saldo)", 174586]],
+};
+const MES_TXT = { Ene: "enero", Feb: "febrero", Mar: "marzo", Abr: "abril", May: "mayo", Jun: "junio", Jul: "julio", Ago: "agosto", Sep: "septiembre", Oct: "octubre", Nov: "noviembre", Dic: "diciembre" };
+const mesLargo = (m) => { const [a, b] = m.split(" "); return MES_TXT[a] + " de 20" + b; };
+const mesCorto = (m) => { const [a, b] = m.split(" "); return a.toLowerCase() + " 20" + b; };
+const pesos = (v) => (v < 0 ? "−" : "") + fmt(v);
+const lista = (xs) => (xs.length < 2 ? xs.join("") : xs.slice(0, -1).join(", ") + " y " + xs[xs.length - 1]);
+
+function informeDatos(ap) {
+  const R = calcular(), A = asientos(R), P = PROP[ap], k = P.k;
+  const r = ap === "824" ? R.r824 : R.r1124, rows = r.rows;
+  const S = (f) => rows.reduce((s, x) => s + (f(x) || 0), 0);
+  const cargo = S((x) => x.cargo), ext = S((x) => x.ext), otros = S((x) => x.otros);
+  const T = {
+    ord: cargo - ext - otros, ext, otros, cargo, desc: S((x) => x.d), pagos: S((x) => x.pay), intr: S((x) => x.intAdd),
+    san: ap === "824" ? S((x) => x.sanAdd) : st.sancion === "1124" ? SANCION : 0,
+  };
+  T.fin = r.final;
+  T.cuadra = Math.abs(T.cargo - T.desc + T.san + T.intr - T.pagos - T.fin) < 2;
+  return { R, A, P, k, r, rows, T, c: R.c[k], fact: FACT[k], wo: WO[k] };
+}
+
+function informeHTML(ap) {
+  const { R, A, P, k, rows, T, c, fact, wo } = informeDatos(ap);
+  const es824 = ap === "824", fin = T.fin, debe = fin > 0.5, aFavor = fin < -0.5;
+  const decVigente = igual(st, guardada);
+  const hoy = new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+  const items = BIENES[k].map(([n, v]) => [n, v ?? st.coefApto]);
+  const cuota26 = cuotaMes(2026, c), cuotaFact26 = cuotaMes(2026, fact);
+  const tdN = (v, cls = "") => `<td class="${cls}">${v ? pesos(v) : "—"}</td>`;
+
+  /* ---- 1. Resultado ---- */
+  const adj = fin - wo;
+  const resultado = `<div class="inf-res" style="--c:var(${P.col})">
+    <small class="tenue">Saldo de su cuenta al 31 de octubre de 2026, ya corregido</small>
+    <div class="big num ${debe ? "deuda" : "favor"}">${debe ? "Queda debiendo " + fmt(fin) : aFavor ? "Saldo a su favor " + fmt(fin) : "Su cuenta queda en $0"}</div>
+    <div class="cmp num">
+      <div><small>Hoy muestra World Office</small><b class="deuda">Debe ${fmt(wo)}</b></div>
+      <div><small>Saldo correcto</small><b class="${debe ? "deuda" : "favor"}">${saldoTxt(fin)}</b></div>
+      <div><small>Ajuste que se registra</small><b>${adj > 0 ? "Se carga " : "Se abona "}${fmt(adj)}</b></div>
+    </div></div>`;
+
+  /* ---- En resumen ---- */
+  let resumen;
+  if (es824) {
+    const partes = [`no se le facturó completo lo que le correspondía (desde enero de 2025 se le cobró con el coeficiente ${coefTxt(fact)} en lugar del ${coefTxt(c)})`];
+    if (A.sub824 && T.cargo - A.sub824 - T.pagos > 0) partes.push(`hay cuotas facturadas que no se pagaron completas`);
+    if (T.san) partes.push(`se mantiene la sanción por inasistencia de ${fmt(T.san)}`);
+    if (T.intr) partes.push(`se cobran intereses de mora por ${fmt(T.intr)}`);
+    resumen = `<p>${debe ? `Usted queda debiendo <b>${fmt(fin)}</b> porque ${lista(partes)}.` : `Su cuenta queda ${aFavor ? "con saldo a favor de <b>" + fmt(fin) + "</b>" : "en $0"}.`} El saldo que hoy muestra World Office (${fmt(wo)}) no es el correcto: se calculó con un coeficiente que no es el suyo, por eso se ajusta.</p>
+      <p>La diferencia de coeficiente no fue un error suyo: las propietarias informaron la permuta y la administración la comunicó a contabilidad el 14 de octubre de 2024, pero el presupuesto de 2025 se armó con los coeficientes cruzados. ${T.intr ? "" : "Por eso no se le cobran intereses sobre ese valor."}</p>`;
+  } else {
+    const casi = Math.abs(R.debia1124 - T.pagos) < 50000;
+    resumen = `<p>${aFavor ? `Usted queda con un <b>saldo a favor de ${fmt(fin)}</b>` : debe ? `Usted queda debiendo <b>${fmt(fin)}</b>` : `Su cuenta queda en $0`}. ${casi ? `Con su coeficiente correcto (${coefTxt(c)}) usted pagó prácticamente todo lo que le correspondía sin descuento, y como pagó siempre a tiempo o por anticipado tiene derecho al descuento por pronto pago${T.desc ? " (" + fmt(T.desc) + ")" : ""}: ese descuento es su saldo a favor.` : ""}</p>
+      <p>World Office la muestra debiendo ${fmt(wo)} porque desde enero de 2025 se le factura con el coeficiente ${coefTxt(fact)}, que no es el suyo (el suyo es ${coefTxt(c)}). Con eso se le cobraron cerca de <b>${fmt(A.sob1124)}</b> de más, entre ellos las notas NC-586 y NC-589, que en realidad son cargos por esa diferencia.${T.san ? ` A su saldo se suma la sanción por inasistencia de ${fmt(T.san)}, por la decisión indicada más adelante.` : ""}</p>`;
+  }
+
+  /* ---- 2. Qué pasó ---- */
+  const quePaso = `<p>El 1 de agosto de 2024 se firmó la permuta de los apartamentos 824 y 1124 de la Torre 2 (Escritura 1682 de la Notaría Segunda de Santa Marta, registrada el 12 de septiembre de 2024). <b>Solo cambiaron de dueña los apartamentos</b>: cada propietaria conservó sus parqueaderos y su depósito. Por eso, desde la permuta, a usted le corresponde pagar por el apartamento ${ap} y por sus propios parqueaderos y depósito.</p>
+    <p>En noviembre y diciembre de 2024 se le facturó bien. Pero al armar el presupuesto de 2025, al apartamento ${ap} se le dejó el coeficiente total de la dueña anterior (${coefTxt(fact)}), con los parqueaderos y el depósito de ella incluidos. Ese error sigue hasta octubre de 2026.</p>
+    <h3>Su coeficiente correcto, según el reglamento</h3>
+    <table class="num"><thead><tr><th class="izq">Inmueble de su propiedad</th><th>Coeficiente</th></tr></thead><tbody>
+      ${items.map(([n, v]) => `<tr><td class="izq">${n.replace("Apto", "Apartamento").replace("Dep.", "Depósito").replace("Parq.", "Parqueadero")}</td><td>${coefTxt(v)}</td></tr>`).join("")}
+      <tr class="sub"><td class="izq">Total que le corresponde</td><td>${coefTxt(c)}</td></tr>
+      <tr><td class="izq deuda">Coeficiente con el que se le facturó desde enero de 2025</td><td class="deuda">${coefTxt(fact)}</td></tr></tbody></table>
+    <p class="tenue">Tabla de coeficientes definitiva (E.P. 381 de 2022, conservada sin cambios por la E.P. 753 de 2023, reglamento vigente). Con el presupuesto de 2026, su cuota mensual con ${coefTxt(c)} es de ${fmt(cuota26)}; con ${coefTxt(fact)} se le facturaron ${fmt(cuotaFact26)}: ${cuota26 > cuotaFact26 ? fmt(cuota26 - cuotaFact26) + " de menos" : fmt(cuota26 - cuotaFact26) + " de más"} cada mes.</p>`;
+
+  /* ---- 3. Cálculo del saldo ---- */
+  const fila = (t, v, cls = "") => `<tr class="${cls}"><td class="izq">${t}</td><td>${pesos(v)}</td></tr>`;
+  const calculo = `<p>Se rehízo su cuenta de noviembre de 2024 a octubre de 2026 con su coeficiente correcto: lo que debía pagar, menos los descuentos que le corresponden, más los cargos que se deciden mantener, menos todo lo que pagó.</p>
+    <table class="num"><tbody>
+      ${fila(`Cuotas ordinarias de administración (24 meses, coeficiente ${coefTxt(c)})`, T.ord)}
+      ${T.ext ? fila("Cuotas extraordinarias", T.ext) : ""}
+      ${T.otros ? fila("Otros cargos facturados (matrícula)", T.otros) : ""}
+      ${fila("Total que debía pagar", T.cargo, "sub")}
+      ${T.desc ? fila("Menos: descuentos por pronto pago que se le reconocen", -T.desc) : ""}
+      ${T.san ? fila("Más: sanción por inasistencia a la asamblea del 17-08-2024", T.san) : ""}
+      ${T.intr ? fila("Más: intereses de mora", T.intr) : ""}
+      ${fila("Menos: pagos recibidos de noviembre de 2024 a octubre de 2026", -T.pagos)}
+      <tr class="sub"><td class="izq">${debe ? "Saldo que queda debiendo" : aFavor ? "Saldo a su favor" : "Saldo"}</td><td class="${debe ? "deuda" : "favor"}">${saldoTxt(fin)}</td></tr>
+    </tbody></table>`;
+
+  /* ---- 4. Por qué (causas que suman el saldo) ---- */
+  const causas = [];
+  if (es824) {
+    const noFact = A.sub824, resto = T.cargo - noFact - T.pagos;
+    causas.push(["Cuotas que no se le facturaron por el error de coeficiente", noFact,
+      `De enero de 2025 a octubre de 2026 se le facturó con ${coefTxt(fact)} y no con ${coefTxt(c)}. Es dinero que sí le correspondía pagar como dueña del apartamento ${ap} y de sus parqueaderos y depósito, pero que nunca llegó en sus facturas. Es la parte principal del saldo.`]);
+    const flojos = rows.filter((x) => x.pay < 0.45 * x.cargo).map((x) => `${mesLargo(x.m)} (${x.pay ? "pagó " + fmt(x.pay) : "sin pago"})`);
+    causas.push([resto >= 0 ? "Cuotas facturadas que no se pagaron completas" : "Pagos por encima de lo facturado", resto,
+      resto >= 0 ? `Es la diferencia entre lo que sí se le facturó y lo que pagó.${flojos.length ? " Viene sobre todo de " + lista(flojos) + "." : ""} Esta parte sí corresponde a pagos atrasados.` : `Pagó más de lo que se le facturó.`]);
+    if (T.desc) causas.push(["Descuentos por pronto pago que se le reconocen", -T.desc,
+      st.desc === "pago" ? `10 % de la cuota en cada mes que pagó dentro de los primeros 15 días (art. 44.6 del reglamento: el descuento se gana mes a mes).` : `10 % de la cuota en los meses en que pagó a tiempo y estaba al día.`]);
+    else if (st.desc !== "nunca") causas.push(["Descuentos por pronto pago", 0, `Con la regla decidida (solo si estaba al día) no gana descuento: su cuenta siempre tuvo saldo pendiente${T.san ? ", empezando por la sanción" : ""}.`]);
+    if (T.san) causas.push(["Sanción por inasistencia", T.san,
+      `Impuesta por la inasistencia a la asamblea del 17 de agosto de 2024 (Acta 184) y reconfirmada en el Acta 190. Se cargó al apartamento el 7 de noviembre de 2024. Por el art. 42.3 del reglamento, cada pago se aplica primero a la sanción y a los intereses, y después a las cuotas.`]);
+    if (T.intr) causas.push(["Intereses de mora", T.intr,
+      `Sobre las cuotas que quedaron vencidas, sin capitalizar, con la tasa de mora de cada mes (1,5 veces el interés bancario corriente, art. 42.3). Se detallan mes a mes al final.`]);
+  } else {
+    causas.push(["Cuotas que debía pagar con su coeficiente correcto", T.cargo, `Cuotas ordinarias y extraordinarias de noviembre de 2024 a octubre de 2026 con ${coefTxt(c)}.`]);
+    causas.push(["Pagos que hizo", -T.pagos, `Incluye el anticipo de $4.665.537 de febrero de 2025, con el que cubrió de marzo a diciembre de 2025.`]);
+    if (T.desc) causas.push(["Descuentos por pronto pago que se le reconocen", -T.desc, `Siempre pagó a tiempo o por anticipado, así que gana el 10 % de descuento cada mes (art. 44.6 del reglamento). World Office no se los aplicó.`]);
+    if (T.san) causas.push(["Sanción por inasistencia que se le traslada", T.san, `La inasistencia a la asamblea del 17 de agosto de 2024 fue cuando usted era la dueña del apartamento 824 (la permuta se registró el 12 de septiembre de 2024). Se cruza con su saldo a favor y requiere su autorización escrita.`]);
+  }
+  const porque = `<ul class="inf-causas">${causas.map(([t, v, d]) => `<li><b>${t}</b><b class="num ${v > 0 ? "deuda" : v < 0 ? "favor" : ""}">${v ? (v > 0 ? "+ " : "− ") + fmt(v) : "$0"}</b><span>${d}</span></li>`).join("")}
+    <li class="tot"><b>${debe ? "Total que queda debiendo" : aFavor ? "Saldo a su favor" : "Saldo"}</b><b class="num ${debe ? "deuda" : "favor"}">${fmt(fin)}</b></li></ul>`;
+
+  /* ---- 5. Año por año ---- */
+  const anual = R.anual[k].map((x) => ({ ...x, per: x.y === 2024 ? "2024 (nov–dic)" : x.y === 2026 ? "2026 (ene–oct)" : "2025", cf: x.y === 2024 ? c : fact }));
+  const anio = `<table class="num"><thead><tr><th class="izq">Año</th><th>Coeficiente facturado</th><th>Se le cobró</th><th>Debía cobrarse (${coefTxt(c)})</th><th>Diferencia</th></tr></thead><tbody>
+    ${anual.map((x) => { const d = x.deb - x.cob; return `<tr><td class="izq">${x.per}</td><td>${coefTxt(x.cf)}</td><td>${fmt(x.cob)}</td><td>${fmt(x.deb)}</td><td class="${Math.abs(d) < 20000 ? "" : d > 0 ? "deuda" : "favor"}">${Math.abs(d) < 20000 ? "≈ $0" : (d > 0 ? "Faltó " : "Sobró ") + fmt(d)}</td></tr>`; }).join("")}
+    </tbody></table><p class="tenue">Cuota ordinaria del año: presupuesto aprobado × coeficiente. Valores aproximados por año; el cálculo exacto mes a mes está al final.</p>`;
+
+  /* ---- 6. De World Office al saldo correcto ---- */
+  const docs = DOCS_WO[ap];
+  const pasos = es824
+    ? [["Traslado desde la cuenta del apartamento 1124 por el cruce de coeficientes", A.X, "Lo que se le cobró a la otra propietaria y le correspondía a usted. No es un cobro nuevo: pasa de una cuenta a la otra."],
+       ["Diferencia de coeficiente que no se compensa", A.resto, ""],
+       ["Sanción", -(A.sanQuit + A.sanTras), st.sancion === "824" ? "" : st.sancion === "1124" ? "Sale de su cuenta y pasa al apartamento 1124." : "Se retira de su cuenta."],
+       ["Intereses y otros cargos del sistema", -A.int824, st.intereses ? "Se dejan solo los intereses decididos, calculados sobre la cuenta corregida." : "Se reversan los intereses que liquidó el sistema."],
+       ["Descuentos por pronto pago", -A.D824, ""]]
+    : [["Traslado a la cuenta del apartamento 824 por el cruce de coeficientes", -A.X, "Lo que se le cobró de más, que le correspondía a la otra propietaria. Cubre también las notas NC-586 y NC-589."],
+       ["Sanción trasladada", A.sanTras, A.sanTras ? "Con su autorización escrita." : ""],
+       ["Intereses que liquidó el sistema", -INT1124, "Se reversan: con su coeficiente correcto nunca estuvo en mora."],
+       ["Descuentos por pronto pago no aplicados y otros ajustes", -A.desc1124, "Lleva su cuenta al saldo recalculado mes a mes con su coeficiente correcto."]];
+  const wo_ = `<h3>Lo que hoy tiene World Office (documentos abiertos)</h3>
+    <table class="num"><tbody>${docs.map(([d, v]) => `<tr><td class="izq">${d}</td><td>${fmt(v)}</td></tr>`).join("")}
+      <tr class="sub"><td class="izq">Saldo hoy en World Office</td><td class="deuda">Debe ${fmt(wo)}</td></tr></tbody></table>
+    ${es824 ? `<p class="tenue">Las facturas de agosto a octubre de 2026 por $679.234 confirman que se le factura con ${coefTxt(fact)}.</p>` : `<p class="tenue">Las notas NC-586 y NC-589 no son abonos sino cargos: $83.394 es lo que se le cobra de más cada mes con el coeficiente cruzado, y 12 × $83.394 ≈ la NC-586.</p>`}
+    <h3>Ajustes para llegar al saldo correcto</h3>
+    <table class="num"><tbody><tr><td class="izq">Saldo hoy en World Office</td><td>${saldoTxt(wo)}</td></tr>
+      ${pasos.filter(([, v]) => Math.round(v)).map(([t, v, d]) => `<tr><td class="izq">${t}${d ? `<div class="tenue">${d}</div>` : ""}</td><td>${v > 0 ? "+ " : "− "}${fmt(v)}</td></tr>`).join("")}
+      <tr class="sub"><td class="izq">Saldo correcto al 31 de octubre de 2026</td><td class="${debe ? "deuda" : "favor"}">${saldoTxt(fin)}</td></tr></tbody></table>
+    <p class="tenue">Los ajustes se registran con nota de contabilidad en el mes en que se aprueba la decisión. Su próxima factura ya mostrará el saldo corregido.</p>`;
+
+  /* ---- 7. Qué sigue ---- */
+  const meses = aFavor ? Math.floor(-fin / (cuota26 * 0.9)) : 0;
+  const sigue = `<ul class="porque">
+    <li>Desde la próxima factura se le cobra con su coeficiente correcto, <b>${coefTxt(c)}</b>: cuota mensual de <b>${fmt(cuota26)}</b> con el presupuesto de 2026${st.desc !== "nunca" ? `, o <b>${fmt(cuota26 * 0.9)}</b> si paga dentro de los primeros 15 días del mes (descuento por pronto pago del 10 %)` : ""}.</li>
+    ${debe ? `<li>Su saldo pendiente es de <b>${fmt(fin)}</b>. Por el art. 42.3 del reglamento, los pagos se aplican primero a sanciones e intereses y después a las cuotas, empezando por las más antiguas.${st.desc === "aldia" ? " Mientras tenga saldo pendiente, no gana el descuento por pronto pago." : ""}</li>
+      <li>Para aclarar cualquier valor o acordar la forma de ponerse al día, comuníquese con la administración.</li>` : ""}
+    ${aFavor ? (st.favor === "devolver" ? `<li>La copropiedad le devuelve su saldo a favor de <b>${fmt(fin)}</b>.</li>` : `<li>Su saldo a favor de <b>${fmt(fin)}</b> se descuenta de sus próximas facturas hasta agotarse${meses ? ` (equivale a cerca de ${meses} ${meses === 1 ? "mes" : "meses"} de cuota con descuento)` : ""}. No tiene que pagar nada mientras tanto${meses ? "" : " por ese valor"}.</li>`) : ""}
+  </ul>`;
+
+  /* ---- 8. Decisiones aplicadas ---- */
+  const dec = es824
+    ? [["Sanción de $492.769", { "824": "Se mantiene en el apartamento 824", quitar: "Se quita", "1124": "Se traslada al apartamento 1124" }[st.sancion]],
+       ["Intereses de mora", st.intereses ? "Sí se cobran" : "No se cobran: el faltante viene de un error de facturación"],
+       ["Descuento por pronto pago", { pago: "Se reconoce en cada mes que pagó a tiempo", aldia: "Solo en los meses en que estaba al día", nunca: "No se reconoce" }[st.desc]],
+       ["Aplicación de los pagos", "Primero a la sanción y los intereses, después a las cuotas (art. 42.3)"]]
+    : [["Descuento por pronto pago", st.desc === "nunca" ? "No se reconoce" : "Se reconoce en cada mes que pagó a tiempo"],
+       ["Sanción de $492.769", st.sancion === "1124" ? "Se le traslada y se cruza con su saldo a favor (requiere su autorización escrita)" : "No se le cobra"],
+       ["Intereses que liquidó el sistema", "Se reversan"],
+       ["Saldo a favor", st.favor === "devolver" ? "Se le devuelve" : "Se abona a sus próximas cuotas"]];
+  dec.push(["Coeficiente", `${coefTxt(c)}: ${items.map(([n, v]) => n + " " + coefTxt(v)).join(" + ")}`]);
+  const decis = `<table><tbody>${dec.map(([a, b]) => `<tr><td class="izq" style="width:34%"><b>${a}</b></td><td class="izq">${b}</td></tr>`).join("")}</tbody></table>`;
+
+  /* ---- 9. Reglamento ---- */
+  const arts = [
+    ["Art. 34 y tabla de coeficientes", "Cada bien privado (apartamento, parqueadero, depósito) tiene su coeficiente. Los de la E.P. 381 de 2022 se conservan sin cambios."],
+    ["Art. 42.9 y 44.3", "Las expensas se facturan y cobran al propietario de cada unidad: usted paga por su apartamento y sus propios parqueaderos y depósito."],
+    ["Art. 44.6", "Quien paga dentro de los 15 primeros días de cada mes tiene el descuento que fije la Asamblea."],
+  ];
+  if (es824 && (T.san || T.intr)) arts.push(["Art. 42.3", "Las multas se causan cuando queda en firme la resolución que las impone; los pagos se aplican primero a multas, sanciones e intereses y después a las cuotas; la mora causa intereses de 1,5 veces el interés bancario corriente."]);
+  if (T.san) arts.push(["Art. 82.3 y 82.4", "La inasistencia injustificada a la Asamblea acarrea la multa que fije el Consejo, que la impone con resolución motivada."]);
+  const regl = `<table class="rph"><tbody>${arts.map(([a, b]) => `<tr><td class="izq" style="width:28%"><b>${a}</b></td><td class="izq">${b}</td></tr>`).join("")}</tbody></table>
+    <p class="tenue">Escritura Pública 753 del 27 de febrero de 2023, Notaría 27 de Bogotá (reglamento de propiedad horizontal vigente).</p>`;
+
+  /* ---- 10. Mes a mes ---- */
+  const det = es824
+    ? `<table class="num det"><thead><tr><th class="izq">Mes</th><th>Cuota ordinaria</th><th>Extraord.</th><th>Otros</th><th>Descuento</th>${T.san ? "<th>Sanción</th>" : ""}${T.intr ? "<th>Intereses</th>" : ""}<th>Pagó</th><th>Saldo</th></tr></thead><tbody>
+        ${rows.map((x) => `<tr><td class="izq">${mesCorto(x.m)}</td><td>${fmt(x.cargo - x.ext - x.otros)}</td>${tdN(x.ext)}${tdN(x.otros)}${tdN(x.d ? -x.d : 0, "favor")}${T.san ? tdN(x.sanAdd) : ""}${T.intr ? tdN(x.intAdd) : ""}<td>${x.pay ? fmt(x.pay) : "<b class=\"deuda\">sin pago</b>"}</td><td class="${x.bal > 0 ? "deuda" : "favor"}">${saldoTxt(x.bal)}</td></tr>`).join("")}</tbody>
+        <tfoot><tr><td class="izq">Total</td><td>${fmt(T.ord)}</td><td>${fmt(T.ext)}</td><td>${fmt(T.otros)}</td><td>${T.desc ? pesos(-T.desc) : "—"}</td>${T.san ? `<td>${fmt(T.san)}</td>` : ""}${T.intr ? `<td>${fmt(T.intr)}</td>` : ""}<td>${fmt(T.pagos)}</td><td>${saldoTxt(fin)}</td></tr></tfoot></table>`
+    : `<table class="num det"><thead><tr><th class="izq">Mes</th><th>Cuota ordinaria</th><th>Extraordinaria</th><th>Descuento</th><th>Pagó</th><th>Saldo</th></tr></thead><tbody>
+        ${rows.map((x) => `<tr><td class="izq">${mesCorto(x.m)}</td><td>${fmt(x.cargo - x.ext)}</td>${tdN(x.ext)}${tdN(x.d ? -x.d : 0, "favor")}<td>${x.pay ? fmt(x.pay) : "—"}</td><td class="${x.bal > 0 ? "deuda" : "favor"}">${saldoTxt(x.bal)}</td></tr>`).join("")}</tbody>
+        <tfoot><tr><td class="izq">Total</td><td>${fmt(T.cargo - T.ext)}</td><td>${fmt(T.ext)}</td><td>${T.desc ? pesos(-T.desc) : "—"}</td><td>${fmt(T.pagos)}</td><td>${saldoTxt(fin - T.san)}</td></tr></tfoot></table>
+        ${T.san ? `<p class="tenue">Al saldo de octubre de 2026 se suma la sanción trasladada (${fmt(T.san)}): ${saldoTxt(fin)}.</p>` : ""}
+        <p class="tenue">Un saldo “a favor” en un mes significa que usted tenía pagado por anticipado.</p>`;
+
+  /* ---- Pendientes ---- */
+  const pend = es824
+    ? [T.san ? "La convocatoria y la resolución del Consejo que impuso la sanción del Acta 184 (17-08-2024), su fecha frente al plazo de 30 días hábiles del art. 82.4, y el contenido del Acta 190." : null,
+       "Los pagos de marzo y abril de 2026, que en el análisis aparecen como sin pago y $96.955. Si usted tiene comprobantes de otros pagos, por favor envíelos a la administración: se descuentan del saldo.",
+       `La diferencia de ${fmt(WO.a824 - SIS824)} entre lo que muestra World Office y la reconstrucción de su cuenta (intereses u otros cargos del sistema), que se confirma en el libro auxiliar.`].filter(Boolean)
+    : ["Las notas NC-586 y NC-589, que se confirman en el libro auxiliar.", "Si usted tiene comprobantes de pagos que no aparezcan en el detalle mes a mes, por favor envíelos a la administración."];
+
+  return `<article class="inf-doc">
+    <div class="inf-cab"><div class="ent">Agrupación Reserva del Mar P.H.<small>NIT 900.890.315-7 · Administración</small></div><div class="fch">Santa Marta, ${hoy}<br>Corte: 31 de octubre de 2026</div></div>
+    ${decVigente ? "" : `<div class="inf-borr">BORRADOR · Escenario de análisis: no corresponde a una decisión guardada de la administración</div>`}
+    <div><span class="eyebrow">Informe individual de su cuenta</span><h1>Apartamento ${ap} · Torre 2: ${debe ? "lo que queda debiendo y por qué" : "su saldo corregido y por qué"}</h1></div>
+    <div class="inf-para"><b>Para</b><span>Señora ${P.nombre}, propietaria del apartamento ${ap} de la Torre 2</span><b>Asunto</b><span>Corrección del coeficiente de su cuenta y saldo al 31 de octubre de 2026</span></div>
+    ${resultado}
+    <h2>En resumen</h2>${resumen}
+    <h2>1. Qué pasó</h2>${quePaso}
+    <h2>2. Cómo se calcula su saldo</h2>${calculo}
+    <h2>3. ${debe ? "Por qué queda debiendo" : "Por qué queda con este saldo"}: cada valor y su origen</h2>${porque}
+    <h2>4. Lo que se le cobró y lo que debía cobrarse, año por año</h2>${anio}
+    <h2>5. De lo que muestra World Office al saldo correcto</h2>${wo_}
+    <h2>6. Qué sigue</h2>${sigue}
+    <h2>7. Decisiones de la administración que se aplicaron</h2>${decis}
+    <h2>8. Qué dice el reglamento</h2>${regl}
+    <h2>9. Detalle mes a mes</h2>${det}
+    <h2>10. Pendientes por verificar</h2><ul class="porque">${pend.map((x) => `<li>${x}</li>`).join("")}</ul>
+    <p class="tenue">Fuente: estados de cuenta de World Office a octubre de 2026 y análisis de la administración. Cualquier inquietud sobre este informe puede presentarse por escrito a la administración.</p>
+    <div class="inf-firmas"><div>Administración<br><span class="tenue">Agrupación Reserva del Mar P.H.</span></div><div>Contabilidad</div></div>
+  </article>`;
+}
+
+let infPagina = null;
+function imprimirInforme(ap) {
+  temaAntes = document.documentElement.getAttribute("data-theme");
+  document.documentElement.setAttribute("data-theme", "light");
+  $("informe").innerHTML = informeHTML(ap);
+  document.body.classList.add("inf");
+  infPagina = document.createElement("style");
+  infPagina.textContent = `@page{size:letter;margin:12mm 12mm 14mm;@bottom-center{content:"Informe individual · Apto ${ap} T2 · Agrupación Reserva del Mar P.H. · página " counter(page) " de " counter(pages);font:8pt "Source Sans 3",sans-serif;color:#777}}`;
+  document.head.appendChild(infPagina);
+  const t0 = document.title;
+  document.title = `Informe_apto_${ap}_T2_corte_2026-10-31`;
+  setTimeout(() => { try { window.focus(); window.print(); } finally { document.title = t0; restaurarInforme(); } }, 200);
+}
+function restaurarInforme() {
+  document.body.classList.remove("inf");
+  $("informe").innerHTML = "";
+  if (infPagina) { infPagina.remove(); infPagina = null; }
+  if (temaAntes) document.documentElement.setAttribute("data-theme", temaAntes); else document.documentElement.removeAttribute("data-theme");
+  render();
+}
+document.querySelectorAll("[data-inf]").forEach((b) => b.addEventListener("click", () => imprimirInforme(b.dataset.inf)));
+
 /* Si se imprime con Ctrl + P, también sale la versión para papel */
-addEventListener("beforeprint", () => { if (!document.body.classList.contains("pdf")) { temaAntes = document.documentElement.getAttribute("data-theme"); prepararPdf(); } });
+addEventListener("beforeprint", () => { if (!document.body.classList.contains("pdf") && !document.body.classList.contains("inf")) { temaAntes = document.documentElement.getAttribute("data-theme"); prepararPdf(); } });
 addEventListener("afterprint", () => { if (document.body.classList.contains("pdf")) restaurarPdf(); });
 
 </script>
