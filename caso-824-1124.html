@@ -906,13 +906,6 @@ function informeHTML(ap) {
         ${T.san ? `<p class="tenue">Al saldo de octubre de 2026 se suma la sanción trasladada (${fmt(T.san)}): ${saldoTxt(fin)}.</p>` : ""}
         <p class="tenue">Un saldo “a favor” en un mes significa que usted tenía pagado por anticipado.</p>`;
 
-  /* ---- Pendientes ---- */
-  const pend = es824
-    ? [T.san ? "La convocatoria y la resolución del Consejo que impuso la sanción del Acta 184 (17-08-2024), su fecha frente al plazo de 30 días hábiles del art. 82.4, y el contenido del Acta 190." : null,
-       "Los pagos de marzo y abril de 2026, que en el análisis aparecen como sin pago y $96.955. Si usted tiene comprobantes de otros pagos, por favor envíelos a la administración: se descuentan del saldo.",
-       `La diferencia de ${fmt(WO.a824 - SIS824)} entre lo que muestra World Office y la reconstrucción de su cuenta (intereses u otros cargos del sistema), que se confirma en el libro auxiliar.`].filter(Boolean)
-    : ["Las notas NC-586 y NC-589, que se confirman en el libro auxiliar.", "Si usted tiene comprobantes de pagos que no aparezcan en el detalle mes a mes, por favor envíelos a la administración."];
-
   return `<article class="inf-doc">
     <div class="inf-cab"><div class="ent">Agrupación Reserva del Mar P.H.<small>NIT 900.890.315-7 · Administración</small></div><div class="fch">Santa Marta, ${hoy}<br>Corte: 31 de octubre de 2026</div></div>
     ${decVigente ? "" : `<div class="inf-borr">BORRADOR · Escenario de análisis: no corresponde a una decisión guardada de la administración</div>`}
@@ -929,7 +922,6 @@ function informeHTML(ap) {
     <h2>7. Decisiones de la administración que se aplicaron</h2>${decis}
     <h2>8. Qué dice el reglamento</h2>${regl}
     <h2>9. Detalle mes a mes</h2>${det}
-    <h2>10. Pendientes por verificar</h2><ul class="porque">${pend.map((x) => `<li>${x}</li>`).join("")}</ul>
     <div class="inf-cierre">
       <p class="tenue">Fuente: estados de cuenta de World Office a octubre de 2026 y análisis de la administración. Cualquier inquietud sobre este informe puede presentarse por escrito a la administración.</p>
       <p>Atentamente,</p>
