@@ -843,7 +843,7 @@ function informeHTML(ap) {
     causas.push(["Cuotas que debía pagar con su coeficiente correcto", T.cargo, `Cuotas ordinarias y extraordinarias de noviembre de 2024 a octubre de 2026 con ${coefTxt(c)}.`]);
     causas.push(["Pagos que hizo", -T.pagos, `Incluye el anticipo de $4.665.537 de febrero de 2025, con el que cubrió de marzo a diciembre de 2025.`]);
     if (T.desc) causas.push(["Descuentos por pronto pago que se le reconocen", -T.desc, `Siempre pagó a tiempo o por anticipado, así que gana el 10 % de descuento cada mes (art. 44.6 del reglamento). World Office no se los aplicó.`]);
-    if (T.san) causas.push(["Sanción por inasistencia que se le traslada", T.san, `La inasistencia a la asamblea del 17 de agosto de 2024 fue cuando usted era la dueña del apartamento 824 (la permuta se registró el 12 de septiembre de 2024). Se cruza con su saldo a favor y requiere su autorización escrita.`]);
+    if (T.san) causas.push(["Sanción por inasistencia que se le traslada", T.san, `La inasistencia a la asamblea del 17 de agosto de 2024 fue cuando usted era la dueña del apartamento 824 (la permuta se registró el 12 de septiembre de 2024). Se cruza con su saldo a favor.`]);
   }
   const porque = `<ul class="inf-causas">${causas.map(([t, v, d]) => `<li><b>${t}</b><b class="num ${v > 0 ? "deuda" : v < 0 ? "favor" : ""}">${v ? (v > 0 ? "+ " : "− ") + fmt(v) : "$0"}</b><span>${d}</span></li>`).join("")}
     <li class="tot"><b>${debe ? "Total que queda debiendo" : aFavor ? "Saldo a su favor" : "Saldo"}</b><b class="num ${debe ? "deuda" : "favor"}">${fmt(fin)}</b></li></ul>`;
@@ -878,7 +878,7 @@ function informeHTML(ap) {
        ["Descuento por pronto pago", { pago: "Se reconoce en cada mes que pagó a tiempo", aldia: "Solo en los meses en que estaba al día", nunca: "No se reconoce" }[st.desc]],
        ["Aplicación de los pagos", "Primero a la sanción y los intereses, después a las cuotas (art. 42.3)"]]
     : [["Descuento por pronto pago", st.desc === "nunca" ? "No se reconoce" : "Se reconoce en cada mes que pagó a tiempo"],
-       ["Sanción de $492.769", st.sancion === "1124" ? "Se le traslada y se cruza con su saldo a favor (requiere su autorización escrita)" : "No se le cobra"],
+       ["Sanción de $492.769", st.sancion === "1124" ? "Se le traslada y se cruza con su saldo a favor" : "No se le cobra"],
        ["Intereses que liquidó el sistema", "Se reversan"],
        ["Saldo a favor", st.favor === "devolver" ? "Se le devuelve" : "Se abona a sus próximas cuotas"]];
   dec.push(["Coeficiente", `${coefTxt(c)}: ${items.map(([n, v]) => n + " " + coefTxt(v)).join(" + ")}`]);
