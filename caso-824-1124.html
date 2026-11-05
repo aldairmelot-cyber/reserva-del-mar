@@ -159,13 +159,14 @@ body.inf #informe{display:block}
 .inf-causas li>b:last-of-type{text-align:right;white-space:nowrap}
 .inf-causas li>span{grid-column:1/-1;color:var(--suave)}
 .inf-causas li.tot{border-bottom:0;border-top:2px solid var(--acento);padding-top:7px;font-size:14px}
-.inf-firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:46px!important}
-.inf-firmas div{border-top:1px solid var(--tinta);padding-top:4px;font-size:12px}
+.inf-cierre{display:grid;gap:10px;break-inside:avoid;page-break-inside:avoid}
+.inf-firma{display:grid;gap:1px;width:340px;white-space:nowrap;margin-top:52px;border-top:1px solid var(--tinta);padding-top:5px;font-size:12.5px}
 @media print{
   body.inf #informe{display:block!important}
   .inf-doc{max-width:none;padding:0}
   .inf-doc h2,.inf-doc h3{break-after:avoid}
-  .inf-res,.inf-causas li,.inf-firmas,.inf-doc tr{break-inside:avoid}
+  .inf-res,.inf-causas li,.inf-cierre,.inf-doc tr{break-inside:avoid}
+  .inf-cierre{display:block!important}.inf-cierre>*+*{margin-top:10px}.inf-firma{display:block!important}.inf-firma>*{display:block}
 }
 </style>
 </head>
@@ -853,27 +854,13 @@ function informeHTML(ap) {
     ${anual.map((x) => { const d = x.deb - x.cob; return `<tr><td class="izq">${x.per}</td><td>${coefTxt(x.cf)}</td><td>${fmt(x.cob)}</td><td>${fmt(x.deb)}</td><td class="${Math.abs(d) < 20000 ? "" : d > 0 ? "deuda" : "favor"}">${Math.abs(d) < 20000 ? "≈ $0" : (d > 0 ? "Faltó " : "Sobró ") + fmt(d)}</td></tr>`; }).join("")}
     </tbody></table><p class="tenue">Cuota ordinaria del año: presupuesto aprobado × coeficiente. Valores aproximados por año; el cálculo exacto mes a mes está al final.</p>`;
 
-  /* ---- 6. De World Office al saldo correcto ---- */
+  /* ---- 5. Lo que hoy muestra World Office ---- */
   const docs = DOCS_WO[ap];
-  const pasos = es824
-    ? [["Traslado desde la cuenta del apartamento 1124 por el cruce de coeficientes", A.X, "Lo que se le cobró a la otra propietaria y le correspondía a usted. No es un cobro nuevo: pasa de una cuenta a la otra."],
-       ["Diferencia de coeficiente que no se compensa", A.resto, ""],
-       ["Sanción", -(A.sanQuit + A.sanTras), st.sancion === "824" ? "" : st.sancion === "1124" ? "Sale de su cuenta y pasa al apartamento 1124." : "Se retira de su cuenta."],
-       ["Intereses y otros cargos del sistema", -A.int824, st.intereses ? "Se dejan solo los intereses decididos, calculados sobre la cuenta corregida." : "Se reversan los intereses que liquidó el sistema."],
-       ["Descuentos por pronto pago", -A.D824, ""]]
-    : [["Traslado a la cuenta del apartamento 824 por el cruce de coeficientes", -A.X, "Lo que se le cobró de más, que le correspondía a la otra propietaria. Cubre también las notas NC-586 y NC-589."],
-       ["Sanción trasladada", A.sanTras, A.sanTras ? "Con su autorización escrita." : ""],
-       ["Intereses que liquidó el sistema", -INT1124, "Se reversan: con su coeficiente correcto nunca estuvo en mora."],
-       ["Descuentos por pronto pago no aplicados y otros ajustes", -A.desc1124, "Lleva su cuenta al saldo recalculado mes a mes con su coeficiente correcto."]];
   const wo_ = `<h3>Lo que hoy tiene World Office (documentos abiertos)</h3>
     <table class="num"><tbody>${docs.map(([d, v]) => `<tr><td class="izq">${d}</td><td>${fmt(v)}</td></tr>`).join("")}
       <tr class="sub"><td class="izq">Saldo hoy en World Office</td><td class="deuda">Debe ${fmt(wo)}</td></tr></tbody></table>
     ${es824 ? `<p class="tenue">Las facturas de agosto a octubre de 2026 por $679.234 confirman que se le factura con ${coefTxt(fact)}.</p>` : `<p class="tenue">Las notas NC-586 y NC-589 no son abonos sino cargos: $83.394 es lo que se le cobra de más cada mes con el coeficiente cruzado, y 12 × $83.394 ≈ la NC-586.</p>`}
-    <h3>Ajustes para llegar al saldo correcto</h3>
-    <table class="num"><tbody><tr><td class="izq">Saldo hoy en World Office</td><td>${saldoTxt(wo)}</td></tr>
-      ${pasos.filter(([, v]) => Math.round(v)).map(([t, v, d]) => `<tr><td class="izq">${t}${d ? `<div class="tenue">${d}</div>` : ""}</td><td>${v > 0 ? "+ " : "− "}${fmt(v)}</td></tr>`).join("")}
-      <tr class="sub"><td class="izq">Saldo correcto al 31 de octubre de 2026</td><td class="${debe ? "deuda" : "favor"}">${saldoTxt(fin)}</td></tr></tbody></table>
-    <p class="tenue">Los ajustes se registran con nota de contabilidad en el mes en que se aprueba la decisión. Su próxima factura ya mostrará el saldo corregido.</p>`;
+    <p>Ese saldo no es el correcto porque se calculó con un coeficiente que no es el suyo. En su próxima factura su cuenta quedará con el saldo corregido: <b class="${debe ? "deuda" : "favor"}">${saldoTxt(fin)}</b>.</p>`;
 
   /* ---- 7. Qué sigue ---- */
   const meses = aFavor ? Math.floor(-fin / (cuota26 * 0.9)) : 0;
@@ -937,14 +924,17 @@ function informeHTML(ap) {
     <h2>2. Cómo se calcula su saldo</h2>${calculo}
     <h2>3. ${debe ? "Por qué queda debiendo" : "Por qué queda con este saldo"}: cada valor y su origen</h2>${porque}
     <h2>4. Lo que se le cobró y lo que debía cobrarse, año por año</h2>${anio}
-    <h2>5. De lo que muestra World Office al saldo correcto</h2>${wo_}
+    <h2>5. Lo que hoy muestra World Office</h2>${wo_}
     <h2>6. Qué sigue</h2>${sigue}
     <h2>7. Decisiones de la administración que se aplicaron</h2>${decis}
     <h2>8. Qué dice el reglamento</h2>${regl}
     <h2>9. Detalle mes a mes</h2>${det}
     <h2>10. Pendientes por verificar</h2><ul class="porque">${pend.map((x) => `<li>${x}</li>`).join("")}</ul>
-    <p class="tenue">Fuente: estados de cuenta de World Office a octubre de 2026 y análisis de la administración. Cualquier inquietud sobre este informe puede presentarse por escrito a la administración.</p>
-    <div class="inf-firmas"><div>Administración<br><span class="tenue">Agrupación Reserva del Mar P.H.</span></div><div>Contabilidad</div></div>
+    <div class="inf-cierre">
+      <p class="tenue">Fuente: estados de cuenta de World Office a octubre de 2026 y análisis de la administración. Cualquier inquietud sobre este informe puede presentarse por escrito a la administración.</p>
+      <p>Atentamente,</p>
+      <div class="inf-firma"><b>Administración</b><span class="tenue">Agrupación Reserva del Mar P.H. · NIT 900.890.315-7</span></div>
+    </div>
   </article>`;
 }
 
