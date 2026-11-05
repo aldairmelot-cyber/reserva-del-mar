@@ -2639,7 +2639,10 @@ var aclClase = c => String(c || "")[0];
 var ACL_ESTADOS = ["Soportado", "Soporte pendiente", "Sin autorizaci\xF3n en el acta"];
 var ACL_NOTAS = [["6.0", "Nota 6.0 - Ingresos y gastos no presupuestados"], ["10", "Nota 10 - Otras revelaciones"]];
 /* Explicación visual e interactiva de una aclaración (página propia de la app, campo "visual"). */
+var ACL_VISUAL_V = Date.now().toString(36); /* una marca por cada vez que se abre la app */
 function aclVisual(src) {
+  /* Siempre la versión más reciente de la página del caso (evita que el navegador muestre una copia guardada). */
+  try { let u = new URL(src, location.href); if (u.origin === location.origin) { u.searchParams.set("v", ACL_VISUAL_V); src = u.href; } } catch (e) {}
   return aH("section", { className: "panel sin-pad", style: { overflow: "hidden" } },
     aH("iframe", { src, title: "Explicación visual del caso", style: { width: "100%", minHeight: "900px", border: 0, display: "block" } }));
 }
