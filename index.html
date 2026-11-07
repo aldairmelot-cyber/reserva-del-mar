@@ -3861,10 +3861,89 @@ function recExpandirWompi(R, wompi, U, reglas) {
   }
   return { R: out, abiertos, sinBanco: [...grupos.keys()].filter(d => !usados.has(d)) };
 }
+/* ===== Comprobantes de pago recibidos (correo / WhatsApp) =====
+   Se guardan en cbl_seg/rec_comprobantes { lista: [...] }. Cada comprobante se cruza con el extracto:
+   mismo valor, fecha cercana y, si la hay, la "pista" (cuenta, referencia o nombre que sale en el banco).
+   Si el comprobante trae el apartamento, se propone para el pago del banco (para revisar). */
+var REC_COMP_INI = [
+  { n: 1, fecha: "2026-11-03", valor: 664782, medio: "Transferencia cta *5334", apto: "", pista: "5334" },
+  { n: 2, fecha: "2026-11-04", valor: 472091, medio: "Transferencia Mauricio Mejía *8349", apto: "", pista: "8349" },
+  { n: 3, fecha: "2026-11-04", valor: 606974, medio: "Redeban corresponsal ref. 1502", apto: "502 T1", pista: "01502", obs: "La referencia 01502 se lee como Torre 1 apto 502: confirmar que no sea el apto 1502." },
+  { n: 4, fecha: "2026-11-04", valor: 500000, medio: "BBVA cta *0515", apto: "", pista: "BASSIN", obs: "En el banco entra como PAGO INTERBANC MARK BASSIN (tercero del 607 T1, que ya pagó $ 676.343 el 05/11). Confirmar a qué apartamento corresponde." },
+  { n: 5, fecha: "2026-11-05", valor: 615646, medio: "Transferencia a RDM ADMON", apto: "", pista: "79333434976" },
+  { n: 6, fecha: "2026-11-05", valor: 619981, medio: "Transferencia cta *6033", apto: "", pista: "6033" },
+  { n: 7, fecha: "2026-11-05", valor: 676350, medio: "Corresponsal Wompi ref. 31515", apto: "1515 T3", pista: "31515" },
+  { n: 8, fecha: "2026-11-05", valor: 676343, medio: "Banco de Bogotá", apto: "", pista: "NADER" },
+  { n: 9, fecha: "2026-11-06", valor: 615646, medio: "Pago factura, apto 00725", apto: "725", pista: "00725" },
+  { n: 10, fecha: "2026-11-06", valor: 771725, medio: "Transferencia cta *8880", apto: "", pista: "8880" },
+  { n: 11, fecha: "2026-11-06", valor: 459566, medio: "Transferencia Bancolombia", apto: "", pista: "16727712007" },
+  { n: 12, fecha: "2026-11-06", valor: 763054, medio: "Transferencia Johanna Hernández *1226", apto: "", pista: "1226" },
+  { n: 13, fecha: "2026-10-30", valor: 823751, medio: "Wompi PSE (joseidavila)", apto: "", wompi: !0 },
+  { n: 14, fecha: "2026-11-01", valor: 971159, medio: "Wompi PSE", apto: "", wompi: !0 },
+  { n: 15, fecha: "2026-11-03", valor: 450000, medio: "Wompi · Andrea Palacios", apto: "924", wompi: !0 },
+  { n: 16, fecha: "2026-11-03", valor: 538777, medio: "Wompi PSE (Nu)", apto: "", wompi: !0 },
+  { n: 17, fecha: "2026-11-03", valor: 1453008, medio: "Wompi PSE", apto: "1616", wompi: !0 },
+  { n: 18, fecha: "2026-11-06", valor: 1409048, medio: "Wompi · Patricia Maestre", apto: "", wompi: !0 },
+  { n: 19, fecha: "2026-11-06", valor: 771725, medio: "Wompi botón Bancolombia *1267", apto: "", wompi: !0 },
+  { n: 20, fecha: "2026-11-07", valor: 800000, medio: "Wompi · alex.santamaria", apto: "", wompi: !0 },
+  { n: 21, fecha: "2026-11-04", valor: 756310, medio: "Davivienda · Adriana Guzmán", apto: "", pista: "ADRIANA" },
+  { n: 22, fecha: "2026-11-05", valor: 848000, medio: "Transferencia cta *5778 «Admón Nov 1008»", apto: "1008", pista: "CLAUDIA" },
+  { n: 23, fecha: "2026-11-06", valor: 784732, medio: "Transferencia cta *8840", apto: "", pista: "8840" },
+  { n: 24, fecha: "2026-11-06", valor: 455250, medio: "Redeban corresponsal ref. 41327", apto: "1327 T4", pista: "41327" },
+  { n: 25, fecha: "2026-11-07", valor: 767390, medio: "Transferencia Adiela Patricia *2470", apto: "", pista: "2470", obs: "El comprobante dice 08-nov 12:31 a.m.; el banco lo registró el 07/11. Usar la fecha del banco en el recibo." },
+  { n: 26, fecha: "2026-11-07", valor: 481244, medio: "Transferencia cta *9847", apto: "", pista: "9847" },
+  { n: 27, fecha: "2026-11-06", valor: 901791, medio: "Wompi PSE (jarojasf61)", apto: "1034 T4", wompi: !0 },
+  { n: 28, fecha: "2026-11-06", valor: 767390, medio: "Wompi · Leonardo Sanguino", apto: "", wompi: !0 },
+  { n: 29, fecha: "2026-11-06", valor: 815081, medio: "Wompi · dcontreras", apto: "", wompi: !0 },
+  { n: 30, fecha: "2026-11-06", valor: 771725, medio: "Wompi · Carlos E. Bermúdez", apto: "", wompi: !0 },
+  { n: 31, fecha: "2026-11-06", valor: 999433, medio: "Wompi · Juan F. Agudelo", apto: "", wompi: !0 },
+  { n: 32, fecha: "2026-11-06", valor: 455231, medio: "Wompi PSE", apto: "", wompi: !0 },
+  { n: 33, fecha: "2026-11-07", valor: 672008, medio: "Wompi PSE (fbarrazacoll)", apto: "", wompi: !0 },
+  { n: 34, fecha: "2026-11-06", valor: 715363, medio: "DaviBank cta *6380", apto: "", pista: "6380" },
+  { n: 35, fecha: "2026-11-07", valor: 1309331, medio: "Davivienda · Héctor Benites *2856", apto: "", pista: "BENITES", obs: "Posible pago doble: el 06/11 entró PAGO DE PROV FLEX PACK SAS por el mismo valor. Confirmar si es el mismo apartamento." }
+];
+/* "725" sin torre: si solo existe en una torre, esa; si no, null y las opciones */
+function recAptoComp(a, U) {
+  let t = String(a ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+  if (!t) return { u: null, op: [] };
+  let u = recUnidad(t);
+  if (u && U.has(u)) return { u, op: [u] };
+  let num = t.replace(/\D/g, "").replace(/^0+/, ""), op = [...U.keys()].filter(k => k.split(" ")[0] === num);
+  return { u: op.length === 1 ? op[0] : null, op };
+}
+var recDias = (a, b) => Math.round((new Date(a + "T12:00:00") - new Date(b + "T12:00:00")) / 864e5);
+/* cruza los comprobantes con las filas del extracto. Devuelve filas marcadas (f.comp) y el estado de cada comprobante */
+function recCruzarComp(filas, lista, U) {
+  filas = filas.map(f => { let g = { ...f, comp: void 0 }; if (f.compAsig) Object.assign(g, { sel: null, compAsig: !1, como: f.comoOrigC ?? "", conf: f.confOrigC ?? "" }); return g; });
+  let usadas = new Set(), est = [];
+  for (const c of [...(lista ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.n - b.n)) {
+    let P = recN(c.pista ?? "").replace(/\s+/g, ""), txt = f => recN([f.desc, f.ref1, f.ref2, f.pagador].join(" ")).replace(/\s+/g, "");
+    let cand = filas.filter(f => f.tipo === "pago" && !usadas.has(f.i) && Math.abs(f.valor - c.valor) < 1 && (c.wompi ? !!f.w && Math.abs(recDias(f.fecha, c.fecha)) <= 1 : !f.w && recDias(f.fecha, c.fecha) >= 0 && recDias(f.fecha, c.fecha) <= 5));
+    let pun = f => (P && txt(f).includes(P) ? 0 : 100) + (f.sel ? 10 : 0) + Math.abs(recDias(f.fecha, c.fecha));
+    cand.sort((a, b) => pun(a) - pun(b));
+    let r = { ...c, estado: "pendiente", fila: null, banco: "", alerta: c.obs ?? "" }, ap = recAptoComp(c.apto, U);
+    if (c.apto && !ap.u) r.alerta = (r.alerta ? r.alerta + " " : "") + (ap.op.length ? `El comprobante dice apto ${c.apto} sin torre: puede ser ${ap.op.join(", ")}.` : `El apto ${c.apto} del comprobante no está en la base.`);
+    let f = cand[0];
+    if (f) {
+      usadas.add(f.i); r.estado = "banco"; r.fila = f.i;
+      r.banco = `${f.fecha} · ${f.w ? `dentro del abono PAGO DE PROV WOMPI del ${f.w.fechaBanco}` : [f.desc, f.ref1, f.ref2].filter(Boolean).join(" · ")}`;
+      let k = filas.indexOf(f), g = { ...f, comp: c.n };
+      if (!f.sel && ap.u) Object.assign(g, { sel: ap.u, compAsig: !0, comoOrigC: f.como, confOrigC: f.conf, conf: "media", como: `Comprobante #${c.n}: ${c.medio}` });
+      else if (f.sel && ap.u && f.sel !== ap.u) r.alerta = (r.alerta ? r.alerta + " " : "") + `La app lo asignó a ${f.sel} y el comprobante dice ${ap.u}.`;
+      if (!g.sel && !ap.u && !c.apto) r.alerta = (r.alerta ? r.alerta + " " : "") + "Ya está en el banco pero sin apartamento: anotarlo según el correo.";
+      filas[k] = g;
+    } else if (c.wompi) {
+      let L = filas.filter(x => x.tipo === "lote" && /WOMPI/.test(recN(x.desc)) && recDias(x.fecha, c.fecha) >= 1 && recDias(x.fecha, c.fecha) <= 5).sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
+      if (L) { r.estado = "probable"; r.banco = `${L.fecha} · dentro del abono WOMPI de $ ${pe(L.valor, "0")} (falta su reporte de desembolso)`; }
+    }
+    est.push(r);
+  }
+  return { filas, comps: est.sort((a, b) => a.n - b.n) };
+}
 function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   let [base, setBase] = Ve.useState(null), [err, setErr] = Ve.useState(null), [lote, setLote] = Ve.useState(null), [ocup, setOcup] = Ve.useState(null);
   let [filtro, setFiltro] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [lotes, setLotes] = Ve.useState([]), [wPend, setWPend] = Ve.useState([]);
-  let cargarBase = async () => { setErr(null); try { let b = await recBase(ses); setBase(b); } catch (e) { setErr(e?.message ?? String(e)); } };
+  let cargarBase = async () => { setErr(null); try { let b = await recBase(ses), C = await ses.store.get("cbl_seg/rec_comprobantes").catch(() => null); b.comps = C?.lista ?? REC_COMP_INI; setBase(b); } catch (e) { setErr(e?.message ?? String(e)); } };
   let cargarLotes = async () => { try { setLotes((await ses.store.list("cbl_seg")).filter(x => String(x.id ?? x.data?.id ?? "").startsWith("rec_lote_") || x.data?.tipo === "rec_lote").map(x => x.data).filter(Boolean).sort((a, b) => b.hasta.localeCompare(a.hasta))); } catch { } };
   Ve.useEffect(() => { cargarBase(); cargarLotes(); }, [ses]);
   let mesTxt = f => { let p = String(f).split("-"); return `${recMeses[+p[1] - 1]} ${p[0]}`; };
@@ -3874,8 +3953,9 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       let a = A[r.i] ?? {}, u = a.u !== undefined ? a.u : r.unidad;
       return { ...r, sel: u, manual: a.u !== undefined && a.u !== r.unidad, concepto: a.c ?? `PAGO EXPENSAS ADMON ${mesTxt(r.fecha)}`, incl: a.x !== undefined ? a.x : r.tipo === "pago" };
     });
-    filas = recHermanos(filas, base.reglas, base.U);
-    return { id: `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, archivo: B.archivo, cuenta: B.cuenta, desde: B.desde, hasta: B.hasta, movs: B.movs, wompi, wompiSinBanco: X.sinBanco, filas, cambios: !1 };
+    let XC = recCruzarComp(filas, base.comps, base.U);
+    filas = recHermanos(XC.filas, base.reglas, base.U);
+    return { id: `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, archivo: B.archivo, cuenta: B.cuenta, desde: B.desde, hasta: B.hasta, movs: B.movs, wompi, wompiSinBanco: X.sinBanco, filas, comps: XC.comps, cambios: !1 };
   };
   let cargarPdf = async f => {
     if (!f) return;
@@ -3945,8 +4025,14 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
     setOcup(null);
   };
   let addDias = (iso, d) => { let t = new Date(iso + "T12:00:00"); t.setDate(t.getDate() + d); return t.toISOString().slice(0, 10); };
-  let asignDe = l => Object.fromEntries(l.filas.map(f => [f.i, { u: f.hermano ? null : f.sel ?? null, c: f.concepto, x: f.incl }]));
-  let setFila = (i, cambios) => setLote(l => ({ ...l, cambios: !0, filas: recHermanos(l.filas.map(f => f.i === i ? { ...f, ...cambios, ...("sel" in cambios || cambios.manual ? { hermano: !1 } : {}) } : f), base.reglas, base.U) }));
+  let asignDe = l => Object.fromEntries(l.filas.map(f => [f.i, { u: f.hermano || f.compAsig ? null : f.sel ?? null, c: f.concepto, x: f.incl }]));
+  let recruzar = (l, filas, lista) => { let XC = recCruzarComp(filas, lista ?? base.comps, base.U); return { ...l, filas: recHermanos(XC.filas, base.reglas, base.U), comps: XC.comps }; };
+  let setFila = (i, cambios) => setLote(l => ({ ...recruzar(l, l.filas.map(f => f.i === i ? { ...f, ...cambios, ...("sel" in cambios || cambios.manual ? { hermano: !1, compAsig: !1 } : {}) } : f)), cambios: !0 }));
+  let [cForm, setCForm] = Ve.useState(null), [verComp, setVerComp] = Ve.useState(!1);
+  let guardarComps = async lista => {
+    try { await ses.store.set("cbl_seg/rec_comprobantes", JSON.parse(JSON.stringify({ lista, act: new Date().toISOString() }))); setBase(b => ({ ...b, comps: lista })); setLote(l => l ? recruzar(l, l.filas, lista) : l); notificar("ok", "Comprobantes actualizados y cruzados con el extracto."); }
+    catch (e) { notificar("error", "No se pudieron guardar los comprobantes: " + (e?.message ?? e)); }
+  };
   let guardar = async () => {
     setOcup("Guardando…");
     try {
@@ -3964,10 +4050,13 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   };
   let excel = async () => {
     let U = base.U, F = lote.filas.filter(f => f.incl && f.sel), sin = lote.filas.filter(f => f.incl && !f.sel && f.tipo === "pago"), lt = lote.filas.filter(f => f.tipo === "lote");
-    let n = Number(String(lote.hasta).replace(/-/g, "")), fila = (f, est) => [{ d: vxSerial(Number(f.fecha.replace(/-/g, ""))) }, f.sel ?? "", f.sel ? U.get(f.sel)?.tercero ?? "" : "", expDe(f)?.cuota ?? "", expDe(f)?.dto ?? "", f.valor, f.w ? f.comision : "", f.concepto, REC_CC, [f.desc, f.ref1, f.ref2, f.pagador, f.w ? `neto al banco ${pe(f.neto, "0")}; en el extracto va dentro del abono PAGO DE PROV WOMPI del ${f.w.fechaBanco} por $ ${pe(lote.filas.filter(x => x.w && x.w.des === f.w.des).reduce((s, x) => s + (x.neto ?? 0), 0), "0")} (desembolso ${f.w.des})` : ""].filter(Boolean).join(" · "), est, f.como || ""];
+    let n = Number(String(lote.hasta).replace(/-/g, "")), fila = (f, est) => [{ d: vxSerial(Number(f.fecha.replace(/-/g, ""))) }, f.sel ?? "", f.sel ? U.get(f.sel)?.tercero ?? "" : "", expDe(f)?.cuota ?? "", expDe(f)?.dto ?? "", f.valor, f.w ? f.comision : "", f.concepto, REC_CC, [f.comp ? `Comprobante #${f.comp}` : "", f.desc, f.ref1, f.ref2, f.pagador, f.w ? `neto al banco ${pe(f.neto, "0")}; en el extracto va dentro del abono PAGO DE PROV WOMPI del ${f.w.fechaBanco} por $ ${pe(lote.filas.filter(x => x.w && x.w.des === f.w.des).reduce((s, x) => s + (x.neto ?? 0), 0), "0")} (desembolso ${f.w.des})` : ""].filter(Boolean).join(" · "), est, f.como || ""];
     let filas = [...F.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.sel.localeCompare(b.sel, "es", { numeric: !0 })).map(f => fila(f, "Para recibo de caja")),
       ...sin.map(f => fila(f, "Sin identificar")), ...lt.map(f => fila(f, /WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargue el reporte de desembolso" : "Lote datáfono: requiere el detalle"))];
     filas.push(["", "", "TOTAL PARA RECIBOS DE CAJA", F.reduce((s, f) => s + (expDe(f)?.cuota ?? 0), 0), F.reduce((s, f) => s + (expDe(f)?.dto ?? 0), 0), F.reduce((s, f) => s + f.valor, 0), F.reduce((s, f) => s + (f.w ? f.comision : 0), 0), "", "", "", "", ""]);
+    let CP = (lote.comps ?? []).filter(c => c.estado !== "banco" || c.alerta);
+    if (CP.length) { filas.push(["", "", "", "", "", "", "", "", "", "", "", ""], ["", "", "COMPROBANTES RECIBIDOS: PARA CORREGIR O QUE AÚN NO LLEGAN AL BANCO", "", "", "", "", "", "", "", "", ""]);
+      CP.forEach(c => filas.push([{ d: vxSerial(Number(c.fecha.replace(/-/g, ""))) }, c.apto || "", `Comprobante #${c.n} · ${c.medio}`, "", "", c.valor, "", "", "", c.banco || "Aún no aparece en el extracto", c.estado === "banco" ? "En el banco: revisar" : c.estado === "probable" ? "Probable (lote Wompi sin reporte)" : "Aún no llega al banco", c.alerta || ""])); }
     let bin = await vxXlsx(`${entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H."} · Relación de pagos para recibos de caja`,
       `Banco de expensas ${REC_CTA} · del ${lote.desde} al ${lote.hasta} · ${F.length} pagos identificados`,
       ["Fecha", "Apartamento", "Tercero (World Office)", "Expensa", "Descuento 10%", "Valor transferido", "Comisión Wompi", "Concepto", "Cuenta débito", "Detalle del banco", "Estado", "Cómo se identificó"], [12, 12, 46, 14, 14, 15, 14, 40, 12, 60, 26, 40], filas);
@@ -3983,7 +4072,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       let det = f => corto([f.desc, f.ref1, f.ref2, f.pagador].filter(Boolean).join(" · "), 36);
       let WG = new Map(); lote.filas.filter(f => f.w).forEach(f => { let g = WG.get(f.w.des) ?? []; g.push(f); WG.set(f.w.des, g); });
       let abonoW = f => WG.get(f.w.des).reduce((s, x) => s + (x.neto ?? 0), 0), fc = d => { let [y, m, dd] = String(d).split("-"); return `${dd}/${m}`; };
-      let detW = f => f.w ? `BANCO ${fc(f.w.fechaBanco)} WOMPI $ ${pe(abonoW(f), "0")}` : corto(det(f), 21);
+      let detW = f => (f.comp ? `C#${f.comp} ` : "") + (f.w ? `BANCO ${fc(f.w.fechaBanco)} WOMPI $ ${pe(abonoW(f), "0")}` : corto(det(f), 21));
       let col = [{ titulo: "No.", ancho: 3, alin: "center" }, { titulo: "FECHA", ancho: 7, alin: "left" }, { titulo: "APTO", ancho: 6, alin: "left" }, { titulo: "TERCERO (WORLD OFFICE)", ancho: 22, alin: "left" },
         { titulo: "EXPENSA", ancho: 9, alin: "right" }, { titulo: "DTO. 10%", ancho: 8, alin: "right" }, { titulo: "TRANSFERIDO", ancho: 10, alin: "right" }, { titulo: "WOMPI", ancho: 6, alin: "right" }, { titulo: "DETALLE DEL BANCO", ancho: 17, alin: "left" }, { titulo: "RECIBO No.", ancho: 8, alin: "center" }, { titulo: "REG.", ancho: 4, alin: "center" }];
       let vacio = or(""), fila = (f, k) => { let x = expDe(f); return { estilo: "detalle", celdas: [or(String(k + 1)), or(f.fecha), or(f.sel ?? "", { bold: !0 }), or(corto(f.sel ? U.get(f.sel)?.tercero ?? "" : "", 30)), x ? er(x.cuota) : vacio, x ? er(x.dto) : vacio, er(f.valor, { bold: !0 }), f.w ? er(f.comision) : vacio, or(detW(f)), or("________"), or("[   ]")] }; };
@@ -4008,6 +4097,15 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
         bl.push({ tipo: "parrafo", estilo: "h3", texto: "PAGOS DE WOMPI: CÓMO APARECEN EN EL EXTRACTO DEL BANCO" },
           { tipo: "parrafo", estilo: "normal", texto: "Wompi agrupa los pagos y consigna un solo abono (PAGO DE PROV WOMPI S.A.S.) al día hábil siguiente, ya descontada la comisión con IVA. El recibo de caja se hace por el valor pagado; la comisión es gasto bancario." },
           { tipo: "tabla", cabecera: !0, columnas: cw, filas: fw });
+      }
+      let CC = lote.comps ?? [], cAl = CC.filter(c => c.alerta), cPe = CC.filter(c => c.estado !== "banco");
+      if (CC.length) {
+        let cc = [{ titulo: "C#", ancho: 4, alin: "center" }, { titulo: "FECHA", ancho: 8, alin: "left" }, { titulo: "VALOR", ancho: 9, alin: "right" }, { titulo: "MEDIO / PAGADOR", ancho: 19, alin: "left" }, { titulo: "APTO", ancho: 6, alin: "left" }, { titulo: "EN EL BANCO", ancho: 20, alin: "left" }, { titulo: "QUÉ HACER", ancho: 29, alin: "left" }, { titulo: "HECHO", ancho: 5, alin: "center" }];
+        let fc2 = c => ({ estilo: "detalle", celdas: [or(String(c.n)), or(c.fecha), er(c.valor), or(corto(c.medio, 36)), or(c.apto || "", { bold: !0 }), or(corto(c.banco || "Aún no aparece", 56)), or(c.alerta || (c.estado === "probable" ? "Cargar el reporte de desembolso de Wompi de ese abono." : c.estado === "pendiente" ? "No hacer recibo hasta que aparezca en el extracto." : "")), or("[   ]")] });
+        bl.push({ tipo: "parrafo", estilo: "normal", texto: `Comprobantes de pago recibidos: ${CC.length}. En el banco: ${CC.filter(c => c.estado === "banco").length} · probables en lote Wompi sin reporte: ${CC.filter(c => c.estado === "probable").length} · aún no llegan al banco: ${CC.filter(c => c.estado === "pendiente").length}. En las tablas de arriba, C#n indica el comprobante que respalda el pago.` });
+        if (cAl.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "PARA CORREGIR O CONFIRMAR ANTES DE HACER EL RECIBO" }, { tipo: "tabla", cabecera: !0, columnas: cc, filas: cAl.map(fc2) });
+        let cPe2 = cPe.filter(c => !c.alerta);
+        if (cPe2.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "COMPROBANTES RECIBIDOS QUE AÚN NO LLEGAN AL BANCO (no hacer recibo todavía)" }, { tipo: "tabla", cabecera: !0, columnas: cc, filas: [...cPe2.map(fc2), { estilo: "subtotal", celdas: [vacio, vacio, er(cPe2.reduce((s, c) => s + c.valor, 0), { bold: !0 }), or(`${cPe2.length} comprobantes`), vacio, vacio, vacio, vacio] }] });
       }
       let doc = { entidad: entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: "NIT. " + (entidad?.nit ?? ""), logo: entidad?.logo || void 0, firmantes: entidad?.firmantes, firmasImg: {}, leyendas: [],
         secciones: [{ id: "recaudo", nombre: "Recaudo", titulo: "RELACIÓN DE PAGOS PARA RECIBOS DE CAJA", subtitulos: [`Recaudo de expensas del ${lote.desde} al ${lote.hasta}`], orientacion: "landscape", bloques: bl }] };
@@ -4059,6 +4157,26 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
         tarjeta("Por revisar", sinId.length + media.length, [...sinId, ...media].reduce((s, f) => s + f.valor, 0), "revisar"),
         tarjeta("Lotes y otros", F.filter(f => f.tipo !== "pago").length, F.filter(f => f.tipo !== "pago").reduce((s, f) => s + f.valor, 0), "lotes")),
       lt.length > 0 && recH("p", { className: "nota-ro espacio" }, `${lt.length} abono(s) agrupan pagos de varios apartamentos.` + (lt.some(f => /WOMPI/.test(recN(f.desc))) ? " Para los de Wompi, use Cargar reporte de Wompi (CSV) con los reportes de desembolso de esos días: la app los abre en los pagos de cada apartamento." : "") + (lt.some(f => !/WOMPI/.test(recN(f.desc))) ? " Los del datáfono se registran con el reporte del datáfono." : "")),
+      (() => { let CC = lote.comps ?? [], nb = CC.filter(c => c.estado === "banco").length, np = CC.filter(c => c.estado === "probable").length, nn = CC.filter(c => c.estado === "pendiente").length, na = CC.filter(c => c.alerta).length;
+        let campo = (k, ph, w, t) => recH("input", { type: t ?? "text", placeholder: ph, value: cForm?.[k] ?? "", onChange: e => setCForm(v => ({ ...v, [k]: e.target.value })), style: { width: w } });
+        return recH("div", { className: "espacio", style: { border: "1px solid var(--borde, #ddd)", borderRadius: "8px", padding: "10px 12px" } },
+          recH("div", { className: "fila", style: { justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
+            recH("b", null, `Comprobantes recibidos: ${CC.length}`, recH("span", { className: "tenue", style: { fontWeight: 400 } }, ` · en el banco ${nb} · probables ${np} · aún no llegan ${nn}` + (na ? ` · ${na} para corregir o confirmar` : ""))),
+            recH("div", { className: "acciones" },
+              recH("button", { type: "button", className: "btn btn-sm", onClick: () => setVerComp(v => !v) }, verComp ? "Ocultar" : "Ver comprobantes"),
+              !soloLectura && recH("button", { type: "button", className: "btn btn-sm", onClick: () => { setVerComp(!0); setCForm({ fecha: lote.hasta }); } }, "Agregar comprobante"))),
+          verComp && cForm && !soloLectura && recH("div", { className: "fila espacio", style: { gap: "6px", flexWrap: "wrap", alignItems: "center" } },
+            campo("fecha", "Fecha", "140px", "date"), campo("valor", "Valor", "110px"), campo("medio", "Medio / pagador", "220px"), campo("apto", "Apto (ej. 803 T2)", "120px"), campo("pista", "Cuenta o ref. (opcional)", "160px"), campo("obs", "Observación (opcional)", "220px"),
+            recH("button", { type: "button", className: "btn btn-sm btn-primario", onClick: () => { let v = Number(String(cForm.valor ?? "").replace(/[^\d]/g, "")); if (!cForm.fecha || !v) return notificar("error", "Escriba la fecha y el valor del comprobante."); let L = base.comps ?? []; guardarComps([...L, { n: Math.max(0, ...L.map(c => c.n)) + 1, fecha: cForm.fecha, valor: v, medio: cForm.medio || "", apto: cForm.apto || "", pista: cForm.pista || "", obs: cForm.obs || "", wompi: /WOMPI|PSE/i.test(cForm.medio || "") }]); setCForm(null); } }, "Guardar"),
+            recH("button", { type: "button", className: "btn btn-sm", onClick: () => setCForm(null) }, "Cancelar")),
+          verComp && recH("div", { className: "tabla-scroll espacio" }, recH("table", { className: "t-datos" },
+            recH("thead", null, recH("tr", null, ["#", "Fecha", "Valor", "Medio / pagador", "Apto", "Estado", "En el banco", "Qué hacer", ""].map((h, i) => recH("th", { key: i }, h)))),
+            recH("tbody", null, CC.map(c => recH("tr", { key: c.n },
+              recH("td", { className: "mono" }, c.n), recH("td", { className: "mono", style: { whiteSpace: "nowrap" } }, c.fecha), recH("td", { className: "mono", style: { textAlign: "right", whiteSpace: "nowrap" } }, fmt(c.valor)),
+              recH("td", null, c.medio), recH("td", null, recH("b", null, c.apto || "")),
+              recH("td", null, recH("span", { className: "chip " + (c.alerta ? "chip-err" : c.estado === "banco" ? "chip-ok" : "chip-warn") }, c.alerta ? "Revisar" : c.estado === "banco" ? "En el banco" : c.estado === "probable" ? "Probable" : "Aún no llega")),
+              recH("td", { className: "tenue" }, c.banco || "—"), recH("td", null, c.alerta || ""),
+              recH("td", null, !soloLectura && recH("button", { type: "button", className: "enlace", onClick: () => guardarComps((base.comps ?? []).filter(x => x.n !== c.n)) }, "Quitar")))))))); })(),
       recH("input", { type: "search", className: "espacio", placeholder: "Buscar: apartamento, nombre, referencia o valor…", value: q, onChange: e => setQ(e.target.value), "aria-label": "Buscar en el extracto", style: { maxWidth: "420px" } }),
       recH("div", { className: "tabla-scroll espacio" }, recH("table", { className: "t-datos" },
         recH("thead", null, recH("tr", null, ["Fecha", "Banco", "Valor", "Apartamento", "Cuota (con descuento)", "Cómo se identificó", "Concepto", "Incluir"].map((h, i) => recH("th", { key: i }, h)))),
@@ -4074,7 +4192,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
               !f.sel && f.cands.length > 0 && recH("div", { className: "tenue", style: { marginTop: "4px" } }, "Posibles: ", f.cands.map(u => recH("button", { key: u, type: "button", className: "enlace", style: { marginRight: "6px" }, onClick: () => setFila(f.i, { sel: u, edit: undefined, manual: !0 }) }, u))),
               dup && recH("div", { className: "tenue", style: { color: "#b45309" } }, "Este apartamento tiene más de un pago en el extracto.")),
             recH("td", { className: "mono", style: { whiteSpace: "nowrap" } }, x?.cuota ? `${fmt(x.cuota)} (${fmt(x.cuotaDesc)})` : ""),
-            recH("td", null, chip(f), !soloLectura && f.sel && !f.manual && f.conf === "media" && recH("button", { type: "button", className: "enlace", style: { marginLeft: "6px" }, onClick: () => setFila(f.i, { manual: !0 }) }, "Confirmar"), f.como && recH("div", { className: "tenue" }, f.como)),
+            recH("td", null, chip(f), f.comp && recH("span", { className: "chip chip-ok", style: { marginLeft: "6px" }, title: "Hay comprobante de pago para este movimiento" }, `Comprobante #${f.comp}`), !soloLectura && f.sel && !f.manual && f.conf === "media" && recH("button", { type: "button", className: "enlace", style: { marginLeft: "6px" }, onClick: () => setFila(f.i, { manual: !0 }) }, "Confirmar"), f.como && recH("div", { className: "tenue" }, f.como)),
             recH("td", { style: { minWidth: "220px" } }, recH("input", { value: f.concepto, disabled: soloLectura || f.tipo !== "pago", onChange: e => setFila(f.i, { concepto: e.target.value }), style: { width: "100%" } })),
             recH("td", { style: { textAlign: "center" } }, recH("input", { type: "checkbox", checked: !!f.incl, disabled: soloLectura, onChange: e => setFila(f.i, { incl: e.target.checked }), "aria-label": "Incluir en la relación" })));
         })))),
