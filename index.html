@@ -3882,7 +3882,7 @@ var REC_COMP_INI = [
   { n: 14, fecha: "2026-11-01", valor: 971159, medio: "Wompi PSE", apto: "", wompi: !0 },
   { n: 15, fecha: "2026-11-03", valor: 450000, medio: "Wompi · Andrea Palacios", apto: "924", wompi: !0 },
   { n: 16, fecha: "2026-11-03", valor: 538777, medio: "Wompi PSE (Nu)", apto: "", wompi: !0 },
-  { n: 17, fecha: "2026-11-03", valor: 1453008, medio: "Wompi PSE", apto: "1616", wompi: !0 },
+  { n: 17, fecha: "2026-11-03", valor: 1453008, medio: "Wompi PSE (CUS 795348029)", apto: "1718", wompi: !0, obs: "El soporte lo envió el 1718: no es del 1616. Si ya se hizo recibo de caja al 1616, anularlo y hacerlo al 1718." },
   { n: 18, fecha: "2026-11-06", valor: 1409048, medio: "Wompi · Patricia Maestre", apto: "", wompi: !0 },
   { n: 19, fecha: "2026-11-06", valor: 771725, medio: "Wompi botón Bancolombia *1267", apto: "", wompi: !0 },
   { n: 20, fecha: "2026-11-07", valor: 800000, medio: "Wompi · alex.santamaria", apto: "", wompi: !0 },
@@ -3914,7 +3914,7 @@ function recAptoComp(a, U) {
 var recDias = (a, b) => Math.round((new Date(a + "T12:00:00") - new Date(b + "T12:00:00")) / 864e5);
 /* cruza los comprobantes con las filas del extracto. Devuelve filas marcadas (f.comp) y el estado de cada comprobante */
 function recCruzarComp(filas, lista, U) {
-  filas = filas.map(f => { let g = { ...f, comp: void 0 }; if (f.compAsig) Object.assign(g, { sel: null, compAsig: !1, como: f.comoOrigC ?? "", conf: f.confOrigC ?? "" }); return g; });
+  filas = filas.map(f => { let g = { ...f, comp: void 0 }; if (f.compAsig) Object.assign(g, { sel: f.selOrigC ?? null, manual: !!f.manualOrigC, compAsig: !1, como: f.comoOrigC ?? "", conf: f.confOrigC ?? "" }); return g; });
   let usadas = new Set(), est = [];
   for (const c of [...(lista ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.n - b.n)) {
     let P = recN(c.pista ?? "").replace(/\s+/g, ""), txt = f => recN([f.desc, f.ref1, f.ref2, f.pagador].join(" ")).replace(/\s+/g, "");
@@ -3928,8 +3928,10 @@ function recCruzarComp(filas, lista, U) {
       usadas.add(f.i); r.estado = "banco"; r.fila = f.i;
       r.banco = `${f.fecha} · ${f.w ? `dentro del abono PAGO DE PROV WOMPI del ${f.w.fechaBanco}` : [f.desc, f.ref1, f.ref2].filter(Boolean).join(" · ")}`;
       let k = filas.indexOf(f), g = { ...f, comp: c.n };
-      if (!f.sel && ap.u) Object.assign(g, { sel: ap.u, compAsig: !0, comoOrigC: f.como, confOrigC: f.conf, conf: "media", como: `Comprobante #${c.n}: ${c.medio}` });
-      else if (f.sel && ap.u && f.sel !== ap.u) r.alerta = (r.alerta ? r.alerta + " " : "") + `La app lo asignó a ${f.sel} y el comprobante dice ${ap.u}.`;
+      if (ap.u && f.sel !== ap.u) {
+        Object.assign(g, { sel: ap.u, compAsig: !0, selOrigC: f.sel ?? null, manualOrigC: !!f.manual, manual: !1, comoOrigC: f.como, confOrigC: f.conf, conf: "media", como: f.sel ? `CORREGIDO por comprobante #${c.n}: estaba aplicado al ${f.sel}; el soporte es del ${ap.u}` : `Comprobante #${c.n}: ${c.medio}` });
+        if (f.sel) { r.corregido = f.sel; r.alerta = `CORREGIDO: estaba aplicado al ${f.sel} y el soporte es del ${ap.u}; ya quedó en el ${ap.u}. Si se hizo recibo de caja al ${f.sel}, anularlo.`; }
+      }
       if (!g.sel && !ap.u && !c.apto) r.alerta = (r.alerta ? r.alerta + " " : "") + "Ya está en el banco pero sin apartamento: anotarlo según el correo.";
       filas[k] = g;
     } else if (c.wompi) {
@@ -4072,7 +4074,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       let det = f => corto([f.desc, f.ref1, f.ref2, f.pagador].filter(Boolean).join(" · "), 36);
       let WG = new Map(); lote.filas.filter(f => f.w).forEach(f => { let g = WG.get(f.w.des) ?? []; g.push(f); WG.set(f.w.des, g); });
       let abonoW = f => WG.get(f.w.des).reduce((s, x) => s + (x.neto ?? 0), 0), fc = d => { let [y, m, dd] = String(d).split("-"); return `${dd}/${m}`; };
-      let detW = f => (f.comp ? `C#${f.comp} ` : "") + (f.w ? `BANCO ${fc(f.w.fechaBanco)} WOMPI $ ${pe(abonoW(f), "0")}` : corto(det(f), 21));
+      let detW = f => (f.comp ? `C#${f.comp}${f.compAsig && f.selOrigC ? ` CORREGIDO (antes ${f.selOrigC})` : ""} ` : "") + (f.w ? `BANCO ${fc(f.w.fechaBanco)} WOMPI $ ${pe(abonoW(f), "0")}` : corto(det(f), 21));
       let col = [{ titulo: "No.", ancho: 3, alin: "center" }, { titulo: "FECHA", ancho: 7, alin: "left" }, { titulo: "APTO", ancho: 6, alin: "left" }, { titulo: "TERCERO (WORLD OFFICE)", ancho: 22, alin: "left" },
         { titulo: "EXPENSA", ancho: 9, alin: "right" }, { titulo: "DTO. 10%", ancho: 8, alin: "right" }, { titulo: "TRANSFERIDO", ancho: 10, alin: "right" }, { titulo: "WOMPI", ancho: 6, alin: "right" }, { titulo: "DETALLE DEL BANCO", ancho: 17, alin: "left" }, { titulo: "RECIBO No.", ancho: 8, alin: "center" }, { titulo: "REG.", ancho: 4, alin: "center" }];
       let vacio = or(""), fila = (f, k) => { let x = expDe(f); return { estilo: "detalle", celdas: [or(String(k + 1)), or(f.fecha), or(f.sel ?? "", { bold: !0 }), or(corto(f.sel ? U.get(f.sel)?.tercero ?? "" : "", 30)), x ? er(x.cuota) : vacio, x ? er(x.dto) : vacio, er(f.valor, { bold: !0 }), f.w ? er(f.comision) : vacio, or(detW(f)), or("________"), or("[   ]")] }; };
