@@ -3951,15 +3951,16 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   };
   let excel = async () => {
     let U = base.U, F = lote.filas.filter(f => f.incl && f.sel), sin = lote.filas.filter(f => f.incl && !f.sel && f.tipo === "pago"), lt = lote.filas.filter(f => f.tipo === "lote");
-    let n = Number(String(lote.hasta).replace(/-/g, "")), fila = (f, est) => [{ d: vxSerial(Number(f.fecha.replace(/-/g, ""))) }, f.sel ?? "", f.sel ? U.get(f.sel)?.tercero ?? "" : "", f.valor, f.w ? f.comision : "", f.concepto, REC_CC, [f.desc, f.ref1, f.ref2, f.pagador, f.w ? `neto al banco ${pe(f.neto, "0")} el ${f.w.fechaBanco}` : ""].filter(Boolean).join(" · "), est, f.como || ""];
+    let n = Number(String(lote.hasta).replace(/-/g, "")), fila = (f, est) => [{ d: vxSerial(Number(f.fecha.replace(/-/g, ""))) }, f.sel ?? "", f.sel ? U.get(f.sel)?.tercero ?? "" : "", expDe(f)?.cuota ?? "", expDe(f)?.dto ?? "", f.valor, f.w ? f.comision : "", f.concepto, REC_CC, [f.desc, f.ref1, f.ref2, f.pagador, f.w ? `neto al banco ${pe(f.neto, "0")} el ${f.w.fechaBanco}` : ""].filter(Boolean).join(" · "), est, f.como || ""];
     let filas = [...F.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.sel.localeCompare(b.sel, "es", { numeric: !0 })).map(f => fila(f, "Para recibo de caja")),
       ...sin.map(f => fila(f, "Sin identificar")), ...lt.map(f => fila(f, /WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargue el reporte de desembolso" : "Lote datáfono: requiere el detalle"))];
-    filas.push(["", "", "TOTAL PARA RECIBOS DE CAJA", F.reduce((s, f) => s + f.valor, 0), F.reduce((s, f) => s + (f.w ? f.comision : 0), 0), "", "", "", "", ""]);
+    filas.push(["", "", "TOTAL PARA RECIBOS DE CAJA", F.reduce((s, f) => s + (expDe(f)?.cuota ?? 0), 0), F.reduce((s, f) => s + (expDe(f)?.dto ?? 0), 0), F.reduce((s, f) => s + f.valor, 0), F.reduce((s, f) => s + (f.w ? f.comision : 0), 0), "", "", "", "", ""]);
     let bin = await vxXlsx(`${entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H."} · Relación de pagos para recibos de caja`,
       `Banco de expensas ${REC_CTA} · del ${lote.desde} al ${lote.hasta} · ${F.length} pagos identificados`,
-      ["Fecha", "Apartamento", "Tercero (World Office)", "Valor pagado", "Comisión Wompi", "Concepto", "Cuenta débito", "Detalle del banco", "Estado", "Cómo se identificó"], [12, 12, 46, 15, 14, 40, 12, 60, 26, 40], filas);
+      ["Fecha", "Apartamento", "Tercero (World Office)", "Expensa", "Descuento 10%", "Valor transferido", "Comisión Wompi", "Concepto", "Cuenta débito", "Detalle del banco", "Estado", "Cómo se identificó"], [12, 12, 46, 14, 14, 15, 14, 40, 12, 60, 26, 40], filas);
     await BL(ses, `Recaudo_expensas_${lote.desde}_a_${lote.hasta}.xlsx`, bin, notificar);
   };
+  let expDe = f => { let x = f.sel ? base.U.get(f.sel) : null; if (!x?.cuota) return null; let dto = Number(String(f.fecha).slice(8, 10)) <= 15 ? x.cuota - x.cuotaDesc : 0; return { cuota: x.cuota, dto }; };
   let pdf = async () => {
     setOcup("Generando PDF…");
     try {
@@ -3967,17 +3968,18 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
         sin = lote.filas.filter(f => f.incl && !f.sel && f.tipo === "pago"), lt = lote.filas.filter(f => f.tipo === "lote");
       let corto = (t, n) => (t = String(t ?? "").replace(/\s+/g, " ").trim()).length > n ? t.slice(0, n - 1) + "…" : t;
       let det = f => corto([f.desc, f.ref1, f.ref2, f.pagador].filter(Boolean).join(" · "), 36);
-      let col = [{ titulo: "No.", ancho: 4, alin: "center" }, { titulo: "FECHA", ancho: 8, alin: "left" }, { titulo: "APTO", ancho: 7, alin: "left" }, { titulo: "TERCERO (WORLD OFFICE)", ancho: 25, alin: "left" },
-        { titulo: "VALOR PAGADO", ancho: 11, alin: "right" }, { titulo: "COM. WOMPI", ancho: 8, alin: "right" }, { titulo: "DETALLE DEL BANCO", ancho: 25, alin: "left" }, { titulo: "RECIBO No.", ancho: 8, alin: "center" }, { titulo: "REG.", ancho: 4, alin: "center" }];
-      let vacio = or(""), fila = (f, k) => ({ estilo: "detalle", celdas: [or(String(k + 1)), or(f.fecha), or(f.sel ?? "", { bold: !0 }), or(corto(f.sel ? U.get(f.sel)?.tercero ?? "" : "", 34)), er(f.valor), f.w ? er(f.comision) : vacio, or(det(f)), or("________"), or("[   ]")] });
-      let tot = (t, L, est) => ({ estilo: est, celdas: [vacio, vacio, vacio, or(t, { bold: !0 }), er(L.reduce((s, f) => s + f.valor, 0), { bold: !0 }), er(L.reduce((s, f) => s + (f.w ? f.comision : 0), 0), { bold: !0 }), or(`${L.length} pago${L.length === 1 ? "" : "s"}`), vacio, vacio] });
-      let bl = [{ tipo: "parrafo", estilo: "normal", texto: `Banco de expensas ${REC_CTA} · cuenta débito ${REC_CC} · ${F.length} pagos identificados por $ ${pe(F.reduce((s, f) => s + f.valor, 0), "0")}. Anote el número del recibo de caja de World Office y marque [X] en REG. al registrarlo.` },
+      let col = [{ titulo: "No.", ancho: 3, alin: "center" }, { titulo: "FECHA", ancho: 7, alin: "left" }, { titulo: "APTO", ancho: 6, alin: "left" }, { titulo: "TERCERO (WORLD OFFICE)", ancho: 22, alin: "left" },
+        { titulo: "EXPENSA", ancho: 9, alin: "right" }, { titulo: "DTO. 10%", ancho: 8, alin: "right" }, { titulo: "TRANSFERIDO", ancho: 10, alin: "right" }, { titulo: "WOMPI", ancho: 6, alin: "right" }, { titulo: "DETALLE DEL BANCO", ancho: 17, alin: "left" }, { titulo: "RECIBO No.", ancho: 8, alin: "center" }, { titulo: "REG.", ancho: 4, alin: "center" }];
+      let vacio = or(""), fila = (f, k) => { let x = expDe(f); return { estilo: "detalle", celdas: [or(String(k + 1)), or(f.fecha), or(f.sel ?? "", { bold: !0 }), or(corto(f.sel ? U.get(f.sel)?.tercero ?? "" : "", 30)), x ? er(x.cuota) : vacio, x ? er(x.dto) : vacio, er(f.valor, { bold: !0 }), f.w ? er(f.comision) : vacio, or(corto(det(f), 21)), or("________"), or("[   ]")] }; };
+      let sum = (L, g) => L.reduce((s, f) => s + (g(f) ?? 0), 0);
+      let tot = (t, L, est) => ({ estilo: est, celdas: [vacio, vacio, vacio, or(t, { bold: !0 }), er(sum(L, f => expDe(f)?.cuota), { bold: !0 }), er(sum(L, f => expDe(f)?.dto), { bold: !0 }), er(sum(L, f => f.valor), { bold: !0 }), er(sum(L, f => f.w ? f.comision : 0), { bold: !0 }), or(`${L.length} pago${L.length === 1 ? "" : "s"}`), vacio, vacio] });
+      let bl = [{ tipo: "parrafo", estilo: "normal", texto: `Banco de expensas ${REC_CTA} · cuenta débito ${REC_CC} · ${F.length} pagos identificados por $ ${pe(F.reduce((s, f) => s + f.valor, 0), "0")}. Descuento del 10 % de la expensa para los pagos hechos entre el 1 y el 15 del mes. Anote el número del recibo de caja de World Office y marque [X] en REG. al registrarlo.` },
         { tipo: "parrafo", estilo: "h3", texto: "PAGOS PARA RECIBO DE CAJA" },
         { tipo: "tabla", cabecera: !0, columnas: col, filas: [...F.map(fila), tot("TOTAL PARA RECIBOS DE CAJA", F, "totalDoble")] }];
       if (sin.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "PAGOS SIN IDENTIFICAR (asignar antes de registrar)" },
-        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...sin.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), or("______"), or("________________________"), er(f.valor), vacio, or(det(f)), or("________"), or("[   ]")] })), tot("TOTAL SIN IDENTIFICAR", sin, "subtotal")] });
+        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...sin.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), or("______"), or("____________________"), vacio, vacio, er(f.valor, { bold: !0 }), vacio, or(corto(det(f), 21)), or("________"), or("[   ]")] })), tot("TOTAL SIN IDENTIFICAR", sin, "subtotal")] });
       if (lt.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "LOTES DE WOMPI Y DATÁFONO SIN DETALLE" },
-        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...lt.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), vacio, or(/WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargar reporte de desembolso" : "Lote datáfono: requiere el detalle", { italic: !0 }), er(f.valor), vacio, or(det(f)), vacio, vacio] })), tot("TOTAL LOTES", lt, "subtotal")] });
+        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...lt.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), vacio, or(/WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargar reporte de desembolso" : "Lote datáfono: requiere el detalle", { italic: !0 }), vacio, vacio, er(f.valor), vacio, or(corto(det(f), 21)), vacio, vacio] })), tot("TOTAL LOTES", lt, "subtotal")] });
       let doc = { entidad: entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: "NIT. " + (entidad?.nit ?? ""), logo: entidad?.logo || void 0, firmantes: entidad?.firmantes, firmasImg: {}, leyendas: [],
         secciones: [{ id: "recaudo", nombre: "Recaudo", titulo: "RELACIÓN DE PAGOS PARA RECIBOS DE CAJA", subtitulos: [`Recaudo de expensas del ${lote.desde} al ${lote.hasta}`], orientacion: "landscape", bloques: bl }] };
       await BL(ses, `Recaudo_expensas_${lote.desde}_a_${lote.hasta}.pdf`, await en(doc), notificar);
