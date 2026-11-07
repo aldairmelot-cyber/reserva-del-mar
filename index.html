@@ -3776,6 +3776,71 @@ async function recBase(ses) {
   let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {};
   return { U, ult, libroHist, meses, metaLibro: metas[0], reglas: { ...aprendidas, ...(G.aprendidas ?? {}), ...(G.confirmadas ?? {}) }, G };
 }
+/* ---------- reportes de desembolso de Wompi ---------- */
+/* Cada abono de Wompi en el banco es un desembolso que agrupa varios pagos. El reporte
+   (CSV "disbursement-report") trae una línea por pago: valor, comisión, neto, cédula del
+   pagador y, a veces, la referencia del apartamento ("APARTAMENTOS 21325" = T2 1325). */
+function recCsv(txt) {
+  let out = [], fila = [], c = "", q = !1;
+  for (let i = 0; i < txt.length; i++) {
+    let ch = txt[i];
+    if (q) { if (ch === '"') { if (txt[i + 1] === '"') { c += '"'; i++; } else q = !1; } else c += ch; }
+    else if (ch === '"') q = !0;
+    else if (ch === ",") { fila.push(c); c = ""; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && txt[i + 1] === "\n") i++; fila.push(c); c = ""; if (fila.some(x => x.trim())) out.push(fila); fila = []; }
+    else c += ch;
+  }
+  fila.push(c); if (fila.some(x => x.trim())) out.push(fila);
+  return out;
+}
+function recLeerWompi(txt, nombre) {
+  let F = recCsv(txt.replace(/^﻿/, "")), cab = (F[0] ?? []).map(x => recN(x));
+  let col = (...ks) => cab.findIndex(h => ks.some(k => h === k || h.startsWith(k)));
+  let iId = col("ID DE LA TRANSACCION"), iF = col("FECHA"), iRef = col("REFERENCIA"), iM = col("MONTO"), iMed = col("MEDIO DE PAGO"), iNeto = col("TOTAL DESEMBOLSADO"),
+    iDoc = col("DOCUMENTO DEL PAGADOR"), iTd = col("TIPO DE DOCUMENTO"), iDes = col("DISBURSEMENT ID"), iR1n = col("REF. 1 NOMBRE"), iR1 = cab.findIndex(h => h === "REF. 1"), iR2n = col("REF. 2 NOMBRE"), iR2 = cab.findIndex(h => h === "REF. 2");
+  if (iId < 0 || iM < 0 || iNeto < 0 || iDes < 0) throw new Error(`"${nombre}": no es un reporte de desembolsos de Wompi (faltan las columnas de transacción, monto, total desembolsado o disbursement id).`);
+  let num = x => Number(String(x ?? "").replace(/[^\d.-]/g, "")) || 0;
+  return F.slice(1).filter(r => r[iId]?.trim()).map(r => {
+    let f = String(r[iF] ?? "").match(/(\d{2})-(\d{2})-(\d{4})/), m = num(r[iM]), neto = num(r[iNeto]);
+    return { id: r[iId].trim(), fecha: f ? `${f[3]}-${f[2]}-${f[1]}` : "", ref: (r[iRef] ?? "").trim(), monto: m, neto, comision: Math.round((m - neto) * 100) / 100, medio: (r[iMed] ?? "").trim(),
+      doc: String(r[iDoc] ?? "").replace(/\D/g, ""), tdoc: (r[iTd] ?? "").trim(), r1n: iR1n >= 0 ? (r[iR1n] ?? "").trim() : "", r1: iR1 >= 0 ? (r[iR1] ?? "").trim() : "",
+      r2n: iR2n >= 0 ? (r[iR2n] ?? "").trim() : "", r2: iR2 >= 0 ? (r[iR2] ?? "").trim() : "", des: String(r[iDes] ?? "").trim(), archivo: nombre };
+  });
+}
+/* "21325" o "1325 T2" o "APTO 1325 T2" → unidad */
+function recAptoDeCodigo(x, U) {
+  let t = recN(x), m;
+  if (m = t.match(/(\d{3,4}[A-Z]?)\s*-?\s*T(?:ORRE)?\s?(\d)\b/)) { let u = `${m[1].replace(/^0+/, "")} T${m[2]}`; if (U.has(u)) return u; }
+  if (m = t.match(/\bT(?:ORRE)?\s?(\d)\s*-?\s*(?:APTO|AP)?\s*(\d{3,4}[A-Z]?)\b/)) { let u = `${m[2].replace(/^0+/, "")} T${m[1]}`; if (U.has(u)) return u; }
+  let d = t.replace(/\D/g, "").replace(/^0+/, "");
+  if (m = d.match(/^([1-4])(\d{3,4})$/)) { let u = `${m[2].replace(/^0+/, "")} T${m[1]}`; if (U.has(u)) return u; }
+  return null;
+}
+function recIdentificarWompi(tx, U, reglas) {
+  let clave = tx.doc ? "WDOC:" + tx.doc : null, u;
+  let base = { clave, pagador: tx.tdoc && tx.doc ? `${tx.tdoc} ${tx.doc}` : "", unidad: null, como: "", conf: "", cands: [] };
+  for (const x of [tx.r1, tx.r2, tx.ref]) if (x && (u = recAptoDeCodigo(x, U))) return { ...base, unidad: u, como: "Apartamento en la referencia de Wompi", conf: "alta" };
+  if (clave && (u = reglas[clave]) && U.has(u)) return { ...base, unidad: u, como: "Misma cédula de pagos anteriores", conf: "alta" };
+  let pv = recPorValor(recR(tx.monto), U);
+  if (pv.length === 1) return { ...base, unidad: pv[0], como: "Valor igual a la cuota o a pagos anteriores", conf: "media" };
+  return { ...base, cands: pv.slice(0, 8), como: pv.length > 1 ? `${pv.length} apartamentos pagan ese valor` : "" };
+}
+/* reemplaza cada abono de Wompi del banco por los pagos de su desembolso */
+function recExpandirWompi(R, wompi, U, reglas) {
+  if (!wompi?.length) return { R, abiertos: 0, sinBanco: [] };
+  let grupos = new Map();
+  for (const t of wompi) { let g = grupos.get(t.des) ?? []; g.push(t); grupos.set(t.des, g); }
+  let usados = new Set(), out = [], abiertos = 0;
+  for (const r of R) {
+    if (r.tipo !== "lote" || !/WOMPI/.test(recN(r.desc + " " + r.ref1 + " " + r.ref2))) { out.push(r); continue; }
+    let cand = [...grupos.entries()].filter(([d, g]) => !usados.has(d) && Math.abs(g.reduce((s, t) => s + t.neto, 0) - r.valor) <= 1 && g.every(t => !t.fecha || t.fecha <= r.fecha));
+    if (!cand.length) { out.push(r); continue; }
+    let [d, g] = cand[0]; usados.add(d); abiertos++;
+    g.forEach((t, k) => out.push({ i: `${r.i}.${k}`, fecha: t.fecha || r.fecha, desc: `WOMPI · ${t.medio || "pago"} · desembolso ${d}`, ref1: t.ref, ref2: [t.r1n && t.r1 ? `${t.r1n} ${t.r1}` : "", t.r2n && t.r2 ? `${t.r2n} ${t.r2}` : ""].filter(Boolean).join(" · "),
+      valor: t.monto, neto: t.neto, comision: t.comision, tipo: "pago", w: { id: t.id, des: d, fechaBanco: r.fecha }, ...recIdentificarWompi(t, U, reglas) }));
+  }
+  return { R: out, abiertos, sinBanco: [...grupos.keys()].filter(d => !usados.has(d)) };
+}
 function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   let [base, setBase] = Ve.useState(null), [err, setErr] = Ve.useState(null), [lote, setLote] = Ve.useState(null), [ocup, setOcup] = Ve.useState(null);
   let [filtro, setFiltro] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [lotes, setLotes] = Ve.useState([]);
@@ -3784,12 +3849,12 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   Ve.useEffect(() => { cargarBase(); cargarLotes(); }, [ses]);
   let mesTxt = f => { let p = String(f).split("-"); return `${recMeses[+p[1] - 1]} ${p[0]}`; };
   let armar = (B, guardado) => {
-    let R = recIdentificar(B.movs, base.U, base.reglas), A = guardado?.asign ?? {};
+    let wompi = B.wompi ?? guardado?.wompi ?? [], X = recExpandirWompi(recIdentificar(B.movs, base.U, base.reglas), wompi, base.U, base.reglas), R = X.R, A = guardado?.asign ?? {};
     let filas = R.filter(r => r.valor > 0 && r.tipo !== "interes").map(r => {
       let a = A[r.i] ?? {}, u = a.u !== undefined ? a.u : r.unidad;
       return { ...r, sel: u, manual: a.u !== undefined && a.u !== r.unidad, concepto: a.c ?? `PAGO EXPENSAS ADMON ${mesTxt(r.fecha)}`, incl: a.x !== undefined ? a.x : r.tipo === "pago" };
     });
-    return { id: `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, archivo: B.archivo, cuenta: B.cuenta, desde: B.desde, hasta: B.hasta, movs: B.movs, filas, cambios: !1 };
+    return { id: `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, archivo: B.archivo, cuenta: B.cuenta, desde: B.desde, hasta: B.hasta, movs: B.movs, wompi, wompiSinBanco: X.sinBanco, filas, cambios: !1 };
   };
   let cargarPdf = async f => {
     if (!f) return;
@@ -3802,12 +3867,23 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
     } catch (e) { notificar("error", e?.message ?? String(e)); }
     setOcup(null);
   };
-  let abrirGuardado = async L => { setOcup("Abriendo…"); try { let g = await ses.store.get("cbl_seg/" + L.id); g && setLote(armar({ archivo: g.archivo, cuenta: g.cuenta, desde: g.desde, hasta: g.hasta, movs: g.movs }, g)); } catch (e) { notificar("error", e?.message ?? String(e)); } setOcup(null); };
+  let abrirGuardado = async L => { setOcup("Abriendo…"); try { let g = await ses.store.get("cbl_seg/" + L.id); g && setLote(armar({ archivo: g.archivo, cuenta: g.cuenta, desde: g.desde, hasta: g.hasta, movs: g.movs, wompi: g.wompi }, g)); } catch (e) { notificar("error", e?.message ?? String(e)); } setOcup(null); };
   let aprenderDe = async files => {
     setOcup("Aprendiendo de extractos anteriores…");
     try {
       let nuevas = {}, n = 0;
       for (const f of files) {
+        if (/\.csv$/i.test(f.name)) {
+          let T = recLeerWompi(await f.text(), f.name), usados = new Set(), dias = (a, b) => (Date.parse(b) - Date.parse(a)) / 864e5;
+          for (const t of T) {
+            if (!t.doc) continue;
+            let c = base.libroHist.map((r, i) => ({ i, r })).filter(({ i, r }) => !usados.has(i) && recUnidad(r[1]) && (Math.abs(r[4] - t.monto) <= 1 || Math.abs(r[4] - t.neto) <= 1) && dias(t.fecha, r[0]) >= -1 && dias(t.fecha, r[0]) <= 10);
+            let w = c.filter(x => /WOMPI/.test(recN(x.r[2]))); c = w.length ? w : c;
+            if (new Set(c.map(x => recUnidad(x.r[1]))).size !== 1) continue;
+            usados.add(c[0].i); nuevas["WDOC:" + t.doc] = recUnidad(c[0].r[1]); n++;
+          }
+          continue;
+        }
         let B = await recLeerPdf(f), lib = base.libroHist.filter(r => r[0] >= B.desde && r[0] <= addDias(B.hasta, 7));
         let R = recAprender(B.movs, lib); Object.assign(nuevas, R); n += Object.keys(R).length;
       }
@@ -3816,7 +3892,20 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       await ses.store.set("cbl_seg/rec_reglas", G);
       setBase(b => ({ ...b, reglas: { ...b.reglas, ...nuevas, ...(G.confirmadas ?? {}) }, G }));
       notificar("ok", `Se aprendieron ${n} cuentas o referencias de ${files.length} extracto(s).`);
-      if (lote) setLote(l => armar({ archivo: l.archivo, cuenta: l.cuenta, desde: l.desde, hasta: l.hasta, movs: l.movs }, { asign: asignDe(l) }));
+      if (lote) setLote(l => armar({ archivo: l.archivo, cuenta: l.cuenta, desde: l.desde, hasta: l.hasta, movs: l.movs, wompi: l.wompi }, { asign: asignDe(l) }));
+    } catch (e) { notificar("error", e?.message ?? String(e)); }
+    setOcup(null);
+  };
+  let cargarWompi = async files => {
+    setOcup("Leyendo los reportes de Wompi…");
+    try {
+      let T = [];
+      for (const f of files) T.push(...recLeerWompi(await f.text(), f.name));
+      let M = new Map((lote.wompi ?? []).map(t => [t.id, t])); T.forEach(t => M.set(t.id, t));
+      let L = armar({ archivo: lote.archivo, cuenta: lote.cuenta, desde: lote.desde, hasta: lote.hasta, movs: lote.movs, wompi: [...M.values()] }, { asign: asignDe(lote) });
+      let antes = lote.filas.filter(f => f.tipo === "lote" && /WOMPI/.test(recN(f.desc))).length, despues = L.filas.filter(f => f.tipo === "lote" && /WOMPI/.test(recN(f.desc))).length;
+      setLote({ ...L, cambios: !0 });
+      notificar(L.wompiSinBanco.length ? "error" : "ok", `${T.length} pago(s) de Wompi leídos. Abonos de Wompi abiertos: ${antes - despues} de ${antes}.` + (L.wompiSinBanco.length ? ` Desembolsos sin abono en este extracto: ${L.wompiSinBanco.join(", ")}.` : ""));
     } catch (e) { notificar("error", e?.message ?? String(e)); }
     setOcup(null);
   };
@@ -3827,10 +3916,10 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
     setOcup("Guardando…");
     try {
       let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {}, conf = { ...(G.confirmadas ?? {}) };
-      for (const f of lote.filas) if (f.incl && f.sel && f.clave && f.tipo === "pago" && (f.manual || f.conf === "alta") && !recAptoTextoCrudo(lote.movs[f.i])) conf[f.clave] = f.sel;
+      for (const f of lote.filas) if (f.incl && f.sel && f.clave && f.tipo === "pago" && (f.manual || f.conf === "alta") && (f.w || !recAptoTextoCrudo(lote.movs[f.i]))) conf[f.clave] = f.sel;
       G.confirmadas = conf; G.act = new Date().toISOString();
       await ses.store.set("cbl_seg/rec_reglas", G);
-      await ses.store.set("cbl_seg/" + lote.id, JSON.parse(JSON.stringify({ id: lote.id, tipo: "rec_lote", archivo: lote.archivo, cuenta: lote.cuenta, desde: lote.desde, hasta: lote.hasta, movs: lote.movs, asign: asignDe(lote), act: G.act,
+      await ses.store.set("cbl_seg/" + lote.id, JSON.parse(JSON.stringify({ id: lote.id, tipo: "rec_lote", archivo: lote.archivo, cuenta: lote.cuenta, desde: lote.desde, hasta: lote.hasta, movs: lote.movs, wompi: lote.wompi ?? [], asign: asignDe(lote), act: G.act,
         resumen: { n: lote.filas.filter(f => f.incl && f.sel).length, v: lote.filas.filter(f => f.incl && f.sel).reduce((s, f) => s + f.valor, 0) } })));
       setBase(b => ({ ...b, reglas: { ...b.reglas, ...conf }, G }));
       setLote(l => ({ ...l, cambios: !1 })); cargarLotes();
@@ -3840,13 +3929,13 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   };
   let excel = async () => {
     let U = base.U, F = lote.filas.filter(f => f.incl && f.sel), sin = lote.filas.filter(f => f.incl && !f.sel && f.tipo === "pago"), lt = lote.filas.filter(f => f.tipo === "lote");
-    let n = Number(String(lote.hasta).replace(/-/g, "")), fila = (f, est) => [{ d: vxSerial(Number(f.fecha.replace(/-/g, ""))) }, f.sel ?? "", f.sel ? U.get(f.sel)?.tercero ?? "" : "", f.valor, f.concepto, REC_CC, [f.desc, f.ref1, f.ref2].filter(Boolean).join(" · "), est, f.como || ""];
+    let n = Number(String(lote.hasta).replace(/-/g, "")), fila = (f, est) => [{ d: vxSerial(Number(f.fecha.replace(/-/g, ""))) }, f.sel ?? "", f.sel ? U.get(f.sel)?.tercero ?? "" : "", f.valor, f.w ? f.comision : "", f.concepto, REC_CC, [f.desc, f.ref1, f.ref2, f.pagador, f.w ? `neto al banco ${pe(f.neto, "0")} el ${f.w.fechaBanco}` : ""].filter(Boolean).join(" · "), est, f.como || ""];
     let filas = [...F.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.sel.localeCompare(b.sel, "es", { numeric: !0 })).map(f => fila(f, "Para recibo de caja")),
-      ...sin.map(f => fila(f, "Sin identificar")), ...lt.map(f => fila(f, "Lote (Wompi o datáfono): requiere el detalle"))];
-    filas.push(["", "", "TOTAL PARA RECIBOS DE CAJA", F.reduce((s, f) => s + f.valor, 0), "", "", "", "", ""]);
+      ...sin.map(f => fila(f, "Sin identificar")), ...lt.map(f => fila(f, /WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargue el reporte de desembolso" : "Lote datáfono: requiere el detalle"))];
+    filas.push(["", "", "TOTAL PARA RECIBOS DE CAJA", F.reduce((s, f) => s + f.valor, 0), F.reduce((s, f) => s + (f.w ? f.comision : 0), 0), "", "", "", "", ""]);
     let bin = await vxXlsx(`${entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H."} · Relación de pagos para recibos de caja`,
       `Banco de expensas ${REC_CTA} · del ${lote.desde} al ${lote.hasta} · ${F.length} pagos identificados`,
-      ["Fecha", "Apartamento", "Tercero (World Office)", "Valor", "Concepto", "Cuenta débito", "Detalle del banco", "Estado", "Cómo se identificó"], [12, 12, 46, 15, 40, 12, 52, 26, 40], filas);
+      ["Fecha", "Apartamento", "Tercero (World Office)", "Valor pagado", "Comisión Wompi", "Concepto", "Cuenta débito", "Detalle del banco", "Estado", "Cómo se identificó"], [12, 12, 46, 15, 14, 40, 12, 60, 26, 40], filas);
     await BL(ses, `Recaudo_expensas_${lote.desde}_a_${lote.hasta}.xlsx`, bin, notificar);
   };
   if (err) return recH("div", { className: "pantalla" }, recH("section", { className: "panel" }, recH("h2", { className: "h-sec" }, "Recaudo de expensas"), recH("p", { className: "nota-ro" }, err), recH("button", { type: "button", className: "btn", onClick: cargarBase }, "Reintentar")));
@@ -3863,8 +3952,8 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
     recH("div", { className: "fila", style: { justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" } },
       recH("p", { className: "tenue", style: { margin: 0 } },
         `Base: ${U.size} apartamentos · cuota de ${mesTxt(recIsoDe(base.ult * 100 + 1))} (libro ${base.metaLibro.etiqueta}) · ${Object.keys(base.reglas).length} cuentas o referencias conocidas` + (base.meses.length ? ` · meses del banco cruzados: ${base.meses.join(", ")}` : "") + "."),
-      !soloLectura && recH("label", { className: "btn btn-sm" + (ocup ? " deshab" : ""), title: "Suelte los PDF del banco de expensas de meses ya registrados: la app los cruza con los recibos del libro auxiliar y aprende de qué cuenta paga cada apartamento." }, "Aprender de extractos anteriores",
-        recH("input", { type: "file", accept: "application/pdf,.pdf", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && aprenderDe(f); } }))),
+      !soloLectura && recH("label", { className: "btn btn-sm" + (ocup ? " deshab" : ""), title: "Suelte los PDF del banco de expensas y los reportes de desembolso de Wompi (CSV) de meses ya registrados: la app los cruza con los recibos del libro auxiliar y aprende de qué cuenta o cédula paga cada apartamento." }, "Aprender de extractos anteriores",
+        recH("input", { type: "file", accept: "application/pdf,.pdf,.csv,text/csv", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && aprenderDe(f); } }))),
     !lote && lotes.length > 0 && recH("div", { className: "espacio" }, recH("span", { className: "tenue" }, "Extractos trabajados: "),
       lotes.slice(0, 8).map(L => recH("button", { key: L.id, type: "button", className: "btn btn-sm", style: { marginRight: "6px" }, onClick: () => abrirGuardado(L) }, `${L.desde} a ${L.hasta}` + (L.resumen ? ` · ${L.resumen.n} pagos` : "")))));
   if (!lote) return recH("div", { className: "pantalla" }, encabezado, infoBase);
@@ -3881,6 +3970,8 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       recH("div", { className: "panel-tit" }, recH("h2", null, `Extracto del ${lote.desde} al ${lote.hasta}`),
         recH("div", { className: "acciones" },
           recH("button", { type: "button", className: "btn btn-sm", onClick: () => setLote(null) }, "Cerrar"),
+          !soloLectura && recH("label", { className: "btn btn-sm" + (ocup ? " deshab" : ""), title: "Reporte de desembolsos de Wompi (CSV): abre cada abono de Wompi en los pagos de cada apartamento." }, "Cargar reporte de Wompi (CSV)",
+            recH("input", { type: "file", accept: ".csv,text/csv", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargarWompi(f); } })),
           recH("button", { type: "button", className: "btn btn-sm", disabled: !ident.length, onClick: excel }, "Descargar relación (Excel)"),
           !soloLectura && recH("button", { type: "button", className: "btn btn-sm btn-primario", disabled: !!ocup, onClick: guardar }, lote.cambios ? "Guardar y aprender" : "Guardar"))),
       recH("p", { className: "tenue" }, lote.archivo),
@@ -3889,7 +3980,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
         tarjeta("Para recibo de caja", ident.length, ident.reduce((s, f) => s + f.valor, 0), "ident"),
         tarjeta("Por revisar", sinId.length + media.length, [...sinId, ...media].reduce((s, f) => s + f.valor, 0), "revisar"),
         tarjeta("Lotes y otros", F.filter(f => f.tipo !== "pago").length, F.filter(f => f.tipo !== "pago").reduce((s, f) => s + f.valor, 0), "lotes")),
-      lt.length > 0 && recH("p", { className: "nota-ro espacio" }, `${lt.length} abono(s) de Wompi o datáfono agrupan pagos de varios apartamentos; se registran con el reporte de Wompi o del datáfono, no con este extracto.`),
+      lt.length > 0 && recH("p", { className: "nota-ro espacio" }, `${lt.length} abono(s) agrupan pagos de varios apartamentos.` + (lt.some(f => /WOMPI/.test(recN(f.desc))) ? " Para los de Wompi, use Cargar reporte de Wompi (CSV) con los reportes de desembolso de esos días: la app los abre en los pagos de cada apartamento." : "") + (lt.some(f => !/WOMPI/.test(recN(f.desc))) ? " Los del datáfono se registran con el reporte del datáfono." : "")),
       recH("input", { type: "search", className: "espacio", placeholder: "Buscar: apartamento, nombre, referencia o valor…", value: q, onChange: e => setQ(e.target.value), "aria-label": "Buscar en el extracto", style: { maxWidth: "420px" } }),
       recH("div", { className: "tabla-scroll espacio" }, recH("table", { className: "t-datos" },
         recH("thead", null, recH("tr", null, ["Fecha", "Banco", "Valor", "Apartamento", "Cuota (con descuento)", "Cómo se identificó", "Concepto", "Incluir"].map((h, i) => recH("th", { key: i }, h)))),
@@ -3898,7 +3989,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
           return recH("tr", { key: f.i, style: f.incl ? null : { opacity: .55 } },
             recH("td", { className: "mono", style: { whiteSpace: "nowrap" } }, f.fecha),
             recH("td", null, recH("div", null, f.desc), recH("div", { className: "tenue" }, [...new Set([f.ref1, f.ref2].filter(Boolean))].join(" · "))),
-            recH("td", { className: "mono", style: { whiteSpace: "nowrap", textAlign: "right" } }, fmt(f.valor)),
+            recH("td", { className: "mono", style: { whiteSpace: "nowrap", textAlign: "right" } }, fmt(f.valor), f.w && recH("div", { className: "tenue", style: { fontSize: "11px" } }, `neto ${fmt(f.neto)}`)),
             recH("td", { style: { minWidth: "260px" } },
               f.tipo === "pago" ? recH("input", { list: "rec-unidades", disabled: soloLectura, value: f.edit ?? (f.sel ? `${f.sel} · ${x?.nombre ?? ""}` : ""), placeholder: "Escriba el apartamento…", style: { width: "100%" },
                 onChange: e => { let v = e.target.value, u = recUnidad(v); setFila(f.i, u && U.has(u) ? { sel: u, edit: undefined, manual: u !== f.unidad } : { edit: v, sel: v.trim() ? f.sel : null, manual: !v.trim() ? !0 : f.manual }); } }) : recH("span", { className: "tenue" }, "—"),
