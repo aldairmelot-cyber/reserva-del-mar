@@ -3900,7 +3900,9 @@ var REC_COMP_INI = [
   { n: 32, fecha: "2026-11-06", valor: 455231, medio: "Wompi PSE", apto: "", wompi: !0 },
   { n: 33, fecha: "2026-11-07", valor: 672008, medio: "Wompi PSE (fbarrazacoll)", apto: "", wompi: !0 },
   { n: 34, fecha: "2026-11-06", valor: 715363, medio: "DaviBank cta *6380", apto: "", pista: "6380" },
-  { n: 35, fecha: "2026-11-07", valor: 1309331, medio: "Davivienda · Héctor Benites *2856", apto: "", pista: "BENITES", obs: "Posible pago doble: el 06/11 entró PAGO DE PROV FLEX PACK SAS por el mismo valor. Confirmar si es el mismo apartamento." }
+  { n: 35, fecha: "2026-11-07", valor: 1309331, medio: "Davivienda · Héctor Benites *2856", apto: "", pista: "BENITES", obs: "Posible pago doble: el 06/11 entró PAGO DE PROV FLEX PACK SAS por el mismo valor. Confirmar si es el mismo apartamento." },
+  { n: 36, fecha: "2026-11-02", valor: 270000, medio: "Transferencia cta 51700003586 (confirmado por Contabilidad)", apto: "1503", pista: "51700003586" },
+  { n: 37, fecha: "2026-11-06", valor: 250000, medio: "Transferencia cta 51700003586 (confirmado por Contabilidad)", apto: "1503", pista: "51700003586" }
 ];
 /* "725" sin torre: si solo existe en una torre, esa; si no, null y las opciones */
 function recAptoComp(a, U) {
@@ -3945,7 +3947,7 @@ function recCruzarComp(filas, lista, U) {
 function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   let [base, setBase] = Ve.useState(null), [err, setErr] = Ve.useState(null), [lote, setLote] = Ve.useState(null), [ocup, setOcup] = Ve.useState(null);
   let [filtro, setFiltro] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [lotes, setLotes] = Ve.useState([]), [wPend, setWPend] = Ve.useState([]);
-  let cargarBase = async () => { setErr(null); try { let b = await recBase(ses), C = await ses.store.get("cbl_seg/rec_comprobantes").catch(() => null); b.comps = C?.lista ?? REC_COMP_INI; setBase(b); } catch (e) { setErr(e?.message ?? String(e)); } };
+  let cargarBase = async () => { setErr(null); try { let b = await recBase(ses), C = await ses.store.get("cbl_seg/rec_comprobantes").catch(() => null); b.compsQ = C?.quitados ?? []; b.comps = [...REC_COMP_INI.filter(c => !b.compsQ.includes(c.n)), ...(C?.lista ?? []).filter(c => c.propio && !b.compsQ.includes(c.n))]; setBase(b); } catch (e) { setErr(e?.message ?? String(e)); } };
   let cargarLotes = async () => { try { setLotes((await ses.store.list("cbl_seg")).filter(x => String(x.id ?? x.data?.id ?? "").startsWith("rec_lote_") || x.data?.tipo === "rec_lote").map(x => x.data).filter(Boolean).sort((a, b) => b.hasta.localeCompare(a.hasta))); } catch { } };
   Ve.useEffect(() => { cargarBase(); cargarLotes(); }, [ses]);
   let mesTxt = f => { let p = String(f).split("-"); return `${recMeses[+p[1] - 1]} ${p[0]}`; };
@@ -4031,8 +4033,10 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   let recruzar = (l, filas, lista) => { let XC = recCruzarComp(filas, lista ?? base.comps, base.U); return { ...l, filas: recHermanos(XC.filas, base.reglas, base.U), comps: XC.comps }; };
   let setFila = (i, cambios) => setLote(l => ({ ...recruzar(l, l.filas.map(f => f.i === i ? { ...f, ...cambios, ...("sel" in cambios || cambios.manual ? { hermano: !1, compAsig: !1 } : {}) } : f)), cambios: !0 }));
   let [cForm, setCForm] = Ve.useState(null), [verComp, setVerComp] = Ve.useState(!1);
-  let guardarComps = async lista => {
-    try { await ses.store.set("cbl_seg/rec_comprobantes", JSON.parse(JSON.stringify({ lista, act: new Date().toISOString() }))); setBase(b => ({ ...b, comps: lista })); setLote(l => l ? recruzar(l, l.filas, lista) : l); notificar("ok", "Comprobantes actualizados y cruzados con el extracto."); }
+  let guardarComps = async (lista, quitar) => {
+    let Q = [...(base.compsQ ?? []), ...(quitar != null ? [quitar] : [])];
+    if (quitar != null) lista = lista.filter(c => c.n !== quitar);
+    try { await ses.store.set("cbl_seg/rec_comprobantes", JSON.parse(JSON.stringify({ lista: lista.filter(c => c.propio), quitados: Q, act: new Date().toISOString() }))); setBase(b => ({ ...b, comps: lista, compsQ: Q })); setLote(l => l ? recruzar(l, l.filas, lista) : l); notificar("ok", "Comprobantes actualizados y cruzados con el extracto."); }
     catch (e) { notificar("error", "No se pudieron guardar los comprobantes: " + (e?.message ?? e)); }
   };
   let guardar = async () => {
@@ -4169,7 +4173,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
               !soloLectura && recH("button", { type: "button", className: "btn btn-sm", onClick: () => { setVerComp(!0); setCForm({ fecha: lote.hasta }); } }, "Agregar comprobante"))),
           verComp && cForm && !soloLectura && recH("div", { className: "fila espacio", style: { gap: "6px", flexWrap: "wrap", alignItems: "center" } },
             campo("fecha", "Fecha", "140px", "date"), campo("valor", "Valor", "110px"), campo("medio", "Medio / pagador", "220px"), campo("apto", "Apto (ej. 803 T2)", "120px"), campo("pista", "Cuenta o ref. (opcional)", "160px"), campo("obs", "Observación (opcional)", "220px"),
-            recH("button", { type: "button", className: "btn btn-sm btn-primario", onClick: () => { let v = Number(String(cForm.valor ?? "").replace(/[^\d]/g, "")); if (!cForm.fecha || !v) return notificar("error", "Escriba la fecha y el valor del comprobante."); let L = base.comps ?? []; guardarComps([...L, { n: Math.max(0, ...L.map(c => c.n)) + 1, fecha: cForm.fecha, valor: v, medio: cForm.medio || "", apto: cForm.apto || "", pista: cForm.pista || "", obs: cForm.obs || "", wompi: /WOMPI|PSE/i.test(cForm.medio || "") }]); setCForm(null); } }, "Guardar"),
+            recH("button", { type: "button", className: "btn btn-sm btn-primario", onClick: () => { let v = Number(String(cForm.valor ?? "").replace(/[^\d]/g, "")); if (!cForm.fecha || !v) return notificar("error", "Escriba la fecha y el valor del comprobante."); let L = base.comps ?? []; guardarComps([...L, { propio: !0, n: Math.max(100, ...L.map(c => c.n), ...(base.compsQ ?? [])) + 1, fecha: cForm.fecha, valor: v, medio: cForm.medio || "", apto: cForm.apto || "", pista: cForm.pista || "", obs: cForm.obs || "", wompi: /WOMPI|PSE/i.test(cForm.medio || "") }]); setCForm(null); } }, "Guardar"),
             recH("button", { type: "button", className: "btn btn-sm", onClick: () => setCForm(null) }, "Cancelar")),
           verComp && recH("div", { className: "tabla-scroll espacio" }, recH("table", { className: "t-datos" },
             recH("thead", null, recH("tr", null, ["#", "Fecha", "Valor", "Medio / pagador", "Apto", "Estado", "En el banco", "Qué hacer", ""].map((h, i) => recH("th", { key: i }, h)))),
@@ -4178,7 +4182,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
               recH("td", null, c.medio), recH("td", null, recH("b", null, c.apto || "")),
               recH("td", null, recH("span", { className: "chip " + (c.alerta ? "chip-err" : c.estado === "banco" ? "chip-ok" : "chip-warn") }, c.alerta ? "Revisar" : c.estado === "banco" ? "En el banco" : c.estado === "probable" ? "Probable" : "Aún no llega")),
               recH("td", { className: "tenue" }, c.banco || "—"), recH("td", null, c.alerta || ""),
-              recH("td", null, !soloLectura && recH("button", { type: "button", className: "enlace", onClick: () => guardarComps((base.comps ?? []).filter(x => x.n !== c.n)) }, "Quitar")))))))); })(),
+              recH("td", null, !soloLectura && recH("button", { type: "button", className: "enlace", onClick: () => guardarComps(base.comps ?? [], c.n) }, "Quitar")))))))); })(),
       recH("input", { type: "search", className: "espacio", placeholder: "Buscar: apartamento, nombre, referencia o valor…", value: q, onChange: e => setQ(e.target.value), "aria-label": "Buscar en el extracto", style: { maxWidth: "420px" } }),
       recH("div", { className: "tabla-scroll espacio" }, recH("table", { className: "t-datos" },
         recH("thead", null, recH("tr", null, ["Fecha", "Banco", "Valor", "Apartamento", "Cuota (con descuento)", "Cómo se identificó", "Concepto", "Incluir"].map((h, i) => recH("th", { key: i }, h)))),
