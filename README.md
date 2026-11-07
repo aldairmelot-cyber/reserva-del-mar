@@ -16,9 +16,9 @@ Es un sitio estático: un solo `index.html` que se ejecuta completo en el navega
 
 En **Datos → Reglamento de PH** (y en **Reglamento** para los perfiles de consulta) están las escrituras que conforman el reglamento, los artículos de consulta frecuente con su página y los coeficientes revisados. El editor carga allí una vez el PDF de la Escritura 753 de 2023; queda en la base (colecciones `rph` y `rph_pdf`, no en este repositorio) y todos los perfiles lo pueden ver y descargar. No entra en los respaldos `.json`, por su tamaño: guarde aparte el PDF original.
 
-## Comunicados
+## Comunicaciones
 
-En **Comunicados → Comunicados emitidos** queda el consecutivo de las notas aclaratorias, conceptos y respuestas a solicitudes que emite Contabilidad (Consultoría Especializada S.A.S.), con la numeración `RDM-CONT-AAAA-NNN`. El editor registra cada comunicado con **Nuevo comunicado** (el número se asigna solo) y carga su PDF; todos los perfiles lo ven y lo descargan. Se guardan en la base (colecciones `comunicados` y `comunicados_pdf`), no en este repositorio. Los dos primeros (001 y 002 de 2026) vienen incluidos en la app; su PDF se carga desde la misma pantalla.
+En **Comunicaciones → Comunicaciones emitidas** queda el consecutivo de las notas aclaratorias, conceptos y respuestas a solicitudes que emite Contabilidad (Consultoría Especializada S.A.S.), con la numeración `RDM-CONT-AAAA-NNN`. Cada comunicación se puede leer completa en la app (**Ver informe**) e imprimir o guardar en PDF con el membrete de Consultoría. El editor registra las nuevas con **Nueva comunicación** (el número se asigna solo) y puede adjuntar su PDF; todos los perfiles las ven. Las que se registran desde la app se guardan en la base (colecciones `comunicados` y `comunicados_pdf`), no en este repositorio.
 
 ## Dónde se guardan los datos
 
