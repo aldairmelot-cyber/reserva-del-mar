@@ -20,6 +20,18 @@ En **Datos → Reglamento de PH** (y en **Reglamento** para los perfiles de cons
 
 En **Comunicaciones → Comunicaciones emitidas** queda el consecutivo de las notas aclaratorias, conceptos y respuestas a solicitudes que emite Contabilidad (Consultoría Especializada S.A.S.), con la numeración `RDM-CONT-AAAA-NNN`. Cada comunicación se puede leer completa en la app (**Ver informe**) e imprimir o guardar en PDF con el membrete de Consultoría. El editor registra las nuevas con **Nueva comunicación** (el número se asigna solo) y puede adjuntar su PDF; todos los perfiles las ven. Las que se registran desde la app se guardan en la base (colecciones `comunicados` y `comunicados_pdf`), no en este repositorio.
 
+## Recaudo de expensas (recibos de caja)
+
+En **Conciliación bancaria → Recaudo de expensas** se carga el movimiento del banco de expensas (PDF de Bancolombia, cuenta 51748523433). La app identifica qué apartamento hizo cada abono y arma la relación en Excel para hacer los recibos de caja en World Office. Para identificar usa, en este orden:
+
+1. el apartamento escrito en el banco ("ADMON APTO 1020A T3");
+2. la cuenta de origen, la referencia o el documento con que ese apartamento pagó antes;
+3. la referencia de consignación con la forma torre + apartamento (41327 = T4 1327; 01502 = T1 502);
+4. el nombre de quien paga, comparado con los propietarios;
+5. el valor, comparado con la cuota del último mes (con y sin el 10 % de descuento) y con lo que cada apartamento pagó antes.
+
+La base sale del **libro auxiliar** cargado en Verificación contable (terceros "1606 T1 NOMBRE", cuota en 41701001 y recibos en 11200501) y de los meses del banco de expensas cargados en Conciliación bancaria (extracto + libro). Con **Aprender de extractos anteriores** se sueltan los PDF del banco de meses ya registrados para que la app aprenda de qué cuenta paga cada apartamento. Lo que el contador asigna o confirma queda como regla para los meses siguientes. Los abonos de Wompi y del datáfono agrupan varios apartamentos y se dejan aparte. Todo se guarda en `cbl_seg` (`rec_reglas` y `rec_lote_…`), con los mismos permisos de la conciliación bancaria.
+
 ## Dónde se guardan los datos
 
 La app trae dos modos; se elige en `config.js`.
