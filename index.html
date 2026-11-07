@@ -3851,7 +3851,7 @@ function recExpandirWompi(R, wompi, U, reglas) {
 }
 function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   let [base, setBase] = Ve.useState(null), [err, setErr] = Ve.useState(null), [lote, setLote] = Ve.useState(null), [ocup, setOcup] = Ve.useState(null);
-  let [filtro, setFiltro] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [lotes, setLotes] = Ve.useState([]);
+  let [filtro, setFiltro] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [lotes, setLotes] = Ve.useState([]), [wPend, setWPend] = Ve.useState([]);
   let cargarBase = async () => { setErr(null); try { let b = await recBase(ses); setBase(b); } catch (e) { setErr(e?.message ?? String(e)); } };
   let cargarLotes = async () => { try { setLotes((await ses.store.list("cbl_seg")).filter(x => String(x.id ?? x.data?.id ?? "").startsWith("rec_lote_") || x.data?.tipo === "rec_lote").map(x => x.data).filter(Boolean).sort((a, b) => b.hasta.localeCompare(a.hasta))); } catch { } };
   Ve.useEffect(() => { cargarBase(); cargarLotes(); }, [ses]);
@@ -3871,7 +3871,9 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       let B = await recLeerPdf(f);
       if (B.cuenta && String(B.cuenta).replace(/\D/g, "") !== REC_CTA) notificar("error", `El extracto es de la cuenta ${B.cuenta}; el recaudo de expensas es la ${REC_CTA}. Se procesa de todas formas.`);
       let id = `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, g = await ses.store.get("cbl_seg/" + id);
-      setLote(armar(B, g)); setFiltro("todos");
+      if (wPend.length) { let M = new Map((g?.wompi ?? []).map(t => [t.id, t])); wPend.forEach(t => M.set(t.id, t)); B.wompi = [...M.values()]; }
+      let L = armar(B, g); setLote(wPend.length ? { ...L, cambios: !0 } : L); setFiltro("todos");
+      if (wPend.length) { notificar(L.wompiSinBanco.length ? "error" : "ok", `Extracto leído con ${wPend.length} pago(s) de Wompi.` + (L.wompiSinBanco.length ? ` Desembolsos sin abono en este extracto: ${L.wompiSinBanco.join(", ")}.` : "")); setWPend([]); }
     } catch (e) { notificar("error", e?.message ?? String(e)); }
     setOcup(null);
   };
@@ -3903,6 +3905,18 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       if (lote) setLote(l => armar({ archivo: l.archivo, cuenta: l.cuenta, desde: l.desde, hasta: l.hasta, movs: l.movs, wompi: l.wompi }, { asign: asignDe(l) }));
     } catch (e) { notificar("error", e?.message ?? String(e)); }
     setOcup(null);
+  };
+  /* botón principal: acepta el PDF del banco y los CSV de Wompi, en cualquier orden */
+  let cargarArchivos = async files => {
+    let pdf = files.filter(f => /\.pdf$/i.test(f.name)), csv = files.filter(f => /\.csv$/i.test(f.name)), otros = files.filter(f => !/\.(pdf|csv)$/i.test(f.name));
+    if (otros.length) notificar("error", `No se reconoce: ${otros.map(f => f.name).join(", ")}. Use el PDF del banco y el reporte de desembolsos de Wompi en CSV.`);
+    let T = [];
+    try { for (const f of csv) T.push(...recLeerWompi(await f.text(), f.name)); } catch (e) { notificar("error", e?.message ?? String(e)); return; }
+    if (pdf.length) { if (T.length) wPend.push(...T); await cargarPdf(pdf[0]); return; }
+    if (!T.length) return;
+    if (lote) { await cargarWompi(csv); return; }
+    setWPend(p => [...p, ...T]);
+    notificar("ok", `${T.length} pago(s) de Wompi listos. Ahora cargue el PDF del banco de esos días.`);
   };
   let cargarWompi = async files => {
     setOcup("Leyendo los reportes de Wompi…");
@@ -3952,10 +3966,10 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
   let fmt = v => "$ " + pe(Math.round(v), "0");
   let encabezado = recH("div", { className: "pantalla-enc" },
     recH("div", null, recH("h2", { className: "h-sec" }, "Recaudo de expensas · recibos de caja"),
-      recH("p", { className: "lead" }, "Cargue el movimiento del banco de expensas (PDF de Bancolombia). La app identifica qué apartamento hizo cada pago con el libro auxiliar, la cuota de cada apartamento y los pagos anteriores, y arma la relación para hacer los recibos de caja en World Office.")),
+      recH("p", { className: "lead" }, "Cargue el movimiento del banco de expensas (PDF de Bancolombia) y, si los tiene, los reportes de desembolso de Wompi (CSV); puede seleccionarlos juntos. La app identifica qué apartamento hizo cada pago con el libro auxiliar, la cuota de cada apartamento y los pagos anteriores, y arma la relación para hacer los recibos de caja en World Office.")),
     recH("div", { className: "acciones" },
-      !soloLectura && recH("label", { className: "btn btn-primario" + (ocup ? " deshab" : "") }, ocup ?? "Cargar movimiento del banco (PDF)",
-        recH("input", { type: "file", accept: "application/pdf,.pdf", hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = e.target.files?.[0]; e.target.value = ""; cargarPdf(f); } }))));
+      !soloLectura && recH("label", { className: "btn btn-primario" + (ocup ? " deshab" : ""), title: "Seleccione el PDF del banco y, si los tiene, los reportes de desembolso de Wompi (CSV). Puede seleccionar varios a la vez." }, ocup ?? (wPend.length ? `Cargar PDF del banco (${wPend.length} pagos de Wompi listos)` : "Cargar banco (PDF) y Wompi (CSV)"),
+        recH("input", { type: "file", accept: "application/pdf,.pdf,.csv,text/csv,application/vnd.ms-excel", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargarArchivos(f); } }))));
   let infoBase = recH("section", { className: "panel" },
     recH("div", { className: "fila", style: { justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" } },
       recH("p", { className: "tenue", style: { margin: 0 } },
@@ -3979,7 +3993,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
         recH("div", { className: "acciones" },
           recH("button", { type: "button", className: "btn btn-sm", onClick: () => setLote(null) }, "Cerrar"),
           !soloLectura && recH("label", { className: "btn btn-sm" + (ocup ? " deshab" : ""), title: "Reporte de desembolsos de Wompi (CSV): abre cada abono de Wompi en los pagos de cada apartamento." }, "Cargar reporte de Wompi (CSV)",
-            recH("input", { type: "file", accept: ".csv,text/csv", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargarWompi(f); } })),
+            recH("input", { type: "file", accept: ".csv,text/csv,application/vnd.ms-excel", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargarWompi(f); } })),
           recH("button", { type: "button", className: "btn btn-sm", disabled: !ident.length, onClick: excel }, "Descargar relación (Excel)"),
           !soloLectura && recH("button", { type: "button", className: "btn btn-sm btn-primario", disabled: !!ocup, onClick: guardar }, lote.cambios ? "Guardar y aprender" : "Guardar"))),
       recH("p", { className: "tenue" }, lote.archivo),
