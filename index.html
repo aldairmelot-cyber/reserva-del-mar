@@ -3722,6 +3722,18 @@ var recRegla = (reglas, k, U) => { let x = k ? reglas[k] : null; return (Array.i
 /* suma una unidad a la regla de una llave sin perder las que ya tenía */
 /* une reglas de varias fuentes; si el contador confirmó una llave, manda lo confirmado */
 var recUnir = (conf, ...fuentes) => { let out = {}; for (const F of fuentes) for (const [k, v] of Object.entries(F ?? {})) for (const u of Array.isArray(v) ? v : [v]) recSumarRegla(out, k, u); return { ...out, ...(conf ?? {}) }; };
+/* pagos sin apartamento que vienen de la misma cuenta (o cédula, o referencia) que otro pago ya asignado en el mismo extracto */
+function recHermanos(filas, reglas, U) {
+  filas = filas.map(f => f.hermano ? { ...f, sel: null, hermano: !1, como: f.comoOrig ?? "", conf: f.confOrig ?? "" } : f);
+  let por = new Map();
+  for (const f of filas) if (f.clave && f.sel && f.tipo === "pago") { let g = por.get(f.clave) ?? []; g.push(f); por.set(f.clave, g); }
+  return filas.map(f => {
+    if (f.sel || f.tipo !== "pago" || !f.clave || !por.has(f.clave) || recRegla(reglas, f.clave, U).length > 1) return f;
+    let g = por.get(f.clave), us = [...new Set(g.map(x => x.sel))];
+    if (us.length !== 1) return f;
+    return { ...f, sel: us[0], hermano: !0, comoOrig: f.como, confOrig: f.conf, conf: "media", como: `Misma ${/^CTA:/.test(f.clave) ? "cuenta" : /^WDOC:/.test(f.clave) ? "cédula" : "referencia"} que el pago del ${g[0].fecha} por $ ${pe(g[0].valor, "0")} (${us[0]})` };
+  });
+}
 var recSumarRegla = (reglas, k, u) => { let a = recRegla(reglas, k, { has: () => !0 }); if (!a.includes(u)) a = [...a, u]; reglas[k] = a.length === 1 ? a[0] : a; };
 /* identifica cada abono. reglas: { llave: unidad } */
 function recIdentificar(movs, U, reglas) {
@@ -3862,6 +3874,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       let a = A[r.i] ?? {}, u = a.u !== undefined ? a.u : r.unidad;
       return { ...r, sel: u, manual: a.u !== undefined && a.u !== r.unidad, concepto: a.c ?? `PAGO EXPENSAS ADMON ${mesTxt(r.fecha)}`, incl: a.x !== undefined ? a.x : r.tipo === "pago" };
     });
+    filas = recHermanos(filas, base.reglas, base.U);
     return { id: `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, archivo: B.archivo, cuenta: B.cuenta, desde: B.desde, hasta: B.hasta, movs: B.movs, wompi, wompiSinBanco: X.sinBanco, filas, cambios: !1 };
   };
   let cargarPdf = async f => {
@@ -3932,8 +3945,8 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
     setOcup(null);
   };
   let addDias = (iso, d) => { let t = new Date(iso + "T12:00:00"); t.setDate(t.getDate() + d); return t.toISOString().slice(0, 10); };
-  let asignDe = l => Object.fromEntries(l.filas.map(f => [f.i, { u: f.sel ?? null, c: f.concepto, x: f.incl }]));
-  let setFila = (i, cambios) => setLote(l => ({ ...l, cambios: !0, filas: l.filas.map(f => f.i === i ? { ...f, ...cambios } : f) }));
+  let asignDe = l => Object.fromEntries(l.filas.map(f => [f.i, { u: f.hermano ? null : f.sel ?? null, c: f.concepto, x: f.incl }]));
+  let setFila = (i, cambios) => setLote(l => ({ ...l, cambios: !0, filas: recHermanos(l.filas.map(f => f.i === i ? { ...f, ...cambios, ...("sel" in cambios || cambios.manual ? { hermano: !1 } : {}) } : f), base.reglas, base.U) }));
   let guardar = async () => {
     setOcup("Guardando…");
     try {
