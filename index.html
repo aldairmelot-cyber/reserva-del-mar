@@ -3960,6 +3960,30 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
       ["Fecha", "Apartamento", "Tercero (World Office)", "Valor pagado", "Comisión Wompi", "Concepto", "Cuenta débito", "Detalle del banco", "Estado", "Cómo se identificó"], [12, 12, 46, 15, 14, 40, 12, 60, 26, 40], filas);
     await BL(ses, `Recaudo_expensas_${lote.desde}_a_${lote.hasta}.xlsx`, bin, notificar);
   };
+  let pdf = async () => {
+    setOcup("Generando PDF…");
+    try {
+      let U = base.U, F = lote.filas.filter(f => f.incl && f.sel).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.sel.localeCompare(b.sel, "es", { numeric: !0 })),
+        sin = lote.filas.filter(f => f.incl && !f.sel && f.tipo === "pago"), lt = lote.filas.filter(f => f.tipo === "lote");
+      let corto = (t, n) => (t = String(t ?? "").replace(/\s+/g, " ").trim()).length > n ? t.slice(0, n - 1) + "…" : t;
+      let det = f => corto([f.desc, f.ref1, f.ref2, f.pagador].filter(Boolean).join(" · "), 36);
+      let col = [{ titulo: "No.", ancho: 4, alin: "center" }, { titulo: "FECHA", ancho: 8, alin: "left" }, { titulo: "APTO", ancho: 7, alin: "left" }, { titulo: "TERCERO (WORLD OFFICE)", ancho: 25, alin: "left" },
+        { titulo: "VALOR PAGADO", ancho: 11, alin: "right" }, { titulo: "COM. WOMPI", ancho: 8, alin: "right" }, { titulo: "DETALLE DEL BANCO", ancho: 25, alin: "left" }, { titulo: "RECIBO No.", ancho: 8, alin: "center" }, { titulo: "REG.", ancho: 4, alin: "center" }];
+      let vacio = or(""), fila = (f, k) => ({ estilo: "detalle", celdas: [or(String(k + 1)), or(f.fecha), or(f.sel ?? "", { bold: !0 }), or(corto(f.sel ? U.get(f.sel)?.tercero ?? "" : "", 34)), er(f.valor), f.w ? er(f.comision) : vacio, or(det(f)), or("________"), or("[   ]")] });
+      let tot = (t, L, est) => ({ estilo: est, celdas: [vacio, vacio, vacio, or(t, { bold: !0 }), er(L.reduce((s, f) => s + f.valor, 0), { bold: !0 }), er(L.reduce((s, f) => s + (f.w ? f.comision : 0), 0), { bold: !0 }), or(`${L.length} pago${L.length === 1 ? "" : "s"}`), vacio, vacio] });
+      let bl = [{ tipo: "parrafo", estilo: "normal", texto: `Banco de expensas ${REC_CTA} · cuenta débito ${REC_CC} · ${F.length} pagos identificados por $ ${pe(F.reduce((s, f) => s + f.valor, 0), "0")}. Anote el número del recibo de caja de World Office y marque [X] en REG. al registrarlo.` },
+        { tipo: "parrafo", estilo: "h3", texto: "PAGOS PARA RECIBO DE CAJA" },
+        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...F.map(fila), tot("TOTAL PARA RECIBOS DE CAJA", F, "totalDoble")] }];
+      if (sin.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "PAGOS SIN IDENTIFICAR (asignar antes de registrar)" },
+        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...sin.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), or("______"), or("________________________"), er(f.valor), vacio, or(det(f)), or("________"), or("[   ]")] })), tot("TOTAL SIN IDENTIFICAR", sin, "subtotal")] });
+      if (lt.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "LOTES DE WOMPI Y DATÁFONO SIN DETALLE" },
+        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...lt.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), vacio, or(/WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargar reporte de desembolso" : "Lote datáfono: requiere el detalle", { italic: !0 }), er(f.valor), vacio, or(det(f)), vacio, vacio] })), tot("TOTAL LOTES", lt, "subtotal")] });
+      let doc = { entidad: entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: "NIT. " + (entidad?.nit ?? ""), logo: entidad?.logo || void 0, firmantes: entidad?.firmantes, firmasImg: {}, leyendas: [],
+        secciones: [{ id: "recaudo", nombre: "Recaudo", titulo: "RELACIÓN DE PAGOS PARA RECIBOS DE CAJA", subtitulos: [`Recaudo de expensas del ${lote.desde} al ${lote.hasta}`], orientacion: "landscape", bloques: bl }] };
+      await BL(ses, `Recaudo_expensas_${lote.desde}_a_${lote.hasta}.pdf`, await en(doc), notificar);
+    } catch (e) { console.error(e); notificar("error", "No se pudo generar el PDF: " + (e?.message ?? e)); }
+    setOcup(null);
+  };
   if (err) return recH("div", { className: "pantalla" }, recH("section", { className: "panel" }, recH("h2", { className: "h-sec" }, "Recaudo de expensas"), recH("p", { className: "nota-ro" }, err), recH("button", { type: "button", className: "btn", onClick: cargarBase }, "Reintentar")));
   if (!base) return recH("div", { className: "pantalla" }, recH("p", { className: "tenue" }, "Cargando el libro auxiliar y los pagos anteriores…"));
   let U = base.U, opciones = [...U.entries()].sort((a, b) => a[0].localeCompare(b[0], "es", { numeric: !0 }));
@@ -3995,6 +4019,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
           !soloLectura && recH("label", { className: "btn btn-sm" + (ocup ? " deshab" : ""), title: "Reporte de desembolsos de Wompi (CSV): abre cada abono de Wompi en los pagos de cada apartamento." }, "Cargar reporte de Wompi (CSV)",
             recH("input", { type: "file", accept: ".csv,text/csv,application/vnd.ms-excel", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargarWompi(f); } })),
           recH("button", { type: "button", className: "btn btn-sm", disabled: !ident.length, onClick: excel }, "Descargar relación (Excel)"),
+          recH("button", { type: "button", className: "btn btn-sm", disabled: !ident.length || !!ocup, onClick: pdf }, "Descargar relación (PDF para imprimir)"),
           !soloLectura && recH("button", { type: "button", className: "btn btn-sm btn-primario", disabled: !!ocup, onClick: guardar }, lote.cambios ? "Guardar y aprender" : "Guardar"))),
       recH("p", { className: "tenue" }, lote.archivo),
       recH("div", { className: "fila", style: { gap: "8px", flexWrap: "wrap" } },
