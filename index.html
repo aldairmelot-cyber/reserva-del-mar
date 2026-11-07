@@ -3714,9 +3714,15 @@ function recAprender(movsBanco, libro) {
     let s = votos.get(k) ?? new Map(); s.set(c[0].u, (s.get(c[0].u) ?? 0) + 1); votos.set(k, s);
   }
   let reglas = {};
-  for (const [k, s] of votos) if (s.size === 1) reglas[k] = [...s.keys()][0];
+  for (const [k, s] of votos) reglas[k] = s.size === 1 ? [...s.keys()][0] : [...s.keys()];
   return reglas;
 }
+/* unidades conocidas para una llave (una o varias: hay cuentas que pagan varios apartamentos) */
+var recRegla = (reglas, k, U) => { let x = k ? reglas[k] : null; return (Array.isArray(x) ? x : x ? [x] : []).filter(u => U.has(u)); };
+/* suma una unidad a la regla de una llave sin perder las que ya tenía */
+/* une reglas de varias fuentes; si el contador confirmó una llave, manda lo confirmado */
+var recUnir = (conf, ...fuentes) => { let out = {}; for (const F of fuentes) for (const [k, v] of Object.entries(F ?? {})) for (const u of Array.isArray(v) ? v : [v]) recSumarRegla(out, k, u); return { ...out, ...(conf ?? {}) }; };
+var recSumarRegla = (reglas, k, u) => { let a = recRegla(reglas, k, { has: () => !0 }); if (!a.includes(u)) a = [...a, u]; reglas[k] = a.length === 1 ? a[0] : a; };
 /* identifica cada abono. reglas: { llave: unidad } */
 function recIdentificar(movs, U, reglas) {
   return movs.map((m, i) => {
@@ -3724,16 +3730,17 @@ function recIdentificar(movs, U, reglas) {
     if (tipo !== "pago") return r;
     let u;
     if (u = recAptoTexto(m, U)) return { ...r, unidad: u, como: "Apartamento escrito en el banco", conf: "alta" };
-    if (r.clave && (u = reglas[r.clave]) && U.has(u)) return { ...r, unidad: u, como: "Misma cuenta o referencia de pagos anteriores", conf: "alta" };
-    let pr = recAptoReferencia(m, U), pn = r.pagador ? recPorNombre(r.pagador, U) : [], pv = recPorValor(v, U);
+    let rg = recRegla(reglas, r.clave, U), pv = recPorValor(v, U);
+    if (rg.length === 1) return { ...r, unidad: rg[0], como: "Misma cuenta o referencia de pagos anteriores", conf: "alta" };
+    if (rg.length > 1) { let x = rg.filter(y => pv.includes(y)); if (x.length === 1) return { ...r, unidad: x[0], como: `Cuenta que paga ${rg.length} apartamentos; el valor corresponde a este`, conf: "alta" }; return { ...r, cands: rg.slice(0, 8), como: `Cuenta que paga ${rg.length} apartamentos: escoja cuál` }; }
+    let pr = recAptoReferencia(m, U), pn = r.pagador ? recPorNombre(r.pagador, U) : [];
     if (pr.length === 1) return { ...r, unidad: pr[0], como: "Referencia = torre y apartamento", conf: "alta" };
     let prv = pr.filter(x => pv.includes(x));
     if (prv.length === 1) return { ...r, unidad: prv[0], como: "Referencia (apartamento) y valor", conf: "alta" };
     let ambos = pn.filter(x => pv.includes(x));
     if (ambos.length === 1) return { ...r, unidad: ambos[0], como: "Nombre y valor coinciden", conf: "alta" };
-    if (pn.length === 1) return { ...r, unidad: pn[0], como: "Nombre de quien paga", conf: "media" };
     if (pv.length === 1) return { ...r, unidad: pv[0], como: "Valor igual a la cuota o a pagos anteriores", conf: "media" };
-    return { ...r, cands: [...new Set([...pr, ...pn, ...pv])].slice(0, 8), como: pv.length > 1 ? `${pv.length} apartamentos pagan ese valor` : "" };
+    return { ...r, cands: [...new Set([...pn, ...pr, ...pv])].slice(0, 8), como: pn.length ? "Nombre parecido a: " + pn.slice(0, 3).join(", ") : pv.length > 1 ? `${pv.length} apartamentos pagan ese valor` : "" };
   });
 }
 /* lee el PDF del banco con el lector de la conciliación y recupera los textos de segunda línea ("1020A T3") */
@@ -3771,10 +3778,10 @@ async function recBase(ses) {
   for (const mes of meses) {
     let [b, l] = await Promise.all([cmLeerArr(ses.store, `cbl_raw/${REC_CTA}_${mes}_banco`), cmLeerArr(ses.store, `cbl_raw/${REC_CTA}_${mes}_libro`)]);
     if (l) for (const r of l.arr) { let u = recUnidad(r[1]); if (u && U.has(u) && r[4] > 0) U.get(u).pagos.push(recR(r[4])); }
-    if (b && l) Object.assign(aprendidas, recAprender(b.arr, l.arr));
+    if (b && l) aprendidas = recUnir(null, aprendidas, recAprender(b.arr, l.arr));
   }
   let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {};
-  return { U, ult, libroHist, meses, metaLibro: metas[0], reglas: { ...aprendidas, ...(G.aprendidas ?? {}), ...(G.confirmadas ?? {}) }, G };
+  return { U, ult, libroHist, meses, metaLibro: metas[0], reglas: recUnir(G.confirmadas, aprendidas, G.aprendidas), G };
 }
 /* ---------- reportes de desembolso de Wompi ---------- */
 /* Cada abono de Wompi en el banco es un desembolso que agrupa varios pagos. El reporte
@@ -3820,8 +3827,9 @@ function recIdentificarWompi(tx, U, reglas) {
   let clave = tx.doc ? "WDOC:" + tx.doc : null, u;
   let base = { clave, pagador: tx.tdoc && tx.doc ? `${tx.tdoc} ${tx.doc}` : "", unidad: null, como: "", conf: "", cands: [] };
   for (const x of [tx.r1, tx.r2, tx.ref]) if (x && (u = recAptoDeCodigo(x, U))) return { ...base, unidad: u, como: "Apartamento en la referencia de Wompi", conf: "alta" };
-  if (clave && (u = reglas[clave]) && U.has(u)) return { ...base, unidad: u, como: "Misma cédula de pagos anteriores", conf: "alta" };
-  let pv = recPorValor(recR(tx.monto), U);
+  let rg = recRegla(reglas, clave, U), pv = recPorValor(recR(tx.monto), U);
+  if (rg.length === 1) return { ...base, unidad: rg[0], como: "Misma cédula de pagos anteriores", conf: "alta" };
+  if (rg.length > 1) { let x = rg.filter(y => pv.includes(y)); if (x.length === 1) return { ...base, unidad: x[0], como: `Cédula que paga ${rg.length} apartamentos; el valor corresponde a este`, conf: "alta" }; return { ...base, cands: rg.slice(0, 8), como: `Cédula que paga ${rg.length} apartamentos: escoja cuál` }; }
   if (pv.length === 1) return { ...base, unidad: pv[0], como: "Valor igual a la cuota o a pagos anteriores", conf: "media" };
   return { ...base, cands: pv.slice(0, 8), como: pv.length > 1 ? `${pv.length} apartamentos pagan ese valor` : "" };
 }
@@ -3880,17 +3888,17 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
             let c = base.libroHist.map((r, i) => ({ i, r })).filter(({ i, r }) => !usados.has(i) && recUnidad(r[1]) && (Math.abs(r[4] - t.monto) <= 1 || Math.abs(r[4] - t.neto) <= 1) && dias(t.fecha, r[0]) >= -1 && dias(t.fecha, r[0]) <= 10);
             let w = c.filter(x => /WOMPI/.test(recN(x.r[2]))); c = w.length ? w : c;
             if (new Set(c.map(x => recUnidad(x.r[1]))).size !== 1) continue;
-            usados.add(c[0].i); nuevas["WDOC:" + t.doc] = recUnidad(c[0].r[1]); n++;
+            usados.add(c[0].i); recSumarRegla(nuevas, "WDOC:" + t.doc, recUnidad(c[0].r[1])); n++;
           }
           continue;
         }
         let B = await recLeerPdf(f), lib = base.libroHist.filter(r => r[0] >= B.desde && r[0] <= addDias(B.hasta, 7));
-        let R = recAprender(B.movs, lib); Object.assign(nuevas, R); n += Object.keys(R).length;
+        let R = recAprender(B.movs, lib); nuevas = recUnir(null, nuevas, R); n += Object.keys(R).length;
       }
       let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {};
-      G.aprendidas = { ...(G.aprendidas ?? {}), ...nuevas }; G.act = new Date().toISOString();
+      G.aprendidas = recUnir(null, G.aprendidas, nuevas); G.act = new Date().toISOString();
       await ses.store.set("cbl_seg/rec_reglas", G);
-      setBase(b => ({ ...b, reglas: { ...b.reglas, ...nuevas, ...(G.confirmadas ?? {}) }, G }));
+      setBase(b => ({ ...b, reglas: recUnir(G.confirmadas, b.reglas, nuevas), G }));
       notificar("ok", `Se aprendieron ${n} cuentas o referencias de ${files.length} extracto(s).`);
       if (lote) setLote(l => armar({ archivo: l.archivo, cuenta: l.cuenta, desde: l.desde, hasta: l.hasta, movs: l.movs, wompi: l.wompi }, { asign: asignDe(l) }));
     } catch (e) { notificar("error", e?.message ?? String(e)); }
@@ -3916,7 +3924,7 @@ function RecSeccion({ ses, notificar, soloLectura, entidad }) {
     setOcup("Guardando…");
     try {
       let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {}, conf = { ...(G.confirmadas ?? {}) };
-      for (const f of lote.filas) if (f.incl && f.sel && f.clave && f.tipo === "pago" && (f.manual || f.conf === "alta") && (f.w || !recAptoTextoCrudo(lote.movs[f.i]))) conf[f.clave] = f.sel;
+      for (const f of lote.filas) if (f.incl && f.sel && f.clave && f.tipo === "pago" && (f.manual || f.conf === "alta") && (f.w || !recAptoTextoCrudo(lote.movs[f.i]))) recSumarRegla(conf, f.clave, f.sel);
       G.confirmadas = conf; G.act = new Date().toISOString();
       await ses.store.set("cbl_seg/rec_reglas", G);
       await ses.store.set("cbl_seg/" + lote.id, JSON.parse(JSON.stringify({ id: lote.id, tipo: "rec_lote", archivo: lote.archivo, cuenta: lote.cuenta, desde: lote.desde, hasta: lote.hasta, movs: lote.movs, wompi: lote.wompi ?? [], asign: asignDe(lote), act: G.act,
