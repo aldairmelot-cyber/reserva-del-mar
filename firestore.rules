@@ -20,7 +20,8 @@ service cloud.firestore {
     function editor() {
       return autenticado() && correo() in [
         'aldair.melot@gmail.com',
-        'aldairmelot@gmail.com'
+        'aldairmelot@gmail.com',
+        'reservadelmar.contabilidad@gmail.com'
       ];
     }
     function consulta() {
