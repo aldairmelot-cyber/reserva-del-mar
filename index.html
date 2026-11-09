@@ -1268,7 +1268,8 @@ async function cmPdfFilas(buf) {
 }
 function cmParseBanco(filas, nombre) {
   let txt = r => r.it.map(t => t.s).join(" "), todo = filas.map(txt).join("\n"), N = cmN(todo), m;
-  let cuenta = ((N.match(/NUMERO DE CUENTA:? ?(\d{6,})/) ?? N.match(/CUENTA (?:DE AHORROS |CORRIENTE )?(?:NO\.? |NUMERO )?(\d{9,})/) ?? [])[1]) ?? "";
+  /* el número de cuenta puede venir en la misma línea ("CUENTA DE AHORROS 517…") o en una línea aparte ("NÚMERO 517…", extracto mensual); si no aparece, se toma del nombre del archivo */
+  let cuenta = ((N.match(/NUMERO DE CUENTA:? ?(\d{6,})/) ?? N.match(/CUENTA (?:DE AHORROS |CORRIENTE )?(?:NO\.? |NUMERO )?(\d{9,})/) ?? N.match(/(?:^|\s)NUMERO:? ?(\d{9,})(?:\s|$)/) ?? String(nombre ?? "").match(/(?:^|\D)(\d{9,12})(?:\D|$)/) ?? [])[1]) ?? "";
   let consulta = (m = N.match(/CONSULTA:? ?(\d{2})-(\d{2})-(\d{4}) (\d{2}:\d{2})/)) ? cmYmd(m[3], m[2], m[1]) + "T" + m[4] : null;
   let saldo = (m = N.match(/SALDO TOTAL ACTUAL:? ?\$? ?(-?[\d,]+\.\d{2})/)) ? cmNum(m[1]) : null;
   let movs = [], ini = null, exacto = !1, periodo = null;
