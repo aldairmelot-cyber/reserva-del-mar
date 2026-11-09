@@ -6478,7 +6478,7 @@ function FvPantalla({ ses, notificar, soloLectura }) {
    por mes, los movimientos de los propietarios en deudores (1305), anticipos (2805), descuento por pronto pago (4175) y bancos (11).
    Cada pago (RC) se amarra a la cuenta de cobro (FV) que cita su nota ("PAGO CUENTA DE COBRO JULIO DE 2026 28235");
    si la nota no cita ninguna, se aplica a la más antigua con saldo. Se guarda en cartera_mov/<AAAA-MM>_<n>. */
-var CPM_CTA = c => /^13050501/.test(c) ? "Cuota de administración" : /^13050503/.test(c) ? "Intereses de mora" : /^13050502/.test(c) ? "Retroactivo" : /^1305050[6-9]/.test(c) ? "Sanción" : /^13050514/.test(c) ? "Concesión" : /^1305/.test(c) ? "Otros cobros" : /^2805/.test(c) ? "Saldo a favor (anticipo)" : /^4175/.test(c) ? "Descuento por pronto pago" : /^11/.test(c) ? "Recibido en banco" : "Otro";
+var CPM_CTA = c => /^13050501/.test(c) ? "Cuota de administración" : /^13050503/.test(c) ? "Intereses de mora" : /^13050502/.test(c) ? "Retroactivo" : /^1305050[6-9]/.test(c) ? "Sanción" : /^13050514/.test(c) ? "Concesión" : /^1305/.test(c) ? "Otros cobros" : /^2805/.test(c) ? "Saldo a favor (anticipo)" : /^4175/.test(c) ? "Descuento por pronto pago" : /^4295/.test(c) ? "Aprovechamiento (sobrante del pago)" : /^5395/.test(c) ? "Ajuste al peso" : /^11/.test(c) ? "Recibido en banco" : "Otro";
 var cpmDoc = d => String(d ?? "").replace(/^\([^)]*\)\s*/, "").replace(/\s+/g, " ").trim().toUpperCase();
 var cpmUnidad = t => { let m; t = String(t || "").trim(); if ((m = t.match(/^(\d{1,5}[A-Z]?)\s*T\s*(\d)\b\s*(.*)$/i))) return { unidad: `Apto ${m[1]} · T${m[2]}`, prop: m[3], torre: "Torre " + m[2], n: Number(m[1].replace(/\D/g, "")) || 0 }; if ((m = t.match(/^(LOCAL|LC|PARQ\w*)\s*(\d+)\s*(.*)$/i))) return { unidad: `Local ${m[2]}`, prop: m[3], torre: "Locales", n: Number(m[2]) }; return { unidad: t, prop: "", torre: "Otros", n: 0 }; };
 var cpmPl = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
@@ -6496,7 +6496,7 @@ function cpmLeerAux(sh, nombre) {
     let r = rows[i]; if (!r) continue;
     let c0 = dvTxt(r[c.cta]); if (/^\d/.test(c0)) cta = c0.split(" ")[0]; if (/^total/i.test(c0)) continue;
     let ter = dvTxt(r[c.ter]).replace(/\s+/g, " "); if (!ter || !cta) continue;
-    if (!/^(1305|2805|4175|11)/.test(cta)) continue;
+    if (!/^(1305|2805|4175|4295|5395|11)/.test(cta)) continue;
     let nota = dvTxt(r[c.nota]).replace(/_x000D_|\s+/g, " ").trim(); if (/^SALDO INICIAL$/i.test(nota)) continue;
     let db = dvN(r[c.db]), cr = dvN(r[c.cr]); if (!db && !cr) continue;
     L.push({ ter, f: dvFecha(r[c.f]), doc: cpmDoc(r[c.doc]), cta, nota: nota.slice(0, 100), db, cr });
@@ -6539,7 +6539,7 @@ function cpmModelo(L) {
     M.sort((a, b) => (a.f || "").localeCompare(b.f || "") || (a.db > 0 ? -1 : 1));
     let fac = new Map(), rec = new Map(), num = d => (d.match(/(\d{3,})\s*$/) ?? [])[1] ?? "";
     let facDe = (doc, f, nota) => { let k = doc; if (!fac.has(k)) fac.set(k, { doc, num: num(doc), f, nota, mesTxt: (nota.match(/COBRO\s+([A-Z]+\s+DE\s+\d{4})/i) ?? [])[1] ?? "", con: [], total: 0, pagos: [], pagado: 0 }); return fac.get(k); };
-    let recDe = (doc, f) => { if (!rec.has(doc)) rec.set(doc, { doc, f, banco: 0, bancoNota: "", desc: 0, antRec: 0, antApl: 0, apl: [] }); return rec.get(doc); };
+    let recDe = (doc, f) => { if (!rec.has(doc)) rec.set(doc, { doc, f, banco: 0, bancoNota: "", desc: 0, antRec: 0, antApl: 0, aprov: 0, ajuste: 0, apl: [] }); return rec.get(doc); };
     /* 1) cargos: débitos a 1305 */
     for (const x of M) if (/^1305/.test(x.cta) && x.db > 0 && !/^RC\b/.test(x.doc)) { let F = facDe(x.doc, x.f, x.nota); F.con.push({ cta: x.cta, txt: CPM_CTA(x.cta), v: x.db }); F.total += x.db; }
     /* 2) recibos: banco, descuentos, anticipos y abonos a 1305 */
@@ -6548,6 +6548,8 @@ function cpmModelo(L) {
       let R = recDe(x.doc, x.f);
       if (/^11/.test(x.cta)) { R.banco += x.db - x.cr; R.bancoNota ||= x.nota; }
       else if (/^4175/.test(x.cta)) R.desc += x.db - x.cr;
+      else if (/^4295/.test(x.cta)) R.aprov += x.cr - x.db;
+      else if (/^5395/.test(x.cta)) R.ajuste += x.db - x.cr;
       else if (/^2805/.test(x.cta)) { R.antRec += x.cr; R.antApl += x.db; }
       else if (/^1305/.test(x.cta)) {
         let v = x.cr - x.db, n = (x.nota.match(/(\d{4,})\s*$/) ?? x.nota.match(/(\d{4,})/) ?? [])[1], F = n ? [...fac.values()].find(F => F.num === n) : null;
@@ -6589,6 +6591,8 @@ function cpmExplica(R) {
   partes.push(ent + ".");
   if (porF.size) partes.push("Con eso se pagó: " + [...porF.values()].map(p => p.F ? `${cbPesos(p.v)} de la cuenta de cobro ${p.F.num ? "No. " + p.F.num : p.F.doc}${p.F.mesTxt ? " (" + p.F.mesTxt.toLowerCase() + ")" : ""}${p.txt.length && !(p.txt.length === 1 && p.txt[0] === "Cuota de administración") ? " · " + p.txt.join(" y ").toLowerCase() : ""}` : `${cbPesos(p.v)} sin cuenta de cobro identificada`).join("; ") + ".");
   if (R.antRec > .5) partes.push(`Sobraron ${cbPesos(R.antRec)}, que quedan como saldo a favor para la próxima cuenta de cobro.`);
+  if (R.aprov > .5) partes.push(`Los ${cbPesos(R.aprov)} que pagó de más se llevaron a aprovechamientos (no quedan como saldo a favor).`);
+  if (Math.abs(R.ajuste) > .5) partes.push(`Ajuste al peso de ${cbPesos(R.ajuste)}.`);
   return partes.join(" ");
 }
 
@@ -6689,7 +6693,9 @@ function CpmPantalla({ ses, config, notificar, soloLectura }) {
               ...R.apl.map((a, i) => cbH("tr", { key: i }, cbH("td", null, "→ ", a.F ? cbH("b", null, a.F.num ? "Cuenta de cobro No. " + a.F.num : a.F.doc) : "Sin cuenta de cobro identificada", a.F?.mesTxt ? ` · ${a.F.mesTxt.toLowerCase()}` : "", cbH("span", { className: "tenue" }, ` · ${a.txt.toLowerCase()}${a.fifo ? " (a la más antigua)" : ""}`)), cbH("td", { className: "a-right num" }, cbPesos(a.v)))),
               R.desc > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Descuento por pronto pago"), cbH("td", { className: "a-right num tenue" }, "− " + cbPesos(R.desc))),
               R.antApl > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Saldo a favor usado"), cbH("td", { className: "a-right num tenue" }, "− " + cbPesos(R.antApl))),
-              R.antRec > .5 && cbH("tr", null, cbH("td", { className: "ok" }, "Quedó como saldo a favor"), cbH("td", { className: "a-right num ok" }, cbPesos(R.antRec)))))))),
+              R.antRec > .5 && cbH("tr", null, cbH("td", { className: "ok" }, "Quedó como saldo a favor"), cbH("td", { className: "a-right num ok" }, cbPesos(R.antRec))),
+              R.aprov > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Pagado de más, llevado a aprovechamientos"), cbH("td", { className: "a-right num tenue" }, cbPesos(R.aprov))),
+              Math.abs(R.ajuste) > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Ajuste al peso"), cbH("td", { className: "a-right num tenue" }, cbPesos(R.ajuste)))))))),
         cbH("h3", { className: "h2" }, `Cuentas de cobro (${ver.facs.length})`),
         cbH("div", { className: "cb-linea" }, ...ver.facs.map(F => { let sal = Math.max(0, F.total - F.pagado), cl = F.fuera ? "e0" : sal <= .5 ? "e0" : F.pagado > .5 ? "e2" : "e4"; return cbH("div", { key: F.doc, className: "cb-fac " + cl },
           cbH("div", null, cbH("b", null, F.num ? "No. " + F.num : F.doc), " ", cbH("small", null, F.mesTxt ? F.mesTxt.toLowerCase() : cbFecha(F.f))),
