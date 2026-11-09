@@ -35,7 +35,7 @@ service cloud.firestore {
       return ['retencion', 'retencion_pdf', 'iva', 'ica', 'prorrateo_cfg', 'prorrateo_mes'];
     }
     function cartera() {
-      return ['cartera', 'cartera_c', 'cartera_p'];
+      return ['cartera', 'cartera_c', 'cartera_p', 'cartera_mov'];
     }
     function facturas() {
       return ['fv_idx', 'fv_pdf'];

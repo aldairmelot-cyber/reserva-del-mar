@@ -29,7 +29,7 @@
     "prorrateo_cfg", "prorrateo_mes", "cartera", "cartera_c", "cartera_p",
     "cman_raw", "cman_idx", "cman_seg", "cman_cfg", "cbl_raw", "cbl_idx", "cbl_seg",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
-    "verif_idx", "verif_raw", "fondo_cfg", "rph", "rph_pdf", "comunicados", "comunicados_pdf", "fv_idx", "fv_pdf", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
+    "verif_idx", "verif_raw", "fondo_cfg", "rph", "rph_pdf", "comunicados", "comunicados_pdf", "fv_idx", "fv_pdf", "cartera_mov", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
   ];
 
   /* ------------------------------------------------------------------ perfiles */
