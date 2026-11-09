@@ -6478,7 +6478,7 @@ function FvPantalla({ ses, notificar, soloLectura }) {
    por mes, los movimientos de los propietarios en deudores (1305), anticipos (2805), descuento por pronto pago (4175) y bancos (11).
    Cada pago (RC) se amarra a la cuenta de cobro (FV) que cita su nota ("PAGO CUENTA DE COBRO JULIO DE 2026 28235");
    si la nota no cita ninguna, se aplica a la más antigua con saldo. Se guarda en cartera_mov/<AAAA-MM>_<n>. */
-var CPM_CTA = c => /^13050501/.test(c) ? "Cuota de administración" : /^13050503/.test(c) ? "Intereses de mora" : /^13050502/.test(c) ? "Retroactivo" : /^1305050[6-9]/.test(c) ? "Sanción" : /^13050514/.test(c) ? "Concesión" : /^1305/.test(c) ? "Otros cobros" : /^2805/.test(c) ? "Saldo a favor (anticipo)" : /^4175/.test(c) ? "Descuento por pronto pago" : /^4295/.test(c) ? "Aprovechamiento (sobrante del pago)" : /^5395/.test(c) ? "Ajuste al peso" : /^11/.test(c) ? "Recibido en banco" : "Otro";
+var CPM_CTA = c => /^13050501/.test(c) ? "Cuota de administración" : /^13050503/.test(c) ? "Intereses de mora" : /^13050502/.test(c) ? "Retroactivo" : /^1305050[6-9]/.test(c) ? "Sanción" : /^13050514/.test(c) ? "Concesión" : /^1305/.test(c) ? "Otros cobros" : /^2805/.test(c) ? "Saldo a favor (anticipo)" : /^4175/.test(c) ? "Descuento por pronto pago" : /^4295/.test(c) ? "Aprovechamiento (sobrante del pago)" : /^4210/.test(c) ? "Recargo o intereses" : /^130595/.test(c) ? "Consignación por identificar" : /^5395/.test(c) ? "Ajuste al peso" : /^11/.test(c) ? "Recibido en banco" : "Otro";
 var cpmDoc = d => String(d ?? "").replace(/^\([^)]*\)\s*/, "").replace(/\s+/g, " ").trim().toUpperCase();
 var cpmUnidad = t => { let m; t = String(t || "").trim(); if ((m = t.match(/^(\d{1,5}[A-Z]?)\s*T\s*(\d)\b\s*(.*)$/i))) return { unidad: `Apto ${m[1]} · T${m[2]}`, prop: m[3], torre: "Torre " + m[2], n: Number(m[1].replace(/\D/g, "")) || 0 }; if ((m = t.match(/^(LOCAL|LC|PARQ\w*)\s*(\d+)\s*(.*)$/i))) return { unidad: `Local ${m[2]}`, prop: m[3], torre: "Locales", n: Number(m[2]) }; return { unidad: t, prop: "", torre: "Otros", n: 0 }; };
 var cpmPl = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
@@ -6496,14 +6496,18 @@ function cpmLeerAux(sh, nombre) {
     let r = rows[i]; if (!r) continue;
     let c0 = dvTxt(r[c.cta]); if (/^\d/.test(c0)) cta = c0.split(" ")[0]; if (/^total/i.test(c0)) continue;
     let ter = dvTxt(r[c.ter]).replace(/\s+/g, " "); if (!ter || !cta) continue;
-    if (!/^(1305|2805|4175|4295|5395|11)/.test(cta)) continue;
+    if (!/^(1305|2805|4175|4210|4295|5395|11)/.test(cta)) continue;
     let nota = dvTxt(r[c.nota]).replace(/_x000D_|\s+/g, " ").trim(); if (/^SALDO INICIAL$/i.test(nota)) continue;
     let db = dvN(r[c.db]), cr = dvN(r[c.cr]); if (!db && !cr) continue;
     L.push({ ter, f: dvFecha(r[c.f]), doc: cpmDoc(r[c.doc]), cta, nota: nota.slice(0, 100), db, cr });
   }
-  /* solo terceros con cartera (1305/2805); de bancos y descuentos, solo los documentos que también mueven su cartera */
-  let terC = new Set(L.filter(x => /^(1305|2805)/.test(x.cta)).map(x => x.ter)), docC = new Set(L.filter(x => /^(1305|2805)/.test(x.cta)).map(x => x.ter + "|" + x.doc));
-  L = L.filter(x => terC.has(x.ter) && (/^(1305|2805)/.test(x.cta) || docC.has(x.ter + "|" + x.doc)));
+  /* solo terceros con cartera (1305 sin las consignaciones por identificar 130595, y 2805); de bancos, descuentos y demás, solo los
+     documentos que también mueven su cartera. Si una línea del recibo quedó a nombre de otro tercero (error de digitación o
+     consignación por identificar), se pasa al propietario dueño del recibo y se deja la marca en "otro". */
+  let esCart = x => /^(1305|2805)/.test(x.cta) && !/^130595/.test(x.cta);
+  let terC = new Set(L.filter(esCart).map(x => x.ter)), docC = new Set(L.filter(esCart).map(x => x.ter + "|" + x.doc)), dueno = new Map();
+  for (const x of L.filter(esCart)) { dueno.has(x.doc) || dueno.set(x.doc, new Set()); dueno.get(x.doc).add(x.ter); }
+  L = L.filter(x => { if (terC.has(x.ter) && (esCart(x) || docC.has(x.ter + "|" + x.doc))) return !0; let d = dueno.get(x.doc); if (/^RC\b/.test(x.doc) && d?.size === 1 && !esCart(x)) { x.otro = x.ter; x.ter = [...d][0]; return !0; } return !1; });
   if (!L.length) throw new Error(`"${nombre}": el libro auxiliar no tiene movimientos de cartera de propietarios (cuentas 1305 y 2805).`);
   let fs = L.map(x => x.f).filter(Boolean).sort();
   return { archivo: nombre, desde: per?.ini ?? fs[0], hasta: per?.fin ?? fs[fs.length - 1], L };
@@ -6515,7 +6519,7 @@ async function cpmGuardar(ses, X) {
   let ant = await ses.store.list("cartera_mov").catch(() => []);
   for (const [mes, L] of porMes) {
     for (const d of ant.filter(d => d.data?.mes === mes)) await ses.store.del("cartera_mov/" + d.id);
-    let ter = [...new Set(L.map(x => x.ter))], ti = new Map(ter.map((t, i) => [t, i])), m = L.map(x => [ti.get(x.ter), x.f, x.doc, x.cta, x.nota, dvR2(x.db), dvR2(x.cr)]), T = 2500, n = Math.ceil(m.length / T);
+    let ter = [...new Set(L.map(x => x.ter))], ti = new Map(ter.map((t, i) => [t, i])), m = L.map(x => { let r = [ti.get(x.ter), x.f, x.doc, x.cta, x.nota, dvR2(x.db), dvR2(x.cr)]; x.otro && r.push(x.otro); return r; }), T = 2500, n = Math.ceil(m.length / T);
     for (let k = 0; k < n; k++) await ses.store.set(`cartera_mov/${mes}_${k}`, { mes, k, n, ter, m: m.slice(k * T, (k + 1) * T), archivo: X.archivo, cargadoEn: new Date().toISOString() });
   }
   return [...porMes.keys()].sort();
@@ -6525,7 +6529,7 @@ async function cpmLeerTodo(ses) {
   for (const { data: d } of D) {
     if (!d?.mes) continue;
     meses.set(d.mes, { mes: d.mes, archivo: d.archivo, cargadoEn: d.cargadoEn });
-    for (const r of d.m) L.push({ ter: d.ter[r[0]], f: r[1], doc: r[2], cta: r[3], nota: r[4], db: r[5], cr: r[6], mes: d.mes });
+    for (const r of d.m) L.push({ ter: d.ter[r[0]], f: r[1], doc: r[2], cta: r[3], nota: r[4], db: r[5], cr: r[6], otro: r[7], mes: d.mes });
   }
   return { meses: [...meses.values()].sort((a, b) => b.mes.localeCompare(a.mes)), L };
 }
@@ -6539,15 +6543,18 @@ function cpmModelo(L) {
     M.sort((a, b) => (a.f || "").localeCompare(b.f || "") || (a.db > 0 ? -1 : 1));
     let fac = new Map(), rec = new Map(), num = d => (d.match(/(\d{3,})\s*$/) ?? [])[1] ?? "";
     let facDe = (doc, f, nota) => { let k = doc; if (!fac.has(k)) fac.set(k, { doc, num: num(doc), f, nota, mesTxt: (nota.match(/COBRO\s+([A-Z]+\s+DE\s+\d{4})/i) ?? [])[1] ?? "", con: [], total: 0, pagos: [], pagado: 0 }); return fac.get(k); };
-    let recDe = (doc, f) => { if (!rec.has(doc)) rec.set(doc, { doc, f, banco: 0, bancoNota: "", desc: 0, antRec: 0, antApl: 0, aprov: 0, ajuste: 0, apl: [] }); return rec.get(doc); };
+    let recDe = (doc, f) => { if (!rec.has(doc)) rec.set(doc, { doc, f, banco: 0, bancoNota: "", desc: 0, antRec: 0, antApl: 0, aprov: 0, ajuste: 0, ident: 0, identNota: "", int: 0, otros: [], apl: [] }); return rec.get(doc); };
     /* 1) cargos: débitos a 1305 */
-    for (const x of M) if (/^1305/.test(x.cta) && x.db > 0 && !/^RC\b/.test(x.doc)) { let F = facDe(x.doc, x.f, x.nota); F.con.push({ cta: x.cta, txt: CPM_CTA(x.cta), v: x.db }); F.total += x.db; }
+    for (const x of M) if (/^1305/.test(x.cta) && !/^130595/.test(x.cta) && x.db > 0 && !/^RC\b/.test(x.doc)) { let F = facDe(x.doc, x.f, x.nota); F.con.push({ cta: x.cta, txt: CPM_CTA(x.cta), v: x.db }); F.total += x.db; }
     /* 2) recibos: banco, descuentos, anticipos y abonos a 1305 */
     for (const x of M) {
-      if (/^1305/.test(x.cta) && x.db > 0 && !/^RC\b/.test(x.doc)) continue;
+      if (/^1305/.test(x.cta) && !/^130595/.test(x.cta) && x.db > 0 && !/^RC\b/.test(x.doc)) continue;
       let R = recDe(x.doc, x.f);
+      x.otro && !R.otros.some(o => o.ter === x.otro && o.txt === CPM_CTA(x.cta)) && R.otros.push({ ter: x.otro, txt: CPM_CTA(x.cta) });
       if (/^11/.test(x.cta)) { R.banco += x.db - x.cr; R.bancoNota ||= x.nota; }
       else if (/^4175/.test(x.cta)) R.desc += x.db - x.cr;
+      else if (/^130595/.test(x.cta)) { R.ident += x.db - x.cr; R.identNota ||= x.nota; }
+      else if (/^4210/.test(x.cta)) R.int += x.cr - x.db;
       else if (/^4295/.test(x.cta)) R.aprov += x.cr - x.db;
       else if (/^5395/.test(x.cta)) R.ajuste += x.db - x.cr;
       else if (/^2805/.test(x.cta)) { R.antRec += x.cr; R.antApl += x.db; }
@@ -6563,7 +6570,7 @@ function cpmModelo(L) {
       if (!a.F) { let F = [...fac.values()].filter(F => !F.fuera && saldoF(F) > .5).sort((x, y) => (x.f || "").localeCompare(y.f || ""))[0]; if (F) { a.F = F; a.fifo = !0; } }
       if (a.F) { a.F.pagado += a.v; a.F.pagos.push({ R, v: a.v, txt: a.txt }); }
     }
-    let recs = [...rec.values()].filter(R => R.apl.length || Math.abs(R.banco) > .5 || R.antRec > .5 || R.antApl > .5 || R.desc > .5).sort((a, b) => (b.f || "").localeCompare(a.f || ""));
+    let recs = [...rec.values()].filter(R => R.apl.length || Math.abs(R.banco) > .5 || R.antRec > .5 || R.antApl > .5 || R.desc > .5 || R.ident > .5).sort((a, b) => (b.f || "").localeCompare(a.f || ""));
     let facs = [...fac.values()].sort((a, b) => (b.f || "9").localeCompare(a.f || "9"));
     let u = cpmUnidad(ter);
     U.push({ ter, ...u, facs, recs, M });
@@ -6574,7 +6581,7 @@ function cpmModelo(L) {
 function cpmMes(u, mes) {
   let facs = u.facs.filter(F => (F.f || "").slice(0, 7) === mes), recs = u.recs.filter(R => (R.f || "").slice(0, 7) === mes);
   let cobrado = facs.reduce((s, F) => s + F.total, 0), pendMes = facs.reduce((s, F) => s + Math.max(0, F.total - F.pagado), 0);
-  let banco = recs.reduce((s, R) => s + Math.max(0, R.banco), 0), desc = recs.reduce((s, R) => s + R.desc, 0), antRec = recs.reduce((s, R) => s + R.antRec, 0), antApl = recs.reduce((s, R) => s + R.antApl, 0);
+  let banco = recs.reduce((s, R) => s + Math.max(0, R.banco) + Math.max(0, R.ident), 0), desc = recs.reduce((s, R) => s + R.desc, 0), antRec = recs.reduce((s, R) => s + R.antRec, 0), antApl = recs.reduce((s, R) => s + R.antApl, 0);
   let aplicado = recs.reduce((s, R) => s + R.apl.reduce((t, a) => t + a.v, 0), 0), viejas = recs.reduce((s, R) => s + R.apl.filter(a => a.F && (a.F.f || "0000-00").slice(0, 7) < mes).reduce((t, a) => t + a.v, 0), 0);
   let est = !facs.length && !recs.length ? null : facs.length && pendMes <= .5 ? "ok" : aplicado > .5 || antRec > .5 ? "abono" : facs.length ? "sin" : "otro";
   return { facs, recs, cobrado, pendMes, banco, desc, antRec, antApl, aplicado, viejas, est };
@@ -6585,7 +6592,8 @@ var CPM_EST = { ok: ["Pagó la cuenta del mes", "est-ok"], abono: ["Abonó", "es
 function cpmExplica(R) {
   let partes = [], porF = new Map();
   for (const a of R.apl) { let k = a.F ? a.F.doc : "—"; porF.has(k) || porF.set(k, { F: a.F, v: 0, txt: [] }); let p = porF.get(k); p.v += a.v; p.txt.includes(a.txt) || p.txt.push(a.txt); }
-  let ent = R.banco > .5 ? `Ingresaron ${cbPesos(R.banco)} al banco` : R.antApl > .5 ? `No hubo dinero nuevo: se usó saldo a favor de ${cbPesos(R.antApl)}` : "Movimiento sin ingreso al banco (ajuste o nota)";
+  let ent = R.banco > .5 ? `Ingresaron ${cbPesos(R.banco)} al banco` : R.ident > .5 ? `Se aplicó una consignación de ${cbPesos(R.ident)} que había llegado antes sin identificar${R.identNota ? " (" + R.identNota.toLowerCase().replace(/^pago identificado\s*/, "") + ")" : ""}` : R.antApl > .5 ? `No hubo dinero nuevo: se usó saldo a favor de ${cbPesos(R.antApl)}` : "Movimiento sin ingreso al banco (ajuste o nota)";
+  if (R.banco > .5 && R.ident > .5) ent += ` y una consignación de ${cbPesos(R.ident)} que estaba por identificar`;
   if (R.banco > .5 && R.antApl > .5) ent += ` y se usó saldo a favor de ${cbPesos(R.antApl)}`;
   if (R.desc > .5) ent += `, más ${cbPesos(R.desc)} de descuento por pronto pago`;
   partes.push(ent + ".");
@@ -6593,6 +6601,9 @@ function cpmExplica(R) {
   if (R.antRec > .5) partes.push(`Sobraron ${cbPesos(R.antRec)}, que quedan como saldo a favor para la próxima cuenta de cobro.`);
   if (R.aprov > .5) partes.push(`Los ${cbPesos(R.aprov)} que pagó de más se llevaron a aprovechamientos (no quedan como saldo a favor).`);
   if (Math.abs(R.ajuste) > .5) partes.push(`Ajuste al peso de ${cbPesos(R.ajuste)}.`);
+  if (R.int > .5) partes.push(`Incluye ${cbPesos(R.int)} de recargo (por ejemplo, el 5% por pago con datáfono).`);
+  if (R.int < -.5) partes.push(`Se reversaron ${cbPesos(-R.int)} de intereses de mora.`);
+  if (R.otros.length) partes.push(`Ojo: en World Office parte de este recibo (${R.otros.map(o => o.txt.toLowerCase()).join(", ")}) quedó a nombre de otro tercero: ${[...new Set(R.otros.map(o => o.ter))].join(", ")}. Conviene corregirlo.`);
   return partes.join(" ");
 }
 
@@ -6695,6 +6706,9 @@ function CpmPantalla({ ses, config, notificar, soloLectura }) {
               R.antApl > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Saldo a favor usado"), cbH("td", { className: "a-right num tenue" }, "− " + cbPesos(R.antApl))),
               R.antRec > .5 && cbH("tr", null, cbH("td", { className: "ok" }, "Quedó como saldo a favor"), cbH("td", { className: "a-right num ok" }, cbPesos(R.antRec))),
               R.aprov > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Pagado de más, llevado a aprovechamientos"), cbH("td", { className: "a-right num tenue" }, cbPesos(R.aprov))),
+              R.ident > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Consignación que estaba por identificar"), cbH("td", { className: "a-right num tenue" }, cbPesos(R.ident))),
+              Math.abs(R.int) > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, R.int > 0 ? "Recargo cobrado" : "Intereses reversados"), cbH("td", { className: "a-right num tenue" }, cbPesos(Math.abs(R.int)))),
+              R.otros.length > 0 && cbH("tr", null, cbH("td", { className: "err", colSpan: 2 }, "⚠ Parte del recibo está a nombre de: " + [...new Set(R.otros.map(o => o.ter))].join(", "))),
               Math.abs(R.ajuste) > .5 && cbH("tr", null, cbH("td", { className: "tenue" }, "Ajuste al peso"), cbH("td", { className: "a-right num tenue" }, cbPesos(R.ajuste)))))))),
         cbH("h3", { className: "h2" }, `Cuentas de cobro (${ver.facs.length})`),
         cbH("div", { className: "cb-linea" }, ...ver.facs.map(F => { let sal = Math.max(0, F.total - F.pagado), cl = F.fuera ? "e0" : sal <= .5 ? "e0" : F.pagado > .5 ? "e2" : "e4"; return cbH("div", { key: F.doc, className: "cb-fac " + cl },
