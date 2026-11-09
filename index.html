@@ -6105,9 +6105,18 @@ function cbListadoJuridico(L, corte, cfg) {
 async function fvGuardarPdf(ses, numero, bytes) {
   let u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), s = "";
   for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768));
-  let b64 = btoa(s), T = 180000, n = Math.max(1, Math.ceil(b64.length / T)), pid = `${numero}-${Date.now().toString(36)}`;
+  let b64 = btoa(s), T = 180000, n = Math.max(1, Math.ceil(b64.length / T)), pid = `${numero}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
   for (let i = 0; i < n; i++) await ses.store.set(`fv_pdf/${pid}-${i}`, { d: b64.slice(i * T, (i + 1) * T) });
+  /* confirmar que todas las partes quedaron guardadas antes de anotarla en la lista */
+  for (let i = 0; i < n; i++) { let d = await ses.store.get(`fv_pdf/${pid}-${i}`); if (!d || d.d?.length !== b64.slice(i * T, (i + 1) * T).length) throw new Error(`el PDF de la cuenta de cobro ${numero} no quedó completo; vuelva a intentarlo`); }
   return { id: pid, partes: n, bytes: u.length };
+}
+/* revisa que cada cuenta de cobro de la lista tenga su PDF completo */
+async function fvVerificar(ses, items, avance) {
+  let malos = [], k = 0, cola = [...items];
+  let trab = async () => { while (cola.length) { let it = cola.shift(); try { let b = await fvLeerPdf(ses, it.pdf), cab = String.fromCharCode(...b.subarray(0, 5)), fin = new TextDecoder().decode(b.subarray(Math.max(0, b.length - 1024))); if (cab !== "%PDF-" || !/%%EOF/.test(fin) || (it.pdf.bytes && b.length !== it.pdf.bytes)) throw 0; } catch { malos.push(it); } avance && avance(++k, items.length); } };
+  await Promise.all(Array.from({ length: 6 }, trab));
+  return malos;
 }
 async function fvBorrarPdf(ses, p) { if (p) for (let i = 0; i < p.partes; i++) await ses.store.del(`fv_pdf/${p.id}-${i}`).catch(() => {}); }
 async function fvLeerPdf(ses, p) {
@@ -6146,7 +6155,7 @@ function fvParse(txt) {
   if (!mes && exp) mes = exp.slice(0, 7);
   let unidad = "", nombre = prop;
   if ((m = prop.match(/^(\d{1,5})\s*T\s*(\d)\b\s*(.*)$/i))) { unidad = `Apto ${m[1]} · T${m[2]}`; nombre = m[3]; }
-  else if ((m = prop.match(/^(LOCAL|PARQ\w*|DEP\w*)\s*(\d+)\s*(.*)$/i))) { unidad = `${m[1][0].toUpperCase() + m[1].slice(1).toLowerCase()} ${m[2]}`; nombre = m[3]; }
+  else if ((m = prop.match(/^(LOCAL|LC|PARQ\w*|PQ|DEP\w*)\s*-?\s*(\d+)\s*(.*)$/i))) { let t = m[1].toUpperCase(); unidad = `${/^(LOCAL|LC)$/.test(t) ? "Local" : /^(PARQ|PQ)/.test(t) ? "Parqueadero" : "Depósito"} ${m[2]}`; nombre = m[3]; }
   else if (apto && apto.length >= 3) unidad = `Apto ${apto.slice(1)} · T${apto[0]}`;
   return {
     n, apto, unidad, prop: nombre.replace(/\s+/g, " ").trim(), mes, exp, vence,
@@ -6400,13 +6409,16 @@ function FvPantalla({ ses, notificar, soloLectura }) {
       let k = 0;
       for (const [m, L] of porMes) {
         let actual = (await ses.store.get("fv_idx/" + m)) || { mes: m, items: [] }, items = [...(actual.items || [])];
+        let pend = 0, anotar = async () => { items.sort((a, b) => String(a.apto).localeCompare(String(b.apto), "es", { numeric: !0 })); await ses.store.set("fv_idx/" + m, { mes: m, items, actualizado: new Date().toISOString() }); pend = 0; };
         for (const x of L) {
           setAvance(`Guardando ${++k} de ${ok.length}…`);
           let viejo = items.find(it => it.n === x.n);
           let pdf = await fvGuardarPdf(ses, x.n, x.bytes);
-          if (viejo) await fvBorrarPdf(ses, viejo.pdf);
           let { bytes, problemas, error, ...meta } = x;
           items = [...items.filter(it => it.n !== x.n), { ...meta, pdf, cargadoEn: new Date().toISOString() }];
+          /* la lista se guarda cada 20 cuentas: si la carga se interrumpe, lo ya subido queda anotado */
+          if (++pend >= 20) await anotar();
+          if (viejo) await fvBorrarPdf(ses, viejo.pdf);
         }
         items.sort((a, b) => String(a.apto).localeCompare(String(b.apto), "es", { numeric: !0 }));
         await ses.store.set("fv_idx/" + m, { mes: m, items, actualizado: new Date().toISOString() });
@@ -6416,6 +6428,16 @@ function FvPantalla({ ses, notificar, soloLectura }) {
       setPrev(null); if (porMes.size) setMes([...porMes.keys()].sort().pop());
       await recargar();
     } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); }
+    setAvance(""); setOc(null);
+  };
+  let revisar = async () => {
+    let I = indice.find(I => I.mes === mes); if (!I) return;
+    setOc("rev");
+    try {
+      let malos = await fvVerificar(ses, I.items, (k, n) => setAvance(`Revisando ${k} de ${n}…`));
+      if (!malos.length) notificar("ok", `Las ${I.items.length} cuentas de cobro de ${cbMesLargo(mes)} tienen su PDF completo y se pueden descargar.`);
+      else { let fuera = new Set(malos.map(x => x.n)), a = await ses.store.get("fv_idx/" + mes); await ses.store.set("fv_idx/" + mes, { ...a, items: (a.items || []).filter(x => !fuera.has(x.n)), actualizado: new Date().toISOString() }); for (const x of malos) await fvBorrarPdf(ses, x.pdf); await recargar(); notificar("error", `${malos.length} cuentas de cobro no tenían el PDF completo y se quitaron de la lista (No. ${malos.slice(0, 8).map(x => x.n).join(", ")}${malos.length > 8 ? "…" : ""}). Vuelva a subir el mes con "Guardar solo las nuevas" para completarlas.`); }
+    } catch (e) { notificar("error", "No se pudo revisar: " + (e?.message ?? e)); }
     setAvance(""); setOc(null);
   };
   let quitar = async (m, it) => {
@@ -6460,6 +6482,7 @@ function FvPantalla({ ses, notificar, soloLectura }) {
       cbH(Ve.Fragment, null,
         cbH("div", { className: "fila-sel" },
           cbH("div", { className: "meses-chips", role: "tablist", "aria-label": "Mes" }, ...indice.map(I => cbH("button", { key: I.mes, type: "button", role: "tab", "aria-selected": I.mes === mes && !q.trim(), className: "mes-chip ancho" + (I.mes === mes && !q.trim() ? " activo" : ""), onClick: () => { setMes(I.mes); setQ(""); } }, `${cbMesTxt(I.mes)} (${I.items.length})`))),
+          !q.trim() && !soloLectura && cbH("button", { type: "button", className: "btn", disabled: !!oc || !L.length, onClick: revisar, title: "Comprueba que cada cuenta de cobro del mes tenga su PDF completo" }, oc === "rev" ? avance || "Revisando…" : "Revisar PDFs"),
           !q.trim() && cbH("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !L.length, onClick: zipMes }, oc === "zip" ? "Preparando…" : L.length === 1 ? "Descargar la de " + cbMesLargo(mes) + " (ZIP)" : `Descargar las ${L.length} de ${cbMesLargo(mes)} (ZIP)`)),
         cbH("div", { className: "barra-filtros" }, cbH("input", { type: "search", placeholder: "Buscar en todos los meses: apartamento, propietario o número…", value: q, onChange: e => setQ(e.target.value) })),
         cbH("p", { className: "tenue" }, q.trim() ? `${L.length} cuentas de cobro encontradas en todos los meses.` : `${L.length} ${L.length === 1 ? "cuenta" : "cuentas"} de cobro de ${cbMesLargo(mes)} · total ${cbPesos(L.reduce((s, it) => s + (it.total || 0), 0))}`),
