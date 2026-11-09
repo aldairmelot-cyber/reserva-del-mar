@@ -6389,8 +6389,10 @@ function FvPantalla({ ses, notificar, soloLectura }) {
     catch (e) { notificar("error", "No se pudieron leer los archivos: " + (e?.message ?? e)); }
     setAvance(""); setOc(null);
   };
-  let guardar = async () => {
-    let ok = prev.filter(x => !x.problemas.length);
+  let existe = x => (indice ?? []).some(I => I.mes === x.mes && (I.items || []).some(it => it.n === x.n));
+  let guardar = async modo => {
+    let ok = prev.filter(x => !x.problemas.length && (modo !== "nuevas" || !existe(x)));
+    if (!ok.length) { notificar("ok", "Todas las cuentas de cobro ya estaban guardadas; no se agregó ninguna."); setPrev(null); return; }
     setOc("guardar");
     try {
       let porMes = new Map();
@@ -6409,7 +6411,8 @@ function FvPantalla({ ses, notificar, soloLectura }) {
         items.sort((a, b) => String(a.apto).localeCompare(String(b.apto), "es", { numeric: !0 }));
         await ses.store.set("fv_idx/" + m, { mes: m, items, actualizado: new Date().toISOString() });
       }
-      notificar("ok", `${ok.length} cuentas de cobro guardadas.`);
+      let omit = prev.filter(x => !x.problemas.length).length - ok.length;
+      notificar("ok", `${ok.length} cuentas de cobro guardadas${modo === "nuevas" && omit ? ` (se dejaron sin cambios ${omit} que ya estaban)` : modo === "todas" ? " (las que ya estaban se reemplazaron)" : ""}.`);
       setPrev(null); if (porMes.size) setMes([...porMes.keys()].sort().pop());
       await recargar();
     } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); }
@@ -6439,16 +6442,20 @@ function FvPantalla({ ses, notificar, soloLectura }) {
       cbH("input", { ref, type: "file", hidden: !0, multiple: !0, accept: ".pdf,.zip,application/pdf,application/zip", onChange: e => { let f = e.target.files; leer(f); e.target.value = ""; } })),
     prev && cbH("section", { className: "panel" },
       cbH("div", { className: "panel-tit" },
-        cbH("div", null, cbH("h2", null, `Se leyeron ${prev.length} cuentas de cobro`), cbH("p", { className: "sub" }, `${prev.filter(x => !x.problemas.length).length} listas para guardar${prev.some(x => x.problemas.length) ? ` · ${prev.filter(x => x.problemas.length).length} con problemas (no se guardan)` : ""}.`)),
+        (() => { let buenas = prev.filter(x => !x.problemas.length), ya = buenas.filter(existe).length, nuevas = buenas.length - ya; return cbH(Ve.Fragment, null,
+        cbH("div", null, cbH("h2", null, `Se leyeron ${prev.length} cuentas de cobro`), cbH("p", { className: "sub" }, cbH("b", null, `${nuevas} nuevas`), ` · ${ya} ya estaban guardadas (mismo número y mes)${prev.some(x => x.problemas.length) ? ` · ${prev.filter(x => x.problemas.length).length} con problemas (no se guardan)` : ""}.`), ya > 0 && cbH("p", { className: "sub" }, "¿Qué hago con las que ya estaban? Elija una opción para todas a la vez.")),
         cbH("div", { className: "acciones" },
-          cbH("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !prev.some(x => !x.problemas.length), onClick: guardar }, oc === "guardar" ? avance || "Guardando…" : "Guardar"),
-          cbH("button", { type: "button", className: "btn", disabled: !!oc, onClick: () => setPrev(null) }, "Cancelar"))),
+          ya > 0 ? cbH(Ve.Fragment, null,
+            cbH("button", { type: "button", className: "btn btn-primario", disabled: !!oc, onClick: () => guardar("nuevas") }, oc === "guardar" ? avance || "Guardando…" : nuevas ? `Guardar solo las ${nuevas} nuevas` : "No hay nuevas: no guardar nada"),
+            cbH("button", { type: "button", className: "btn", disabled: !!oc, onClick: () => guardar("todas") }, `Reemplazar todas (${buenas.length})`))
+          : cbH("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !buenas.length, onClick: () => guardar("nuevas") }, oc === "guardar" ? avance || "Guardando…" : `Guardar ${buenas.length}`),
+          cbH("button", { type: "button", className: "btn", disabled: !!oc, onClick: () => setPrev(null) }, "Cancelar"))); })()),
       cbH("div", { className: "tabla-scroll alta" }, cbH("table", { className: "t-datos" },
         cbH("thead", null, cbH("tr", null, ...["No.", "Unidad", "Propietario", "Mes", "Total", "Con descuento", "Archivo", ""].map((t, i) => cbH("th", { key: i, className: i === 4 || i === 5 ? "a-right" : "" }, t)))),
         cbH("tbody", null, ...prev.map((x, i) => cbH("tr", { key: i, className: x.problemas.length ? "fila-err" : "" },
           cbH("td", null, x.n), cbH("td", null, x.unidad || x.apto), cbH("td", null, x.prop), cbH("td", null, cbMesTxt(x.mes)),
           cbH("td", { className: "a-right num" }, x.total ? pe(x.total) : ""), cbH("td", { className: "a-right num" }, x.totalDesc ? pe(x.totalDesc) : ""),
-          cbH("td", { className: "tenue" }, x.archivo), cbH("td", { className: "err" }, x.problemas.join(" · ")))))))),
+          cbH("td", { className: "tenue" }, x.archivo), cbH("td", { className: x.problemas.length ? "err" : "tenue" }, x.problemas.length ? x.problemas.join(" · ") : existe(x) ? "Ya estaba" : "Nueva"))))))),
     !indice.length ? cbH("p", { className: "vacio" }, soloLectura ? "Todavía no hay cuentas de cobro cargadas." : "Todavía no hay cuentas de cobro cargadas. Súbalas arriba.") :
       cbH(Ve.Fragment, null,
         cbH("div", { className: "fila-sel" },
