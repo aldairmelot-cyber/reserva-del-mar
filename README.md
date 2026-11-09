@@ -20,6 +20,14 @@ En **Datos → Reglamento de PH** (y en **Reglamento** para los perfiles de cons
 
 En **Comunicaciones → Comunicaciones emitidas** queda el consecutivo de las notas aclaratorias, conceptos y respuestas a solicitudes que emite Contabilidad (Consultoría Especializada S.A.S.), con la numeración `RDM-CONT-AAAA-NNN`. Cada comunicación se puede leer completa en la app (**Ver informe**) e imprimir o guardar en PDF con el membrete de Consultoría. El editor registra las nuevas con **Nueva comunicación** (el número se asigna solo) y puede adjuntar su PDF; todos los perfiles las ven. Las que se registran desde la app se guardan en la base (colecciones `comunicados` y `comunicados_pdf`), no en este repositorio.
 
+## Cartera de propietarios y cuentas de cobro
+
+En **Cartera → Cartera de propietarios** se ve lo que debe cada unidad al corte de la cartera cargada. Cada cuenta de cobro vence el último día de su mes: las del mes de corte están **por vencer** y las anteriores se clasifican por meses vencidos (1 mes = 1 a 30 días, 2 = 31 a 60, 3 = 61 a 90, 4 o más = más de 90). Con más de 2 meses vencidos la unidad pasa a **cobro jurídico** (reglamento, art. 42.2). Cada unidad tiene su estado de cuenta en PDF con un clic; para cobro jurídico el PDF anexa las cuentas de cobro pendientes que estén cargadas, y se pueden bajar todas juntas en un ZIP con el listado.
+
+En **Cartera → Cuentas de cobro** el editor carga los PDF de las cuentas de cobro (sueltos, un PDF con varias, una por página, o un ZIP). La app lee el número, la unidad (`APTO 41433` = T4 1433), el mes y los valores, y las guarda en la base (colecciones `fv_idx` y `fv_pdf`). Si se carga otra vez una cuenta con el mismo número, se reemplaza.
+
+El perfil **Cartera** (en **Datos → Usuarios y perfiles**) solo ve el módulo de Cartera: cartera de propietarios, cartera por edades y cuentas de cobro para descargar. No carga ni modifica nada.
+
 ## Recaudo de expensas (recibos de caja)
 
 En **Conciliación bancaria → Recaudo de expensas** se carga el movimiento del banco de expensas (PDF de Bancolombia, cuenta 51748523433). La app identifica qué apartamento hizo cada abono y arma la relación en Excel para hacer los recibos de caja en World Office. Para identificar usa, en este orden:
@@ -53,12 +61,13 @@ Todo el equipo ve y edita los mismos datos, con inicio de sesión de Google y un
   - **Consejo de Administración**: estados financieros, presupuesto, aclaraciones e informe al Consejo. Sin cartera, impuestos ni descarga de los archivos cargados.
   - **Administración**: lo del Consejo más cartera e impuestos (retención, IVA, ICA, prorrateo).
   - **Revisoría Fiscal**: lo de la Administración más revisión del balance, auditoría del fondo de imprevistos, libro auxiliar, verificación DIAN, banco de manillas y banco de expensas.
+  - **Cartera**: solo el módulo de Cartera (cartera de propietarios, cobro jurídico, estados de cuenta y cuentas de cobro). Sin estados financieros ni impuestos.
 
 Cada persona de consulta puede tener además un papel de **firma** (representante legal, contador o revisor fiscal), que se asigna en **Usuarios y perfiles**. Cuando el mes está definitivo, cada uno firma su parte en **Estados financieros → Firmas** y la firma sale en el PDF y el Word de los estados financieros. El editor no firma (salvo que se ponga `editorFirma: "contador"` en `config.js`), pero puede retirar cualquier firma. Si el mes se reabre como borrador, las firmas se retiran.
 
 Las reglas de `firestore.rules` hacen cumplir esos permisos en el servidor: un perfil de consulta no puede leer lo que no le corresponde ni escribir nada. Al cambiar las reglas, péguelas en **Firebase → Firestore Database → Reglas** y pulse **Publicar**. Para agregar otro editor, añada su correo en `config.js` y en `firestore.rules`.
 
-Para probar los perfiles en modo local, abra la app con `?perfil=consejo`, `?perfil=admin` o `?perfil=revisor` al final de la dirección.
+Para probar los perfiles en modo local, abra la app con `?perfil=consejo`, `?perfil=admin`, `?perfil=revisor` o `?perfil=cartera` al final de la dirección.
 
 En Firestore cada documento se guarda como texto JSON en un campo `j`, porque la app usa listas dentro de listas, que Firestore no admite directamente. Los archivos originales que se suben (para descargarlos después en **Archivos cargados**) se guardan en la misma base, en las colecciones `_archivos` y `_archivos_partes`; no hace falta activar Firebase Storage.
 

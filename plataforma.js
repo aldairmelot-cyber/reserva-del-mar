@@ -29,13 +29,13 @@
     "prorrateo_cfg", "prorrateo_mes", "cartera", "cartera_c", "cartera_p",
     "cman_raw", "cman_idx", "cman_seg", "cman_cfg", "cbl_raw", "cbl_idx", "cbl_seg",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
-    "verif_idx", "verif_raw", "fondo_cfg", "rph", "rph_pdf", "comunicados", "comunicados_pdf", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
+    "verif_idx", "verif_raw", "fondo_cfg", "rph", "rph_pdf", "comunicados", "comunicados_pdf", "fv_idx", "fv_pdf", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
   ];
 
   /* ------------------------------------------------------------------ perfiles */
   /* editor: el contador (correos en config.js → editores); los demás perfiles son de consulta
      y se asignan en la app (Datos → Usuarios y perfiles), guardados en _roles/<correo>. */
-  const PERFILES = { editor: "Contador · editor", consejo: "Consejo de Administración", revisor: "Revisoría Fiscal", admin: "Administración" };
+  const PERFILES = { editor: "Contador · editor", consejo: "Consejo de Administración", revisor: "Revisoría Fiscal", admin: "Administración", cartera: "Cartera" };
   let perfil = { rol: "editor", nombre: "", email: "" };
   function fijarPerfil(p) { perfil = p; window.EFPH_PERFIL = Object.freeze({ ...p, etiqueta: PERFILES[p.rol] || p.rol }); }
   const esEditor = () => perfil.rol === "editor";
@@ -45,7 +45,7 @@
   if (MODO === "local") {
     let r = null; try { r = new URLSearchParams(location.search).get("perfil"); } catch (e) {}
     let fq = null; try { fq = new URLSearchParams(location.search).get("firma"); } catch (e) {}
-    fijarPerfil({ rol: PERFILES[r] ? r : "editor", nombre: PERFILES[r] && r !== "editor" ? "Prueba " + PERFILES[r] : "Este equipo", email: PERFILES[r] && r !== "editor" ? "prueba-" + r + "@local" : "", firma: fq || (r === "admin" ? "representante" : r === "revisor" ? "revisor" : "") });
+    fijarPerfil({ rol: PERFILES[r] ? r : "editor", nombre: PERFILES[r] && r !== "editor" ? "Prueba " + PERFILES[r] : "Este equipo", email: PERFILES[r] && r !== "editor" ? "prueba-" + r + "@local" : "", firma: r === "cartera" ? "" : fq || (r === "admin" ? "representante" : r === "revisor" ? "revisor" : "") });
   }
 
   /* ------------------------------------------------------------------ descargas */
@@ -252,7 +252,7 @@
           const s = await fs.doc("_roles/" + email).get();
           const d = s.exists ? s.data() : null;
           if (d && PERFILES[d.rol] && d.rol !== "editor") {
-            fijarPerfil({ rol: d.rol, nombre: d.nombre || usuario.displayName || email, email, firma: d.rol !== "consejo" && ["representante", "contador", "revisor"].includes(d.firma) ? d.firma : "" });
+            fijarPerfil({ rol: d.rol, nombre: d.nombre || usuario.displayName || email, email, firma: d.rol !== "consejo" && d.rol !== "cartera" && ["representante", "contador", "revisor"].includes(d.firma) ? d.firma : "" });
             break;
           }
           await noAutorizado(usuario, auth); usuario = await esperarSesion(auth);
