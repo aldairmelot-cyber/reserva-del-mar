@@ -2586,10 +2586,31 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
       else bal = await ses.store.get(`balances/acumulado_${fiIso(anio, 1, 1)}_${fiIso(anio, m, fiFin(anio, m))}`);
       if (!bal) throw new Error(`No hay balance acumulado de ${anio}${mes ? " a " + fiMeses[mes - 1].toLowerCase() : ""}. C\xE1rguelo en Datos → Cargar balances.`);
       let desde = fiIso(anio, 1, 1), hasta = fiIso(anio, m, fiFin(anio, m));
-      let metas = (await ses.store.list("verif_idx")).map(x => x.data).filter(x => x && x.desde <= desde && x.hasta >= hasta).sort((a, b) => b.hasta.localeCompare(a.hasta));
-      if (!metas.length) throw new Error(`Falta el libro auxiliar de ${anio} que cubra de enero a ${fiMeses[m - 1].toLowerCase()}. C\xE1rguelo en Verificaci\xF3n contable → Cargar libros auxiliares.`);
-      let L = await vxCargar(ses.store, metas[0]), C = typeof L.meta.cuentas === "string" ? JSON.parse(L.meta.cuentas) : L.meta.cuentas;
-      let aux = L.movs.map(x => ({ cta: String(C[x[0]][0]), f: x[1], ter: L.strs[x[2]] || "", nota: L.strs[x[3]] || "", doc: L.strs[x[4]] || "", d: +x[5] || 0, c: +x[6] || 0 }));
+      let todos = (await ses.store.list("verif_idx")).map(x => x.data).filter(x => x && x.desde && x.hasta && x.desde <= hasta && x.hasta >= desde);
+      let sig = d => { let t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
+      let tramos = [], cur = desde, falta = [];
+      while (cur <= hasta) {
+        let cand = todos.filter(x => x.desde <= cur && x.hasta >= cur).sort((p, q) => q.hasta.localeCompare(p.hasta) || (q.cargadoEn || "").localeCompare(p.cargadoEn || ""));
+        if (!cand.length) {
+          let prox = todos.filter(x => x.desde > cur).sort((p, q) => p.desde.localeCompare(q.desde))[0];
+          let fin = prox ? (d => { let t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() - 1); return t.toISOString().slice(0, 10); })(prox.desde) : hasta;
+          falta.push([cur, fin > hasta ? hasta : fin]);
+          if (!prox) break; cur = prox.desde; continue;
+        }
+        let x = cand[0], h = x.hasta > hasta ? hasta : x.hasta;
+        tramos.push({ meta: x, a: cur, b: h }); cur = sig(h);
+      }
+      if (falta.length) {
+        let nm = d => fiMeses[+d.slice(5, 7) - 1].toLowerCase();
+        let txt = falta.map(([p, q]) => nm(p) === nm(q) ? nm(p) : nm(p) + " a " + nm(q)).join(", ");
+        throw new Error(`Falta el libro auxiliar de ${anio} para ${txt}. Los libros cargados deben cubrir, juntos, de enero a ${fiMeses[m - 1].toLowerCase()}. C\xE1rguelo en Verificaci\xF3n contable → Cargar libros auxiliares.`);
+      }
+      let aux = [];
+      for (const [ti, t] of tramos.entries()) {
+        let L = await vxCargar(ses.store, t.meta), C = typeof L.meta.cuentas === "string" ? JSON.parse(L.meta.cuentas) : L.meta.cuentas;
+        let fa = +t.a.replace(/-/g, ""), fb = +t.b.replace(/-/g, "");
+        for (const x of L.movs) { if (x[1] ? (x[1] < fa || x[1] > fb) : ti > 0) continue; aux.push({ cta: String(C[x[0]][0]), f: x[1], ter: L.strs[x[2]] || "", nota: L.strs[x[3]] || "", doc: L.strs[x[4]] || "", d: +x[5] || 0, c: +x[6] || 0 }); }
+      }
       let ppto = {}; for (let k = 1; k <= m; k++) { let p = await ses.store.get(`presupuesto/${anio}-${String(k).padStart(2, "0")}`); if (p) ppto[k] = p; }
       vivo && setBase({ anio, mes: m, bal, aux, ppto });
     } catch (e) { vivo && setErr(e.message || String(e)); }
