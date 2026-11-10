@@ -6283,7 +6283,7 @@ function EfAcl({ L, anio, setAnio, anios, sel, setSel, descargar, gen }) {
    - "facturas": cuentas de cobro (facturas de venta) en PDF. El editor las carga (PDF sueltos, un PDF con varias
      o un ZIP); la app lee número, unidad, mes y valores. Todos los perfiles con cartera las consultan y descargan.
      Se guardan en fv_idx/<AAAA-MM> (índice del mes) y fv_pdf/<id>-<n> (el PDF en trozos). */
-var CB_VISTAS = ["cobranza", "pagos", "facturas"];
+var CB_VISTAS = ["cobranza", "pagos", "facturas", "bd_prop"];
 var cbH = Ve.createElement;
 var CB_MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var CB_EDADES = ["Por vencer", "1 a 30 días", "31 a 60 días", "61 a 90 días", "Más de 90 días"];
