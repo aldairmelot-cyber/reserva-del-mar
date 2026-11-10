@@ -2774,8 +2774,8 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
         aH("button", { type: "button", className: "btn btn-sm", onClick: registrar }, "Registrar traslado")),
       (cfg.traslados ?? []).length > 0 && aH("div", { className: "tabla-scroll espacio" }, aH("table", { className: "t-datos" },
         aH("thead", null, aH("tr", null, ["Fecha", "Comprobante", "Valor", "Estado", ""].map((t, i) => th(t, i, i === 2)))),
-        aH("tbody", null, (cfg.traslados ?? []).map(t => { let ya = !r.M.flatMap(x => x.tras).concat(r.posteriores).some(y => y.id === t.id);
-          return aH("tr", { key: t.id }, aH("td", null, fiFecha(fiNumF(t.fecha))), aH("td", null, t.doc || ""), num(+t.valor || 0), aH("td", null, ya ? aH("span", { className: "chip chip-ok" }, "Ya est\xE1 en la contabilidad") : aH("span", { className: "chip chip-warn" }, "A\xFAn no est\xE1 en el auxiliar")),
+        aH("tbody", null, (cfg.traslados ?? []).map(t => { let it = r.M.flatMap(x => x.tras).concat(r.posteriores).find(y => y.id === t.id), ya = !it || it.origen === "Contabilidad";
+          return aH("tr", { key: t.id }, aH("td", null, fiFecha(fiNumF(t.fecha))), aH("td", null, t.doc || ""), num(+t.valor || 0), aH("td", null, ya ? aH("span", { className: "chip chip-ok" }, it ? "En el auxiliar \xB7 contado como traslado" : "Ya est\xE1 en la contabilidad") : aH("span", { className: "chip chip-warn" }, "A\xFAn no est\xE1 en el auxiliar")),
             aH("td", null, !soloLectura && aH("button", { type: "button", className: "btn btn-sm btn-quitar", title: "Quitar", onClick: () => quitar(t.id) }, "\xD7"))); }))))),
     r && aH("section", { className: "panel" }, aH("h2", null, "C\xF3mo debe estar el fondo"),
       aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
