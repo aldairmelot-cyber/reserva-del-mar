@@ -1058,10 +1058,12 @@ function ppPyg(M, base) {
     { t: "TOTAL A FACTURAR A LAS UNIDADES (CUOTAS + FONDO)", v: col(cu + fo, o => o.cuotas + o.fondo), s: 1 }];
   return F;
 }
+var ppOrdK = (a, b) => { let f = k => { let m = k.match(/^(\d+)([A-Z]?) T(\d)$/); return m ? [+m[3], +m[1], m[2]] : [9, 0, k]; }, x = f(a), y = f(b); return x[0] - y[0] || x[1] - y[1] || String(x[2]).localeCompare(String(y[2])); };
+var ppCorto = k => k.replace(/^(\d+[A-Z]?) T(\d)$/, "$1-T$2");
 function ppCuotasTipo(M, uni) {
   let g = {};
-  for (const [k, c, a] of uni) { let t = /^PQ/.test(k) ? "Parqueadero" : /^LC/.test(k) ? "Local" : /^DEP/.test(k) ? "Depósito" : "Apartamento"; let key = t + "|" + c; (g[key] ??= { t, c, n: 0, a26: a }).n++; }
-  return Object.values(g).sort((x, y) => x.t.localeCompare(y.t) || x.c - y.c).map(x => ({ ...x, o: M.ops.map(o => ppR(o.mes * x.c / 100, 1)) }));
+  for (const [k, c, a] of uni) { let t = /^PQ/.test(k) ? "Parqueadero" : /^LC/.test(k) ? "Local" : /^DEP/.test(k) ? "Depósito" : "Apartamento"; let key = t + "|" + c; let o = (g[key] ??= { t, c, n: 0, a26: a, ks: [] }); o.n++; o.ks.push(k); }
+  return Object.values(g).sort((x, y) => x.t.localeCompare(y.t) || x.c - y.c).map(x => ({ ...x, ks: x.ks.sort(ppOrdK), o: M.ops.map(o => ppR(o.mes * x.c / 100, 1)) }));
 }
 var PP_CRIT = { ipc: "IPC", sml: "Salario mínimo", sin: "Sin incremento", otro: "Otro %" };
 var PP_BASES = { p26: "Presupuesto 2026", e26: "Proyección 2026", r25: "Real 2025", val: "Valor fijo" };
@@ -1114,7 +1116,7 @@ function ppDoc(M, base, config) {
       { tipo: "parrafo", estilo: "normal", texto: `Con el mismo gasto, cada punto que sube la manilla reduce la cuota de administración. Diferencia entre las opciones: la Opción 2 recauda ${ppP(M.ops[1].man27 - M.ops[0].man27)} más por manillas en el año y la cuota sube ${ppPct(M.ops[0].inc - M.ops[1].inc)} menos.` }] },
     { id: "pp_cuo", nombre: "Cuotas por unidad", titulo: "CUOTA MENSUAL POR TIPO DE UNIDAD", subtitulos: s("Según el coeficiente de copropiedad"), orientacion: "portrait", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: "La cuota de cada unidad es el recaudo mensual multiplicado por su coeficiente de copropiedad. La tabla agrupa las unidades con el mismo coeficiente." },
-      { tipo: "tabla", cabecera: !0, columnas: [col("TIPO", 20, "left"), col("COEFICIENTE %", 14), col("UNIDADES", 11), col("CUOTA 2026", 17), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, 19))], filas: tipos.map(x => ({ estilo: "detalle", celdas: [or(x.t), or(String(x.c).replace(".", ",")), or(String(x.n)), er(x.a26), ...x.o.map(v => er(v))] })) }] },
+      { tipo: "tabla", cabecera: !0, columnas: [col("COEF. %", 9), col("UNIDADES", 43, "left"), col("CUOTA 2026", 16), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, 16))], filas: tipos.map(x => ({ estilo: "detalle", celdas: [or(String(x.c).replace(".", ",")), or(`${x.n} · ${x.ks.map(ppCorto).join(", ")}`), er(x.a26), ...x.o.map(v => er(v))] })) }] },
     { id: "pp_gas", nombre: "Gastos 2027", titulo: "PRESUPUESTO DE GASTOS 2027", subtitulos: s("Por rubro, con su base y criterio de incremento"), orientacion: "landscape", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: `Cada rubro parte del presupuesto 2026 (o de su ejecución proyectada cuando no tenía presupuesto) y se incrementa con el IPC (${ppPct(M.ipc, 2)}) o, si su costo depende de personal (vigilancia, aseo, recepción, administración), con el incremento del salario mínimo (${ppPct(M.sml, 2)}). La proyección 2026 lleva lo ejecutado de enero a ${Be[(base.ultMes || 10) - 1].toLowerCase()} a doce meses.` },
       { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 34, "left"), col("REAL 2025", 11), col("PPTO 2026", 11), col("PROYECCIÓN 2026", 12), col("CRITERIO", 11, "left"), col("% INCR.", 8), col("PPTO 2027", 13)], filas: filasG }] },
@@ -1124,7 +1126,7 @@ function ppDoc(M, base, config) {
   return { continuo: !0, entidad: C.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: C.nit ? "NIT. " + C.nit : "", logo: C.logo || void 0, firmantes: C.firmantes, secciones: secc, leyendas: [] };
 }
 function PpPantalla({ ses, config, notificar, soloLectura }) {
-  let [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null), [tab, setTab] = Ve.useState("res"), [prog, setProg] = Ve.useState(""), refV = Ve.useRef(null), tGuard = Ve.useRef(null);
+  let [vistaU, setVistaU] = Ve.useState("uni"), [qU, setQU] = Ve.useState(""), [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null), [tab, setTab] = Ve.useState("res"), [prog, setProg] = Ve.useState(""), refV = Ve.useRef(null), tGuard = Ve.useRef(null);
   Ve.useEffect(() => { Promise.all([ses.store.get(PP_BASE).catch(() => null), ses.store.get(PP_DOC).catch(() => null)]).then(([b, c]) => { setBase(b ? JSON.parse(b.j) : !1); setCfg(c ? { ...PP_DEF, ...JSON.parse(c.j) } : { ...PP_DEF }); }); }, [ses]);
   let guardar = n => { setCfg(n); if (soloLectura) return; clearTimeout(tGuard.current); tGuard.current = setTimeout(() => ses.store.set(PP_DOC, { j: JSON.stringify(n) }).catch(e => notificar("error", "No se pudo guardar: " + (e?.message ?? e))), 600); };
   let setF = (cod, k, v) => { let f = { ...(cfg.filas[cod] ?? {}), [k]: v }; guardar({ ...cfg, filas: { ...cfg.filas, [cod]: f } }); };
@@ -1194,12 +1196,19 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
     h("div", { className: "aviso aviso-info" }, h("b", null, "Manillas: "), `presupuesto 2026 ${ppP(M.man.p26)} · ejecutado a ${Be[(base.ultMes || 10) - 1].toLowerCase()} ${ppP(M.man.e26)} · proyección del año ${ppP(M.man.proy)}. Noviembre y diciembre se estiman con lo de 2025 ajustado por la tendencia de agosto a octubre (${ppPct(M.man.fac - 1)}). El ingreso 2027 de cada opción parte de la proyección.`),
     h("p", { className: "sub" }, "Otros ingresos (concesiones, intereses, sanciones, reintegros). Las cuotas de administración, el fondo, las manillas y el descuento por pronto pago se calculan en cada opción."),
     h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, thG, h("tbody", null, M.otros.map(x => h("tr", { key: x.c }, ...celdaFila(x))), h("tr", { className: "fila-total" }, h("td", null, h("b", null, "TOTAL OTROS INGRESOS")), h("td"), h("td", { className: "a-right num" }, pe(M.otros.reduce((a, x) => a + x.p26, 0))), h("td", { className: "a-right num" }, pe(M.otros.reduce((a, x) => a + (x.e26p || 0), 0))), h("td"), h("td"), h("td", { className: "a-right num" }, h("b", null, pe(M.O))), h("td"))))));
-  let tipos = ppCuotasTipo(M, base.uni ?? []);
-  let vCuo = h("section", { className: "panel" }, h("h2", null, "Cuota mensual por tipo de unidad"),
-    !(base.uni ?? []).length ? h("p", { className: "aviso aviso-atencion" }, "No hay coeficientes: cargue la base de propietarios en Cartera → Actualizar propietarios y actualice los datos base.") :
-      h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, h("thead", null, h("tr", null, ["Tipo", "Coeficiente %", "Unidades", "Cuota 2026", ...M.ops.map((o, i) => `Opción ${i + 1}`)].map((t, i) => h("th", { key: i, className: i ? "a-right" : "" }, t)))),
-        h("tbody", null, tipos.map((x, k) => h("tr", { key: k }, h("td", null, x.t), h("td", { className: "a-right num" }, String(x.c).replace(".", ",")), h("td", { className: "a-right num" }, x.n), h("td", { className: "a-right num" }, pe(x.a26)), ...x.o.map((v, j) => h("td", { key: j, className: "a-right num" }, pe(v), h("div", { className: "tenue" }, x.a26 ? "+" + pe(v - x.a26) : "")))))))),
-    h("p", { className: "tenue" }, "El Excel trae la cuota de cada unidad."));
+  let tipos = ppCuotasTipo(M, base.uni ?? []), nq = bdN(qU);
+  let uniL = (base.uni ?? []).slice().sort((x, y) => ppOrdK(x[0], y[0])).filter(u => !nq || bdN(bdEtq(u[0]) + " " + u[0] + " " + String(u[1])).includes(nq));
+  let vCuo = h("section", { className: "panel" }, h("h2", null, "Cuota mensual por unidad"),
+    !(base.uni ?? []).length ? h("p", { className: "aviso aviso-atencion" }, "No hay coeficientes: cargue la base de propietarios en Cartera → Actualizar propietarios y actualice los datos base.") : h(Ve.Fragment, null,
+      h("div", { className: "barra-filtros" },
+        h("div", { className: "seg", role: "group" }, [["uni", "Por unidad"], ["coef", "Agrupado por coeficiente"]].map(([v, t]) => h("button", { key: v, type: "button", "aria-pressed": vistaU === v, onClick: () => setVistaU(v) }, t))),
+        vistaU === "uni" && h("input", { type: "search", placeholder: "Buscar apto, torre, local, parqueadero…", value: qU, onChange: e => setQU(e.target.value) })),
+      vistaU === "uni" ? h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
+        h("thead", null, h("tr", null, ["Unidad", "Coeficiente %", "Cuota 2026", ...M.ops.map((o, i) => `Opción ${i + 1}`)].map((t, i) => h("th", { key: i, className: i ? "a-right" : "" }, t)))),
+        h("tbody", null, uniL.map(([k, c, a]) => h("tr", { key: k }, h("td", null, h("b", null, bdEtq(k))), h("td", { className: "a-right num" }, String(c).replace(".", ",")), h("td", { className: "a-right num" }, pe(a)), ...M.ops.map((o, j) => { let v = ppR(o.mes * c / 100, 1); return h("td", { key: j, className: "a-right num" }, pe(v), h("div", { className: "tenue" }, "+" + pe(v - a))); })))))) :
+      h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, h("thead", null, h("tr", null, ["Coeficiente %", "Unidades", "Cuota 2026", ...M.ops.map((o, i) => `Opción ${i + 1}`)].map((t, i) => h("th", { key: i, className: i === 1 ? "" : "a-right" }, t)))),
+        h("tbody", null, tipos.map((x, k) => h("tr", { key: k }, h("td", { className: "a-right num" }, String(x.c).replace(".", ",")), h("td", null, h("b", null, `${x.n} ${x.t.toLowerCase()}${x.n > 1 ? "s" : ""}: `), x.ks.map(ppCorto).join(", ")), h("td", { className: "a-right num" }, pe(x.a26)), ...x.o.map((v, j) => h("td", { key: j, className: "a-right num" }, pe(v), h("div", { className: "tenue" }, x.a26 ? "+" + pe(v - x.a26) : ""))))))))),
+    h("p", { className: "tenue" }, "La cuota de cada unidad es el recaudo mensual (cuotas + fondo) por su coeficiente. El Excel trae la lista completa."));
   return h("div", { className: "pantalla" }, enc, barra, tabs, tab === "res" ? vRes : tab === "sup" ? vSup : tab === "gas" ? vGas : tab === "ing" ? vIng : vCuo);
 }
 
