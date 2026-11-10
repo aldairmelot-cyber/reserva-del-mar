@@ -1008,10 +1008,11 @@ function ppCalc(base, cfgIn) {
   let facMan = ao25 > 0 ? ao26 / ao25 : 1, faltan = 12 - nM, manProy = man.e26 + (faltan > 0 ? (faltan >= 2 ? nd25 * facMan : (m25[12] || 0) * facMan) : 0);
   let pctDe = (crit, p) => crit === "ipc" ? ipc : crit === "sml" ? sml : crit === "sin" ? 0 : (+p || 0) / 100;
   let fila = x => {
-    let f = cfg.filas?.[x.c] ?? {}, e26p = proy(x), b = f.b ?? (x.p26 > 0 ? "p26" : e26p > 0 ? "e26" : "r25");
+    let f = cfg.filas?.[x.c] ?? {}, e26p = proy(x), b = f.b ?? (x.p26 > 0 ? "p26" : "val");
     let bv = b === "p26" ? x.p26 : b === "e26" ? e26p : b === "r25" ? x.r25 : Math.round(+f.v || 0);
+    let nota = f.nota ?? (x.p26 > 0 ? "" : "No estaba en el presupuesto 2026: se deja en cero; cámbielo si debe presupuestarse.");
     let crit = f.c ?? ppCriterioDef(x), pct = b === "val" ? 0 : pctDe(crit, f.p);
-    return { ...x, e26p, b, bv, crit, pct, p: f.p, v: f.v, v27: ppR(bv * (1 + pct)), nota: f.nota ?? "" };
+    return { ...x, e26p, b, bv, crit, pct, p: f.p, v: f.v, v27: ppR(bv * (1 + pct)), nota };
   };
   let gastos = base.items.filter(x => /^5/.test(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
   let otros = base.items.filter(x => /^4/.test(x.c) && ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
