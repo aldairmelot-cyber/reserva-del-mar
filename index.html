@@ -4496,8 +4496,12 @@ function cmDoc(c, entidad) {
     else if (tag === "h3") b.push({ tipo: "parrafo", estilo: "h3", texto: txt });
     else if (tag === "ol" || tag === "ul") [...el.children].forEach((li, k) => b.push(tag === "ol" ? { tipo: "parrafo", estilo: "enumerado", numero: k + 1, texto: limpio(li) } : { tipo: "parrafo", estilo: "vineta", texto: limpio(li) }));
     else if (tag === "table") {
-      let th = [...el.querySelectorAll("thead th")].map(x => limpio(x)), n = th.length, anchos = n === 2 ? [30, 70] : n === 3 ? [24, 40, 36] : n === 4 ? [17, 19, 36, 28] : th.map(() => 100 / n);
-      b.push({ tipo: "tabla", cabecera: !0, columnas: th.map((t, k) => ({ titulo: t.toUpperCase(), ancho: anchos[k], alin: "left" })),
+      let th = [...el.querySelectorAll("thead th")].map(x => limpio(x)), n = th.length;
+      let cel = [...el.querySelectorAll("tbody tr")].map(tr => [...tr.children].map(td => limpio(td)));
+      let esDin = t => /^\(?-?\$\s?[\d.,]+\)?$/.test(t), num = th.map((_, k) => { let v = cel.map(r => r[k] ?? "").filter(Boolean); return v.length > 0 && v.filter(esDin).length >= v.length * .8; });
+      let peso = th.map((t, k) => num[k] ? 13 : Math.min(60, Math.max(t.length + 2, ...cel.map(r => (r[k] ?? "").length).sort((x, y) => y - x).slice(0, 3).map(v => Math.min(v, 90) * .55), 8)));
+      let tot = peso.reduce((x, y) => x + y, 0), anchos = peso.map(p => p / tot * 100);
+      b.push({ tipo: "tabla", cabecera: !0, columnas: th.map((t, k) => ({ titulo: t.toUpperCase(), ancho: anchos[k], alin: num[k] ? "right" : "left" })),
         filas: [...el.querySelectorAll("tbody tr")].map(tr => ({ estilo: "detalle", celdas: [...tr.children].map(td => or(limpio(td), td.querySelector("strong,b") ? { bold: !0 } : {})) })) });
     }
     else if (tag === "p") {
