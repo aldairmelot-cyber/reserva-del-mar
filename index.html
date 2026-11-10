@@ -1072,7 +1072,7 @@ var PP_BASES = { p26: "Presupuesto 2026", e26: "Proyección 2026", r25: "Real 20
    durante la exposición (panel "Ajustar") sin tocar lo guardado; "Guardar este escenario" los deja como
    el proyecto vigente. Teclas: → / espacio siguiente, ← anterior, N guion del expositor, A ajustar, Esc salir. */
 var PPX_C = { cuo: "#2f6aa8", man: "#b8732c", otr: "#7a5aa6", ant: "#c9c4bb", sube: "#b8732c", baja: "#2f6aa8", tot: "#3e424f" };
-var ppxM = v => { let a = Math.abs(v || 0) / 1e6, t = a >= 100 ? Math.round(a).toLocaleString("es-CO") : a.toLocaleString("es-CO", { maximumFractionDigits: 1 }); return (v < 0 ? "−" : "") + "$ " + t + " M"; };
+var ppxM = v => { if (Math.abs(v || 0) < 1e6) return ppP(v); let a = Math.abs(v || 0) / 1e6, t = a >= 100 ? Math.round(a).toLocaleString("es-CO") : a.toLocaleString("es-CO", { maximumFractionDigits: 1 }); return (v < 0 ? "−" : "") + "$ " + t + " M"; };
 var ppxPct = (v, d = 1) => v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v * 100).toFixed(d).replace(".", ",") + " %";
 var ppxCap = s => { s = String(s || "").toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); };
 var PPX_CSS = `
@@ -1171,14 +1171,14 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
       card("Incremento de la cuota", h("span", null, h(PpxN, { v: M.ops[0].inc, f: v => ppxPct(v) }), h("span", { style: { fontSize: 22, color: "var(--suave)" } }, " a "), h(PpxN, { v: M.ops[1]?.inc ?? 0, f: v => ppxPct(v) })), "según la opción que se apruebe"))) });
 
   S.push({ t: "Cómo va 2026", nota: `Explique por qué no basta con subir todo por inflación: <b>las manillas no van a llegar a lo presupuestado</b> (${ppxM(M.man.proy)} frente a ${ppxM(M.man.p26)}). Si 2027 parte del presupuesto 2026, se repetiría el faltante; por eso se parte de la proyección real.`, el: (() => {
-    let filas = [["Gastos de funcionamiento", M.G26, M.G26p], ["Ingresos por manillas", M.man.p26, M.man.proy], ["Otros ingresos", ot26, M.otros.reduce((a, x) => a + (x.e26p || 0), 0)]];
+    let filas = [["Gastos de funcionamiento", M.G26, M.G26p, 1], ["Ingresos por manillas", M.man.p26, M.man.proy], ["Otros ingresos", ot26, M.otros.reduce((a, x) => a + (x.e26p || 0), 0)]];
     let mx = Math.max(...filas.flatMap(f => [f[1], f[2]]));
     return h(Ve.Fragment, null, ...encab("Punto de partida", "¿Cómo va 2026?", `Lo presupuestado para 2026 frente a lo que realmente se proyecta al cierre del año, con la ejecución de enero a ${ultMes}.`),
       h("div", { className: "ppx-card" }, h("div", { className: "ppx-leg" }, h("span", null, h("i", { style: { background: PPX_C.ant } }), "Presupuesto 2026"), h("span", null, h("i", { style: { background: PPX_C.cuo } }), "Proyección al cierre de 2026")),
-        filas.map(([t, p, e], k) => h("div", { key: k, className: "ppx-row", title: `${t}: presupuesto ${ppP(p)} · proyección ${ppP(e)}` },
+        filas.map(([t, p, e, gas], k) => h("div", { key: k, className: "ppx-row", title: `${t}: presupuesto ${ppP(p)} · proyección ${ppP(e)}` },
           h("div", { className: "ppx-lbl" }, h("b", null, t)),
           h("div", { className: "ppx-bars" }, h("div", { className: "ppx-bar", style: { width: `${p / mx * 100}%`, background: PPX_C.ant } }), h("div", { className: "ppx-bar", style: { width: `${e / mx * 100}%`, background: PPX_C.cuo } })),
-          h("div", { className: "ppx-val" }, h("div", null, ppxM(p)), h("div", null, h("b", null, ppxM(e)), " ", h("span", { className: e < p ? "ppx-up" : "ppx-dn", style: { fontSize: 13 } }, ppxPct(p ? e / p - 1 : 0))))))),
+          h("div", { className: "ppx-val" }, h("div", null, ppxM(p)), h("div", null, h("b", null, ppxM(e)), " ", h("span", { className: (gas ? e > p : e < p) ? "ppx-up" : "ppx-dn", style: { fontSize: 13 } }, ppxPct(p ? e / p - 1 : 0))))))),
       M.man.proy < M.man.p26 && h("div", { className: "ppx-card", style: { marginTop: 16, borderLeft: "5px solid var(--aviso)" } }, h("div", { className: "ppx-mid ppx-up" }, `Faltan ${ppxM(M.man.p26 - M.man.proy)} en manillas`), h("div", { className: "ppx-s" }, "La venta de manillas de 2026 va por debajo de lo presupuestado. El proyecto 2027 parte de lo que realmente se está vendiendo, para que el faltante no vuelva a recaer sobre la caja.")));
   })() });
 
@@ -1209,7 +1209,7 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
   S.push({ t: "Por qué sube la cuota", nota: "Este es el gráfico clave: explica, peso por peso, de dónde sale el incremento. Barras naranjas suben lo que hay que facturar; azules lo bajan. Cambie de opción arriba para comparar.", el: (() => {
     let pasos = [["Facturado 2026", fact26, "t"], ["Más gastos", M.G - M.G26, "d"], ["Manillas", -(O.man27 - ma26), "d"], ["Otros ingresos", -(M.O - ot26), "d"], ["Descuento pronto pago", -(O.desc - de26), "d"], ["Fondo de imprevistos", O.fondo - fo26, "d"], ["Ajuste 2026", -res26, "d"], ["A facturar 2027", O.cuotas + O.fondo, "t"]].filter(p => p[2] === "t" || Math.abs(p[1]) >= 1e6);
     let acc = 0, bars = pasos.map(([t, v, k]) => { let a, b; if (k === "t") { a = 0; b = v; acc = v; } else { a = acc; b = acc + v; acc = b; } return { t, v, k, lo: Math.min(a, b), hi: Math.max(a, b) }; });
-    let lo = Math.min(...bars.map(b => b.lo)) * .9, hi = Math.max(...bars.map(b => b.hi)) * 1.02, H = v => (v - lo) / (hi - lo) * 100;
+    let dl = bars.filter(b => b.k !== "t"), mn = Math.min(...dl.map(b => b.lo)), mxh = Math.max(...bars.map(b => b.hi)), span = Math.max(1, mxh - mn), lo = mn - span * .45, hi = mxh + span * .1, H = v => Math.max(0, (v - lo) / (hi - lo) * 100);
     return h(Ve.Fragment, null, ...encab("La explicación", "¿Por qué sube la cuota?", `Lo que se factura a las unidades en el año pasa de ${ppxM(fact26)} a ${ppxM(O.cuotas + O.fondo)} (${ppxPct((O.cuotas + O.fondo) / fact26 - 1)}). Así se explica la diferencia:`),
       h("div", { className: "ppx-opbtn", style: { maxWidth: 520 } }, M.ops.map((o, k) => h("button", { key: k, className: op === k ? "on" : "", onClick: () => setOp(k) }, o.nombre))),
       h("div", { className: "ppx-card" },
@@ -1217,7 +1217,7 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
           h("div", { style: { position: "absolute", bottom: `${H(b.hi)}%`, left: 0, right: 0 } }, h("div", { className: "v", style: { color: b.k === "t" ? "var(--tinta)" : b.v > 0 ? "var(--aviso)" : "var(--s2)" } }, b.k === "t" ? ppxM(b.v) : (b.v > 0 ? "+" : "") + ppxM(b.v))),
           h("div", { className: "b", style: { position: "absolute", left: "8%", right: "8%", bottom: `${H(b.lo)}%`, height: `${Math.max(.6, H(b.hi) - H(b.lo))}%`, background: b.k === "t" ? PPX_C.tot : b.v > 0 ? PPX_C.sube : PPX_C.baja } })))),
         h("div", { className: "ppx-wfl" }, bars.map((b, k) => h("div", { key: k }, b.t))),
-        h("p", { className: "ppx-s", style: { marginTop: 14 } }, "Naranja: aumenta lo que hay que facturar. Azul: lo disminuye. La escala no empieza en cero para que se vean las diferencias.")));
+        h("p", { className: "ppx-s", style: { marginTop: 14 } }, "Naranja: aumenta lo que hay que facturar. Azul: lo disminuye. Las barras de los totales están recortadas (la escala no empieza en cero) para que se vean bien las diferencias.")));
   })() });
 
   S.push({ t: "Dos opciones", nota: "Las dos opciones tienen exactamente los mismos gastos. Lo único que cambia es cuánto aporta el turismo (manillas) y cuánto los propietarios (cuotas).", el: (() => {
@@ -1258,7 +1258,7 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
       res.length > 0 && h("div", { className: "ppx-res" }, res.map(([k]) => h("button", { key: k, className: uSel === k ? "on" : "", onClick: () => setUSel(k) }, bdEtq(k)))),
       h("div", { className: "ppx-grid", style: { gridTemplateColumns: `1.1fr repeat(${M.ops.length},1fr)`, marginTop: 18 } },
         card(u ? bdEtq(u[0]) : `Ejemplo: coeficiente ${String(coefT).replace(".", ",")} %`, ppP(a26), `Cuota mensual 2026 · coeficiente ${String(c).replace(".", ",")} %`),
-        ...M.ops.map((o, k) => { let v = mesDe(o, c); return card(o.nombre, h(PpxN, { v }), h("span", null, h("b", { className: "ppx-up" }, `${v >= a26 ? "+" : "−"}${ppP(Math.abs(v - a26))} al mes`), ` (${ppxPct(a26 ? v / a26 - 1 : 0)}) · ${ppxM(v * 12)} al año`)); })),
+        ...M.ops.map((o, k) => { let v = mesDe(o, c); return card(o.nombre, h(PpxN, { v }), h("span", null, h("b", { className: "ppx-up" }, `${v >= a26 ? "+" : "−"}${ppP(Math.abs(v - a26))} al mes`), ` (${ppxPct(a26 ? v / a26 - 1 : 0)}) · ${ppP(v * 12)} al año`)); })),
       h("div", { className: "ppx-card", style: { marginTop: 16, padding: "10px 16px" } }, h("h3", { style: { margin: "6px 0" } }, "Los coeficientes más comunes"),
         h("table", { className: "ppx-tab" }, h("thead", null, h("tr", null, h("th", null, "Coeficiente"), h("th", null, "Apartamentos"), h("th", null, "Cuota 2026"), ...M.ops.map((o, k) => h("th", { key: k }, `Opción ${k + 1}`)))),
           h("tbody", null, tipos.map(t => h("tr", { key: t.c, style: { cursor: "pointer" }, onClick: () => { setUSel(t.ks[0]); setQ(""); } }, h("td", null, `${String(t.c).replace(".", ",")} %`), h("td", null, t.n), h("td", null, ppP(t.a26)), ...t.o.map((v, k) => h("td", { key: k }, h("b", null, ppP(v))))))))));
