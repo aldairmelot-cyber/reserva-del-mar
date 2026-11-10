@@ -1140,7 +1140,7 @@ var PPX_CSS = `
 /* número que se anima al cambiar */
 function PpxN({ v, f = ppP }) {
   let [x, setX] = Ve.useState(v), ref = Ve.useRef(v);
-  Ve.useEffect(() => { let a = ref.current, t0 = performance.now(), id; let paso = t => { let k = Math.min(1, (t - t0) / 650), e = 1 - Math.pow(1 - k, 3), y = a + (v - a) * e; setX(y); ref.current = y; if (k < 1) id = requestAnimationFrame(paso); }; id = requestAnimationFrame(paso); return () => cancelAnimationFrame(id); }, [v]);
+  Ve.useEffect(() => { let a = ref.current, t0 = performance.now(), id; let paso = t => { let k = Math.min(1, (t - t0) / 650), e = 1 - Math.pow(1 - k, 3), y = a + (v - a) * e; setX(y); ref.current = y; if (k < 1) id = requestAnimationFrame(paso); }; id = requestAnimationFrame(paso); let tm = setTimeout(() => { cancelAnimationFrame(id); setX(v); ref.current = v; }, 750); return () => { cancelAnimationFrame(id); clearTimeout(tm); }; }, [v]);
   return f(x);
 }
 function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar }) {
