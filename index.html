@@ -1028,15 +1028,34 @@ function ppCalc(base, cfgIn) {
     let pm = o.pct != null && o.pct !== "" ? +o.pct / 100 : o.idx === "sml" ? sml : ipc, cr = (+cfg.crec || 0) / 100;
     let precio27 = precio26 ? ppR(precio26 * (1 + pm), 100) : 0, pmReal = precio26 ? precio27 / precio26 - 1 : pm;
     let man27 = ppR(manProy * (1 + pmReal) * (1 + cr));
-    let cuotas = ppR((G - man27 - O) / (1 - descPct)), desc = -ppR(cuotas * descPct);
+    let neto = G - man27 - O, cuotas = ppR(neto / (1 - descPct)), desc = neto - cuotas;
     let mes = (cuotas + fondo) / 12, inc = cuotaMes26 ? mes / cuotaMes26 - 1 : null;
     let ing = cuotas + desc + fondo + man27 + O;
-    return { ...o, i, pm: pmReal, precio27, man27, cuotas, desc, fondo, mes, inc, ing, res: ing - G, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
+    return { ...o, i, pm: pmReal, precio27, man27, cuotas, desc, fondo, mes, inc, ing, res: ing - G - fondo, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
   });
   let porGrupo = {};
   for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; }
   let tot = k => gastos.reduce((a, x) => a + (x[k] || 0), 0);
   return { cfg, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, precio26, unid26, vm26, vm25, ops, ipc, sml };
+}
+function ppPyg(M, base) {
+  let it = c => base.items.find(x => x.c === c) ?? { p26: 0 }, cu = it(PP_CUOTAS).p26, de = it(PP_DESC).p26, fo = it(PP_FONDO).p26, ma = it(PP_MAN).p26, ot = M.otros.reduce((a, x) => a + x.p26, 0);
+  let ing26 = cu + de + fo + ma + ot, col = (a26, f) => [a26, ...M.ops.map(f)];
+  let F = [
+    { t: "INGRESOS", h: 1 },
+    { t: "Cuotas de administración", v: col(cu, o => o.cuotas) },
+    { t: "Menos: descuento por pronto pago", v: col(de, o => o.desc) },
+    { t: "Cuota para el fondo de imprevistos", v: col(fo, o => o.fondo) },
+    { t: "Ingresos por manillas de acceso (sin IVA)", v: col(ma, o => o.man27) },
+    { t: "Otros ingresos (concesiones, intereses, sanciones, reintegros)", v: col(ot, o => M.O) },
+    { t: "TOTAL INGRESOS", v: col(ing26, o => o.ing), s: 1 },
+    { t: "GASTOS", h: 1 },
+    ...M.grupos.map(g => ({ t: g.n.charAt(0) + g.n.slice(1).toLowerCase(), v: col(g.p26, o => g.v27) })),
+    { t: "TOTAL GASTOS DE FUNCIONAMIENTO", v: col(M.G26, o => M.G), s: 1 },
+    { t: "Apropiación al fondo de imprevistos (art. 35 Ley 675; art. 79 RPH)", v: col(fo, o => o.fondo) },
+    { t: "TOTAL GASTOS Y APROPIACIONES", v: col(M.G26 + fo, o => M.G + o.fondo), s: 1 },
+    { t: "RESULTADO DEL EJERCICIO", v: col(ing26 - M.G26 - fo, o => o.res), r: 1 }];
+  return F;
 }
 function ppCuotasTipo(M, uni) {
   let g = {};
@@ -1071,7 +1090,12 @@ function ppDoc(M, base, config) {
   }
   filasG.push({ estilo: "totalDoble", celdas: [or("TOTAL GASTOS"), er(M.G25), er(M.G26), er(M.G26p), or(""), or(ppPct(M.G / M.G26 - 1)), er(M.G)] });
   let tipos = ppCuotasTipo(M, uni);
-  let secc = [
+  let pyg = ppPyg(M, base);
+  let secPyg = { id: "pp_pyg", nombre: "Estado de resultados", titulo: "PRESUPUESTO 2027 · ESTADO DE RESULTADOS PRESUPUESTADO", subtitulos: s("Ingresos, gastos y fondo de imprevistos · resultado cero"), orientacion: "portrait", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: "El presupuesto se arma para que los ingresos cubran exactamente los gastos de funcionamiento más la apropiación al fondo de imprevistos, de modo que el resultado presupuestado sea cero. El fondo se recauda dentro de la cuota de cada unidad y se traslada a la inversión del fondo." },
+    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 40, "left"), col("PPTO 2026", 20), ...M.ops.map((o, i) => col(`2027 · OPCIÓN ${i + 1}`, 20))], filas: pyg.map(f => f.h ? { estilo: "grupo", celdas: [or(f.t), or(""), ...M.ops.map(() => or(""))] } : { estilo: f.r ? "totalDoble" : f.s ? "subtotal" : "detalle", celdas: [or(f.t), ...f.v.map(x => er(x))] }) },
+    { tipo: "parrafo", estilo: "normal", texto: M.ops.map((o, i) => `Opción ${i + 1}: manilla a ${ppP(o.precio27)} (IVA incluido) y recaudo mensual de cuotas de ${ppP(o.mes)}, ${ppPct(o.inc)} más que en 2026.`).join(" ") }] };
+  let secc = [secPyg,
     { id: "pp_res", nombre: "Resumen", titulo: "PRESUPUESTO 2027 · RESUMEN PARA LA ASAMBLEA", subtitulos: s("Dos opciones de financiación"), orientacion: "portrait", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: "El presupuesto de la copropiedad se financia con dos fuentes: las cuotas de administración, que paga cada unidad según su coeficiente, y la venta de manillas de acceso a turistas. Primero se proyectan los gastos de 2027 y luego se define cuánto aporta cada fuente. Se presentan dos opciones: en la Opción 1 el precio de la manilla sube con el IPC; en la Opción 2 sube con el incremento del salario mínimo. En ambas, la cuota de administración cubre lo que falta para pagar los gastos y apropiar el fondo de imprevistos." },
       { tipo: "parrafo", estilo: "h3", texto: "Supuestos" },
@@ -1120,9 +1144,16 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   if (!base) return h("div", { className: "pantalla" }, enc, h("section", { className: "panel" }, h("p", null, "Primero prepare los datos base: la app lee el presupuesto 2026, su ejecución, el libro auxiliar de 2025 y los coeficientes de las unidades."), barra));
   let tabs = h("div", { className: "seg", role: "tablist", style: { margin: "12px 0" } }, [["res", "1. Resumen y opciones"], ["sup", "2. Supuestos"], ["gas", "3. Gastos"], ["ing", "4. Ingresos"], ["cuo", "5. Cuotas por unidad"]].map(([v, t]) => h("button", { key: v, type: "button", "aria-pressed": tab === v, onClick: () => setTab(v) }, t)));
   let alerta = M.man.p26 && M.man.proy < M.man.p26 * .97 ? h("div", { className: "aviso aviso-atencion" }, h("b", null, "Ojo con las manillas: "), `en 2026 se presupuestaron ${ppP(M.man.p26)} y la proyección del año da ${ppP(M.man.proy)} (${ppPct(M.man.proy / M.man.p26 - 1)}). El presupuesto 2027 parte de la proyección para no repetir el faltante.`) : null;
+  let pyg = ppPyg(M, base);
+  let vPyg = h("section", { className: "panel" }, h("h2", null, "Estado de resultados presupuestado 2027"),
+    h("p", { className: "sub" }, "Ingresos por cuotas y por manillas frente a los gastos y la apropiación al fondo de imprevistos. El resultado debe ser cero: la cuota se calcula para cerrar exactamente."),
+    h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
+      h("thead", null, h("tr", null, h("th", null, "Concepto"), h("th", { className: "a-right" }, "Ppto 2026"), ...M.ops.map((o, i) => h("th", { key: i, className: "a-right" }, `2027 · Opción ${i + 1}`)))),
+      h("tbody", null, pyg.map((f, k) => f.h ? h("tr", { key: k, className: "fila-grupo" }, h("td", { colSpan: 2 + M.ops.length }, h("b", null, f.t))) :
+        h("tr", { key: k, className: f.r ? "fila-total" : f.s ? "fila-subtotal" : "" }, h("td", null, f.s || f.r ? h("b", null, f.t) : f.t), ...f.v.map((v, j) => h("td", { key: j, className: "a-right num" }, f.s || f.r ? h("b", null, pe(v)) : pe(v)))))))));
   let vRes = h(Ve.Fragment, null,
     h("div", { className: "kpis" }, kpi("Gastos 2027", ppP(M.G), `${ppPct(M.G / M.G26 - 1)} frente al presupuesto 2026`), kpi("Fondo de imprevistos", ppP(M.fondo), `${M.cfg.fondoPct}% de los gastos`), kpi("Otros ingresos", ppP(M.O), "concesiones, intereses, sanciones…"), kpi("Recaudo mensual 2026", ppP(M.cuotaMes26), "cuotas + fondo")),
-    alerta,
+    alerta, vPyg,
     h("div", { className: "grid-2", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 } }, M.ops.map((o, i) => h("section", { key: i, className: "panel" },
       h("h2", null, o.nombre),
       h("p", { className: "sub" }, o.idx === "sml" ? "La manilla sube con el salario mínimo; la cuota cubre el resto." : "La manilla sube con el IPC; la cuota cubre el resto."),
