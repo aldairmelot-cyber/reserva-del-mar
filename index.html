@@ -1307,6 +1307,28 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
       h("button", { type: "button", disabled: i === n - 1, onClick: () => ir(i + 1) }, "Siguiente →")));
 }
 
+/* cuota mensual de cada unidad, agrupada por torre (PDF y Excel del presupuesto) */
+function ppFilasUnidad(M, uni) {
+  let grupo = k => { let m = k.match(/ T(\d)$/); return m ? `TORRE ${m[1]}` : /^LC/.test(k) ? "LOCALES COMERCIALES" : "PARQUEADEROS Y DEPÓSITOS CON COEFICIENTE PROPIO"; };
+  let nom = k => { let m = k.match(/^(\d+[A-Z]?) T\d$/); return m ? `Apto ${m[1]}` : bdEtq(k); };
+  let G = new Map();
+  for (const u of [...uni].sort((a, b) => ppOrdK(a[0], b[0]))) { let g = grupo(u[0]); if (!G.has(g)) G.set(g, []); G.get(g).push(u); }
+  let orden = [...G.keys()].sort((a, b) => (a.startsWith("TORRE") ? 0 : a.startsWith("LOCALES") ? 1 : 2) - (b.startsWith("TORRE") ? 0 : b.startsWith("LOCALES") ? 1 : 2) || a.localeCompare(b));
+  let filas = [], nOps = M.ops.length, tot = [0, ...M.ops.map(() => 0)], totC = 0;
+  for (const g of orden) {
+    let L = G.get(g), st = [0, ...M.ops.map(() => 0)], sc = 0;
+    filas.push({ estilo: "grupo", celdas: [or(`${g} · ${L.length} unidades`), or(""), or(""), ...M.ops.map(() => or("")), or("")] });
+    for (const [k, c, a] of L) {
+      let v = M.ops.map(o => ppR(o.mes * c / 100, 1));
+      st[0] += a; v.forEach((x, j) => st[j + 1] += x); sc += c;
+      filas.push({ estilo: "detalle", celdas: [or(nom(k)), or(String(c).replace(".", ",")), er(a), ...v.map(x => er(x)), or(a ? ppPct(v[0] / a - 1) : "")] });
+    }
+    filas.push({ estilo: "subtotal", celdas: [or(`Total ${g.toLowerCase().replace(/^torre/, "torre")}`), or(String(Math.round(sc * 1000) / 1000).replace(".", ",")), er(st[0]), ...st.slice(1).map(x => er(x)), or("")] });
+    st.forEach((x, j) => tot[j] += x); totC += sc;
+  }
+  filas.push({ estilo: "totalDoble", celdas: [or("TOTAL RECAUDO MENSUAL"), or(String(Math.round(totC * 1000) / 1000).replace(".", ",")), er(tot[0]), ...tot.slice(1).map(x => er(x)), or("")] });
+  return filas;
+}
 function ppDoc(M, base, config) {
   let C = config ?? {}, s = t => ["Proyecto de presupuesto 2027", t].filter(Boolean), uni = base.uni ?? [];
   let col = (t, a, al = "right") => ({ titulo: t, ancho: a, alin: al });
@@ -1354,9 +1376,9 @@ function ppDoc(M, base, config) {
         { estilo: "detalle", celdas: [or("Recaudo mensual 2026"), ...M.ops.map(() => er(M.cuotaMes26))] },
         { estilo: "subtotal", celdas: [or("Incremento de la cuota frente a 2026"), ...M.ops.map(o => or(ppPct(o.inc)))] }] },
       { tipo: "parrafo", estilo: "normal", texto: `Con el mismo gasto, cada punto que sube la manilla reduce la cuota de administración. Diferencia entre las opciones: la Opción 2 recauda ${ppP(M.ops[1].man27 - M.ops[0].man27)} más por manillas en el año y la cuota sube ${ppPct(M.ops[0].inc - M.ops[1].inc)} menos.` }] },
-    { id: "pp_cuo", nombre: "Cuotas por unidad", titulo: "CUOTA MENSUAL POR TIPO DE UNIDAD", subtitulos: s("Según el coeficiente de copropiedad"), orientacion: "portrait", bloques: [
-      { tipo: "parrafo", estilo: "normal", texto: "La cuota de cada unidad es el recaudo mensual multiplicado por su coeficiente de copropiedad. La tabla agrupa las unidades con el mismo coeficiente." },
-      { tipo: "tabla", cabecera: !0, columnas: [col("COEF. %", 9), col("UNIDADES", 43, "left"), col("CUOTA 2026", 16), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, 16))], filas: tipos.map(x => ({ estilo: "detalle", celdas: [or(String(x.c).replace(".", ",")), or(`${x.n} · ${x.ks.map(ppCorto).join(", ")}`), er(x.a26), ...x.o.map(v => er(v))] })) }] },
+    { id: "pp_cuo", nombre: "Cuotas por unidad", titulo: "CUOTA MENSUAL POR UNIDAD", subtitulos: s("Según el coeficiente de copropiedad de cada unidad"), orientacion: "portrait", bloques: [
+      { tipo: "parrafo", estilo: "normal", texto: "La cuota de cada unidad es el recaudo mensual multiplicado por su coeficiente de copropiedad. La tabla muestra cada apartamento, local, parqueadero y depósito con coeficiente propio, por torre, con su cuota de 2026 y la que tendría en cada opción." },
+      { tipo: "tabla", cabecera: !0, columnas: [col("UNIDAD", 26, "left"), col("COEF. %", 12), col("CUOTA 2026", 18), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, 18)), col("VARIACIÓN", 8)], filas: ppFilasUnidad(M, uni) }] },
     { id: "pp_gas", nombre: "Gastos 2027", titulo: "PRESUPUESTO DE GASTOS 2027", subtitulos: s("Por rubro, con su base y criterio de incremento"), orientacion: "landscape", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: `Cada rubro parte del presupuesto 2026 (o de su ejecución proyectada cuando no tenía presupuesto) y se incrementa con el IPC (${ppPct(M.ipc, 2)}) o, si su costo depende de personal (vigilancia, aseo, recepción, administración), con el incremento del salario mínimo (${ppPct(M.sml, 2)}). La proyección 2026 lleva lo ejecutado de enero a ${Be[(base.ultMes || 10) - 1].toLowerCase()} a doce meses.` },
       { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 34, "left"), col("REAL 2025", 11), col("PPTO 2026", 11), col("PROYECCIÓN 2026", 12), col("CRITERIO", 11, "left"), col("% INCR.", 8), col("PPTO 2027", 13)], filas: filasG }] },
@@ -1373,7 +1395,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let preparar = async () => { try { setProg("Preparando…"); let b = await ppPrepararBase(ses, setProg); setBase(b); notificar("ok", "Datos base actualizados."); } catch (e) { notificar("error", e?.message ?? String(e)); } setProg(""); };
   let subirVentas = async files => { let v = { ...(cfg.ventas ?? {}) }; for (const f of Array.from(files)) { let r = ppVentasLeer(await is(new Uint8Array(await f.arrayBuffer()))); if (r) v[r.anio] = r; else notificar("error", f.name + ": no parece un informe de Ventas por producto de World Office."); } guardar({ ...cfg, ventas: v }); };
   let M = Ve.useMemo(() => base && cfg ? ppCalc(base, cfg) : null, [base, cfg]);
-  let bajar = async tipo => { try { let d = ppDoc(M, base, config); if (tipo === "pdf") await BL(ses, "Presupuesto_2027_propuesta.pdf", await en(d), notificar); else { d.secciones.push({ id: "pp_uni", nombre: "Cuota por unidad", titulo: "CUOTA MENSUAL POR UNIDAD", subtitulos: ["Proyecto de presupuesto 2027"], orientacion: "portrait", bloques: [{ tipo: "tabla", cabecera: !0, columnas: [{ titulo: "UNIDAD", ancho: 20, alin: "left" }, { titulo: "COEFICIENTE %", ancho: 16, alin: "right" }, { titulo: "CUOTA 2026", ancho: 20, alin: "right" }, ...M.ops.map((o, i) => ({ titulo: `OPCIÓN ${i + 1}`, ancho: 22, alin: "right" }))], filas: (base.uni ?? []).map(([k, c, a]) => ({ estilo: "detalle", celdas: [or(bdEtq(k)), or(String(c).replace(".", ",")), er(a), ...M.ops.map(o => er(ppR(o.mes * c / 100, 1)))] })) }] }); await BL(ses, "Presupuesto_2027_propuesta.xlsx", await Yn(d), notificar); } } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } };
+  let bajar = async tipo => { try { let d = ppDoc(M, base, config); if (tipo === "pdf") await BL(ses, "Presupuesto_2027_propuesta.pdf", await en(d), notificar); else { await BL(ses, "Presupuesto_2027_propuesta.xlsx", await Yn(d), notificar); } } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } };
   if (base === null || !cfg) return ppH("p", { className: "tenue" }, "Cargando…");
   let h = ppH, num = (v, on, w = 90, st = 0.01) => h("input", { type: "number", step: st, className: "num a-right", style: { width: w }, value: v ?? "", disabled: soloLectura, onChange: e => on(e.target.value === "" ? null : +e.target.value) });
   let kpi = (t, v, s) => h("div", { className: "kpi" }, h("span", null, t), h("b", null, v), s && h("small", null, s));
