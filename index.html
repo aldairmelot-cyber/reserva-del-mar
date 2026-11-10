@@ -812,7 +812,7 @@ var bdIds = s => String(s ?? "").split(/[\n;\/]|\s{2,}/).map(x => x.trim()).filt
 var bdEsBanco = s => /\bBANCO|BANCOLOMBIA|DAVIVIENDA|LEASING|BBVA|ITAU|CORPBANCA|FIDUCIARIA|SCOTIABANK|COLPATRIA|AV VILLAS|OCCIDENTE|POPULAR\b/i.test(bdN(s));
 var bdNota = s => /\b(EN ESPERA|CONSULTAR|MANIFIESTAN?|PENDIENTE|SOLICITAR|CERTIFICADO|FALLECI\w*|SUCESION|EMBARG\w*|SECUESTRAD\w*|FISCALIA|FICALIA|PROPIETARIOS NUEVOS|NUEVOS PROPIETARIOS|APODERADO|TUTOR)\b/.test(bdN(s));
 var bdClave = (torre, apto) => { let a = String(apto ?? "").toUpperCase().replace(/\s+/g, ""); return /^(PQ|LC|DEP|DP)/.test(a) ? a : `${a} T${torre}`; };
-var bdEtq = k => k.replace(/^(\d+[A-Z]?) T(\d)$/, "Apto $1 · Torre $2").replace(/^PQ(\d+)$/, "Parqueadero $1").replace(/^LC(\d+)$/, "Local $1").replace(/^(DEP|DP)(\d*)/, "Depósito $2");
+var bdEtq = k => k.replace(/^(\d+[A-Z]?) T(\d)$/, "Apto $1 · Torre $2").replace(/^PQ(\d+)$/, "Parqueadero $1").replace(/^LC(\d+)$/, "Local $1").replace(/^(DEP|DP)(\d*)$/, "Depósito $2");
 function bdLeerLibro(sh) {
   let adm = null, wo = null, lista = null;
   for (const [nombre, rows] of Object.entries(sh)) {
@@ -820,7 +820,7 @@ function bdLeerLibro(sh) {
     if (hi >= 0) {
       let H = rows[hi].map(c => bdN(c)), ix = re => H.findIndex(h => re.test(h));
       let c = { tr: ix(/^TR|TORRE/), ap: ix(/^APTO/), dep: ix(/^DEP/), pq: ix(/^PQ|PARQ/), tit: ix(/TITULAR/), idt: H.findIndex((h, i) => /^ID/.test(h) && i > ix(/TITULAR/) && i < ix(/TENEDOR/)), ten: ix(/TENEDOR|LOCATARIO/), idn: H.findIndex((h, i) => /^ID/.test(h) && i > ix(/TENEDOR|LOCATARIO/)), cor: ix(/CORREO/) };
-      adm = rows.slice(hi + 1).filter(r => r && r[c.ap] != null && String(r[c.ap]).trim()).map(r => ({ k: bdClave(r[c.tr], r[c.ap]), dep: String(r[c.dep] ?? "").trim(), pq: String(r[c.pq] ?? "").trim(), titular: String(r[c.tit] ?? "").trim(), idTit: bdIds(r[c.idt]), tenedor: String(r[c.ten] ?? "").trim(), idTen: bdIds(r[c.idn]), correos: String(r[c.cor] ?? "").split(/[;,\s]+/).filter(x => x.includes("@")) }));
+      adm = rows.slice(hi + 1).filter(r => r && r[c.ap] != null && String(r[c.ap]).trim()).map(r => ({ k: /^(DP|DEP)\s*$/i.test(String(r[c.ap]).trim()) && /^\d+$/.test(String(r[c.dep] ?? "").trim()) ? "DEP" + String(r[c.dep]).trim() : bdClave(r[c.tr], r[c.ap]), dep: String(r[c.dep] ?? "").trim(), pq: String(r[c.pq] ?? "").trim(), titular: String(r[c.tit] ?? "").trim(), idTit: bdIds(r[c.idt]), tenedor: String(r[c.ten] ?? "").trim(), idTen: bdIds(r[c.idn]), correos: String(r[c.cor] ?? "").split(/[;,\s]+/).filter(x => x.includes("@")) }));
       continue;
     }
     let hw = rows.findIndex(r => (r ?? []).some(c => /^Propietario$/i.test(String(c ?? "").trim())) && (r ?? []).some(c => /N.MEROINMUEBLE|TIPOINMUEBLE/i.test(bdN(c).replace(/ /g, ""))));
