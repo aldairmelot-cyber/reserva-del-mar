@@ -2554,10 +2554,13 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
   }
   /* traslados: de la contabilidad (débitos a la inversión con concepto de fondo de imprevistos) y los registrados a mano que la contabilidad aún no tiene */
   let trasC = aux.filter(r => FI_CFG.inversion.includes(r.cta) && r.d > 0 && r.f >= ini && /IMPROVI|IMPREVI/i.test(r.nota)).map(r => ({ f: r.f, valor: r.d, doc: fiDocL(r.doc), nota: r.nota, origen: "Contabilidad" }));
-  let usados = new Set(), manual = [];
+  let usados = new Set(), manual = [], marcados = new Set();
+  let candO = aux.filter(r => FI_CFG.inversion.includes(r.cta) && r.d > 0 && r.f >= ini && !/IMPROVI|IMPREVI|RENDIMIENTO|INTERESES FINANCIEROS/i.test(r.nota));
   for (const t of cfg.traslados ?? []) {
     let f = fiNumF(t.fecha), v = +t.valor || 0, k = trasC.findIndex((c, j) => !usados.has(j) && Math.abs(c.valor - v) < 1 && c.f >= f - 100);
     if (k >= 0) { usados.add(k); continue; }
+    let o = candO.find(c => !marcados.has(c) && Math.abs(c.d - v) < 1 && Math.abs(c.f - f) <= 3 && (!t.doc || fiDocL(c.doc).replace(/\s+/g, "").toUpperCase() === String(t.doc).replace(/\s+/g, "").toUpperCase() || Math.abs(c.f - f) === 0));
+    if (o) { marcados.add(o); let x = { f: o.f, valor: o.d, doc: fiDocL(o.doc), nota: o.nota || "Marcado como traslado al fondo", origen: "Contabilidad", id: t.id }; trasC.push(x); usados.add(trasC.length - 1); continue; }
     manual.push({ f, valor: v, doc: t.doc || "", nota: t.nota || "Traslado registrado en la app", origen: "Registrado a mano", id: t.id });
   }
   let todos = [...trasC, ...manual].sort((a, b) => a.f - b.f);
@@ -2574,7 +2577,7 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
     x.ant = saldo; x.total = x.uno + x.c.reduce((s, v) => s + v, 0) + x.rend; x.trasladado = x.trasDinero + x.rend;
     x.saldo = saldo = x.ant + x.total - x.trasladado;
   }
-  let otrosDep = invMov.filter(x => x.d > 0 && !esRend(x) && !esTras(x)), retiros = invMov.filter(x => x.c > 0);
+  let otrosDep = invMov.filter(x => x.d > 0 && !esRend(x) && !esTras(x) && !marcados.has(x)), retiros = invMov.filter(x => x.c > 0);
   let fondoCtas = bal.cuentas.filter(c => String(c[0]).startsWith(FI_CFG.fondo)).map(c => ({ codigo: c[0], nombre: c[1], si: +c[3] || 0, deb: +c[4] || 0, cre: +c[5] || 0, sf: +c[6] || 0 }));
   let invCtas = bal.cuentas.filter(c => FI_CFG.inversion.includes(c[0])).map(c => ({ codigo: c[0], nombre: c[1], si: +c[3] || 0, sf: +c[6] || 0 }));
   let s = f => M.reduce((a, x) => a + f(x), 0);
@@ -2801,7 +2804,7 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
           aH("tr", null, aH("td", null, "Saldo actual del fondo"), aH("td", null, ""), num(r.fondoSF)),
           aH("tr", null, aH("td", null, "Lo del a\xF1o: 1% del gasto, intereses y sanciones recaudados y rendimientos", aH("div", { className: "tenue" }, [`1% ${P(r.uno)}`, ...FI_CFG.conceptos.map((c, k) => `${c[1].toLowerCase()} ${P(r.conc[k])}`), `rendimientos ${P(r.rendT)}`].join(" \xB7 "))), aH("td", null, "D\xE9bito ingresos del a\xF1o (o excedente del ejercicio al cierre) \xB7 cr\xE9dito 3305"), num(r.incrementos)),
           Math.abs(r.ajusteAnterior) >= 1 && aH("tr", null, aH("td", null, "A\xF1os anteriores: dinero del fondo que est\xE1 en la fiducia y no se abon\xF3 al patrimonio",
-              r.otrosDep.map((x, i) => aH("div", { key: i, className: "tenue" }, `${fiFecha(x.f)} \xB7 ${fiDocL(x.doc)} \xB7 ${x.nota} \xB7 ${P(x.d)}`)),
+              r.otrosDep.map((x, i) => aH("div", { key: i, className: "tenue" }, `${fiFecha(x.f)} \xB7 ${fiDocL(x.doc)} \xB7 ${x.nota || "sin detalle"} \xB7 ${P(x.d)} `, !soloLectura && aH("button", { type: "button", className: "btn", style: { padding: "1px 8px", fontSize: "12px", marginLeft: 6 }, title: "Si este dep\xF3sito fue el traslado de lo pendiente de este a\xF1o, m\xE1rquelo y deja de contarse como plata de a\xF1os anteriores", onClick: () => guardarCfg({ ...cfg, traslados: [...(cfg.traslados ?? []), { id: Date.now().toString(36), fecha: `${String(x.f).slice(0, 4)}-${String(x.f).slice(4, 6)}-${String(x.f).slice(6, 8)}`, valor: x.d, doc: fiDocL(x.doc) }] }) }, "Es traslado de este a\xF1o"))),
               Math.abs(r.difInicial) >= 1 && aH("div", { className: "tenue" }, `Diferencia que tra\xEDa la fiducia frente al fondo al 1 de enero: ${P(r.difInicial)}`)),
             aH("td", null, r.ajusteAnterior > 0 ? "D\xE9bito 3705 Excedentes de ejercicios anteriores \xB7 cr\xE9dito 3305" : "D\xE9bito 3305 \xB7 cr\xE9dito 3705 Excedentes de ejercicios anteriores"), num(r.ajusteAnterior))),
         aH("tfoot", null, aH("tr", null, aH("td", { colSpan: 2 }, aH("b", null, "Patrimonio del fondo despu\xE9s de los abonos")), num(r.patrimonioDespues, 1))))),
