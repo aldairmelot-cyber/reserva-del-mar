@@ -4537,20 +4537,27 @@ function recHoraCo(s) {
 function recLeerWompi(txt, archivo) {
   let F = recCsv(txt); if (F.length < 2) throw new Error(`${archivo}: el archivo está vacío.`);
   let H = F[0].map(h => recN(h).toLowerCase()), col = (...n) => { for (const x of n) { let i = H.indexOf(x); if (i >= 0) return i; } return -1; };
-  let iId = col("id", "transaction_id", "id transaccion"), iCr = col("created_at", "fecha", "fecha de creacion"), iAm = col("amount", "monto", "valor"), iAc = col("amount_in_cents"),
-    iRef = col("reference", "referencia"), iMail = col("customer_email", "email"), iMet = col("payment_method_type", "metodo de pago"), iSt = col("status", "estado"), iCd = col("customer_data"), iLink = col("payment_link_id");
-  if (iId < 0 || (iAm < 0 && iAc < 0) || iSt < 0) throw new Error(`${archivo}: no parece el reporte de transacciones de Wompi (faltan las columnas id, amount o status).`);
-  let out = [];
+  let iId = col("id", "transaction_id", "id de la transaccion", "id transaccion"), iCr = col("created_at", "fecha", "fecha de creacion"), iAm = col("amount", "monto", "valor"), iAc = col("amount_in_cents"),
+    iRef = col("reference", "referencia"), iMail = col("customer_email", "email del pagador", "email"), iMet = col("payment_method_type", "medio de pago", "metodo de pago"), iSt = col("status", "estado"), iCd = col("customer_data"), iLink = col("payment_link_id", "id link de pago"),
+    iNom = col("nombre del pagador"), iDoc = col("documento del pagador"), iTDoc = col("tipo de documento del pagador"), iTel = col("telefono del pagador"), iR1 = col("ref. 1"), iR2 = col("ref. 2"),
+    iCom = col("comision"), iIvaC = col("iva comision"), iRica = col("reteica"), iRiva = col("reteiva"), iRfte = col("retefuente"), iConc = col("id conciliacion");
+  if (iId < 0 || (iAm < 0 && iAc < 0)) throw new Error(`${archivo}: no parece un reporte de Wompi (faltan las columnas de id o monto).`);
+  let semanal = iCom >= 0, num = v => Number(String(v ?? "").replace(/[^\d.-]/g, "")) || 0, out = [];
   for (const r of F.slice(1)) {
     if (!r[iId]) continue;
-    let cd = {}; try { cd = JSON.parse(r[iCd] || "{}") || {}; } catch { }
+    let cd = {}; if (iCd >= 0) try { cd = JSON.parse(r[iCd] || "{}") || {}; } catch { }
     let refs = (cd.customer_references || []).map(x => String(x?.value ?? "").trim()).filter(Boolean);
-    /* pagos por Bancolombia (tu360) traen el código en la referencia: "11404|…" */
-    let rc = String(r[iRef] || "").match(/^(\d{4,5})\|/); if (!refs.length && rc) refs.push(rc[1]);
-    let valor = iAm >= 0 && r[iAm] !== "" ? Number(String(r[iAm]).replace(/[^\d.-]/g, "")) : Number(r[iAc]) / 100;
-    let { f, h } = recHoraCo(r[iCr]);
-    out.push({ id: r[iId].trim(), f, h, valor: Math.round(valor || 0), escrito: refs.join(" · "), ref: (r[iRef] || "").trim(), link: iLink >= 0 ? (r[iLink] || "").trim() : "",
-      correo: (r[iMail] || "").trim(), medio: (r[iMet] || "").trim(), estado: recN(r[iSt]), nombre: String(cd.full_name || "").trim(), cc: String(cd.legal_id || "").replace(/\D/g, ""), tipoId: cd.legal_id_type || "", tel: cd.phone_number || "" });
+    for (const i of [iR1, iR2]) if (i >= 0 && String(r[i] ?? "").trim()) refs.push(String(r[i]).trim());
+    /* pagos por Bancolombia (tu360) traen el código en la referencia: "11404|…", "2511|…", "PQ371|…" */
+    let rc = String(r[iRef] || "").match(/^([A-Z]{0,3}\d{3,5})\|/i); if (!refs.length && rc) refs.push(/^\d/.test(rc[1]) ? `${rc[1][0]}-${rc[1].slice(1)}` : rc[1]);
+    let valor = iAm >= 0 && r[iAm] !== "" ? num(r[iAm]) : num(r[iAc]) / 100;
+    let f = "", h = "", fm = String(r[iCr] || "").match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})/);
+    if (fm) { f = `${fm[3]}-${fm[2]}-${fm[1]}`; h = `${fm[4]}:${fm[5]}`; } else ({ f, h } = recHoraCo(r[iCr]));
+    let t = { id: r[iId].trim(), f, h, valor: Math.round(valor), escrito: refs.join(" · "), ref: (r[iRef] || "").trim(), link: iLink >= 0 ? (r[iLink] || "").trim() : "",
+      correo: (r[iMail] || "").trim(), medio: (r[iMet] || "").trim(), estado: iSt >= 0 ? recN(r[iSt]) : "APPROVED",
+      nombre: String((iNom >= 0 ? r[iNom] : cd.full_name) || "").trim(), cc: String((iDoc >= 0 ? r[iDoc] : cd.legal_id) || "").replace(/\D/g, ""), tipoId: (iTDoc >= 0 ? r[iTDoc] : cd.legal_id_type) || "", tel: (iTel >= 0 ? r[iTel] : cd.phone_number) || "" };
+    if (semanal) { t.com = num(r[iCom]); t.ivaCom = num(r[iIvaC]); t.rica = num(r[iRica]); t.riva = num(r[iRiva]); t.rfte = num(r[iRfte]); t.conc = (r[iConc] || "").trim(); t.neto = Math.round((t.valor - t.com - t.ivaCom - t.rica - t.riva - t.rfte) * 100) / 100; }
+    out.push(t);
   }
   return out;
 }
@@ -4559,33 +4566,49 @@ var REC_ESTADO = { APPROVED: "Aprobado", DECLINED: "Rechazado", VOIDED: "Anulado
 
 /* lo que escribió el propietario → unidades posibles, con la explicación */
 function recCandTexto(txt, U, dueno) {
-  let t = recN(txt); if (!t) return { c: [], como: "" };
+  let t = recN(txt); if (!t) return { c: [], multi: [] };
   let out = new Map(), add = (k, como, fuerte) => { if (U.has(k) && !out.has(k)) out.set(k, { k, como, fuerte }); };
-  /* parqueadero, depósito o local */
   let m;
-  if ((m = t.match(/\bP\w{0,2}Q\w*\.?\s*(?:N[O°º.]*\s*)?(\d{1,3})\b/)) || (m = t.match(/\bPARQ?\w*\s*(\d{1,3})\b/))) {
-    let k = "PQ" + Number(m[1]); if (U.has(k) && (U.get(k).coef > 0 || !dueno.has(k))) add(k, `escribió parqueadero ${Number(m[1])}`, !0); else if (dueno.has(k)) add(dueno.get(k), `escribió parqueadero ${Number(m[1])}, que es de ${recEtq(dueno.get(k))}`, !0);
-  }
-  if ((m = t.match(/\bDEP\w*\.?\s*(\d{1,3})\b/))) { let k = "DEP" + Number(m[1]); if (U.has(k) && (U.get(k).coef > 0 || !dueno.has(k))) add(k, `escribió depósito ${Number(m[1])}`, !0); else if (dueno.has(k)) add(dueno.get(k), `escribió depósito ${Number(m[1])}, que es de ${recEtq(dueno.get(k))}`, !0); }
+  /* parqueadero, depósito o local */
+  let anexo = (p, n, nom) => { let k = p + Number(n); if (U.has(k) && (U.get(k).coef > 0 || !dueno.has(k))) add(k, `escribió ${nom} ${Number(n)}`, !0); else if (dueno.has(k)) add(dueno.get(k), `escribió ${nom} ${Number(n)}, que es de ${recEtq(dueno.get(k))}`, !0); };
+  if ((m = t.match(/\bP\w{0,2}Q\w*\.?\s*(?:N[O°º.]*\s*)?(\d{1,3})\b/)) || (m = t.match(/\bPARQ?\w*\s*(\d{1,3})\b/))) anexo("PQ", m[1], "parqueadero");
+  if ((m = t.match(/\bDE?P\w*\.?\s*(\d{1,3})\b/))) anexo("DEP", m[1], "depósito");
   if ((m = t.match(/\bLOCAL\w*\s*(?:COMERCIAL\s*)?(\d)\b/))) add("LC" + m[1], `escribió local ${m[1]}`, !0);
-  if (out.size) return { c: [...out.values()], como: "" };
-  /* torre escrita: "TORRE 3", "T4", "TO4", "TR 2" */
-  let torre = null, tm = t.match(/\b(?:TORRE|TORR|TOR|TO|TR|T)\s*[-.:#]?\s*([1-4])(?!\d)/) || t.match(/(?:TORRE|TO|T)([1-4])\b/);
+  if (out.size) return { c: [...out.values()], multi: [] };
+  /* limpieza: años, meses y palabras de relleno */
+  t = t.replace(/\b20[2-3]\d\b/g, " ").replace(/\b(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE|MES\w*|PAGO|ADMON|ADMINISTRACION|ADM)\b/g, " ")
+    .replace(/#/g, " ").replace(/(\d{2})-(\d{2})(?=\D*TORRE)/, "$1$2").replace(/\s+/g, " ").trim();
+  /* varias unidades en un mismo pago: "612 T2 Y 1507 T1" */
+  let partes = t.split(/\s+(?:Y|E|,|\/)\s+|\s*;\s*/).filter(x => /\d{3}/.test(x));
+  if (partes.length > 1) {
+    let L = partes.map(p => recCandTexto(p, U, dueno).c.filter(x => x.fuerte)).filter(x => x.length === 1).map(x => x[0]);
+    if (L.length > 1) return { c: [L[0]], multi: L.map(x => x.k) };
+  }
+  let par = (T, n, como) => add(`${n.replace(/^0+/, "")} T${T}`, como, !0);
+  /* torre pegada al número: "T41230", "1339T4", "2T 1124", "T03", "TO 3", "T-4- 1536" */
+  if ((m = t.match(/(?<![A-Z])T(?:ORRE)?\s*[-.]?\s*0?([1-4])(\d{3,4}[A-Z]?)\b/)) && !/^\d{3,4}[A-Z]?$/.test(t.replace(/\D*$/, ""))) par(m[1], m[2], `escribió T${m[1]}${m[2]}: torre ${m[1]}, apartamento ${m[2]}`);
+  let torre = null, tm = t.match(/(?<![A-Z])(?:TORRE|TORR|TOR|TO|TR|T)\s*[-.:#]?\s*0?([1-4])(?!\d)/) || t.match(/\b([1-4])\s*T\b/);
   if (tm) torre = tm[1];
-  let sinTorre = tm ? t.replace(tm[0], " ") : t;
-  let nums = (sinTorre.match(/\d+[A-Z]?\b|\d+/g) ?? []).map(x => x.replace(/^0+/, "")).filter(x => /^\d{3,5}[A-Z]?$/.test(x));
-  for (const n of nums) {
-    let d = n.replace(/\D/g, "");
+  let resto = tm ? t.replace(tm[0], " ") : t;
+  /* torre-apto o apto-torre con guion o espacio: "2-724", "4-1741", "1 1402", "1724-2", "1605-1" */
+  if (!torre && (m = resto.match(/^\D*([1-4])\s*[-\s]\s*(\d{3,4}[A-Z]?)\b/))) par(m[1], m[2], `escribió ${m[1]}-${m[2]}: torre ${m[1]}, apartamento ${m[2]}`);
+  if (!torre && (m = resto.match(/\b(\d{3,4}[A-Z]?)\s*-\s*([1-4])\s*$/))) par(m[2], m[1], `escribió ${m[1]}-${m[2]}: apartamento ${m[1]}, torre ${m[2]}`);
+  if (out.size) return { c: [...out.values()], multi: [] };
+  let nums = resto.match(/\d+[A-Z]?/g) ?? [];
+  for (const n0 of nums) {
+    let n = n0.replace(/^0+/, ""), d = n.replace(/\D/g, "");
+    if (d.length < 3 || d.length > 5) continue;
     if (torre) {
       add(`${n} T${torre}`, `escribió apartamento ${n} de la torre ${torre}`, !0);
-      if (d.length >= 4 && d[0] === torre) add(`${n.slice(1)} T${torre}`, `escribió ${n}: torre ${torre}, apartamento ${n.slice(1)}`, !0);
-    } else if (d.length === 5) add(`${n.slice(1)} T${n[0]}`, `escribió ${n}: torre ${n[0]}, apartamento ${n.slice(1)}`, !0);
+      if (!U.has(`${n} T${torre}`) && d.length >= 4 && d[0] === torre) add(`${n.slice(1)} T${torre}`, `escribió ${n}: torre ${torre}, apartamento ${n.slice(1)}`, !0);
+    } else if (/^0[1-4]\d{3,4}$/.test(n0)) add(`${n.slice(1)} T${n[0]}`, `escribió ${n0}: torre ${n[0]}, apartamento ${n.slice(1)}`, !0);
+    else if (d.length === 5) add(`${n.slice(1)} T${n[0]}`, `escribió ${n}: torre ${n[0]}, apartamento ${n.slice(1)}`, !0);
     else {
       for (const T of ["1", "2", "3", "4"]) add(`${n} T${T}`, `escribió ${n} sin torre → torre ${T}`, !1);
-      if (d.length === 4 && /[1-4]/.test(d[0])) add(`${n.slice(1)} T${n[0]}`, `escribió ${n}: puede ser torre ${n[0]}, apartamento ${n.slice(1)}`, !1);
+      if (d.length === 4 && /[1-4]/.test(d[0])) add(`${n.slice(1)} T${n[0]}`, `escribió ${n}: torre ${n[0]}, apartamento ${n.slice(1)}`, !1);
     }
   }
-  return { c: [...out.values()], como: "" };
+  return { c: [...out.values()], multi: [] };
 }
 function recSimNombre(a, u) {
   let A = new Set(recTok(a)); if (!A.size) return 0;
@@ -4598,13 +4621,17 @@ var recCuotaOk = (v, u) => { if (!u.admon) return !1; let r = v / u.admon; retur
 /* identifica un pago */
 function recIdentificar(tx, B, reglas) {
   let { U, dueno } = B;
-  let regla = (tx.cc && reglas.cc?.[tx.cc]) || (tx.nombre && reglas.nom?.[recN(tx.nombre)]);
-  let { c } = recCandTexto(tx.escrito, U, dueno);
+  let lista = v => Array.isArray(v) ? v : v ? [v] : [];
+  let conocidas = [...new Set([...lista(tx.cc && reglas.cc?.[tx.cc]), ...lista(tx.nombre && reglas.nom?.[recN(tx.nombre)])])].filter(k => U.has(k));
+  let { c, multi } = recCandTexto(tx.escrito, U, dueno);
   let porCc = tx.cc ? [...U.values()].filter(u => u.ids.has(tx.cc)) : [];
   let nota = [];
-  let res = (k, conf, como) => ({ unidad: k, conf, como: [como, ...nota].filter(Boolean).join(" · "), cand: c.map(x => x.k) });
-  /* regla aprendida y el texto no la contradice */
-  if (regla && U.has(regla) && (!c.length || c.some(x => x.k === regla))) return res(regla, "alta", `regla guardada: ${tx.cc && reglas.cc?.[tx.cc] === regla ? "cédula " + tx.cc : "nombre"} → ${recEtq(regla)}`);
+  if (multi?.length > 1) nota.push(`paga varias unidades (${multi.map(recEtq).join(" y ")}): reparta el valor en el recibo`);
+  let res = (k, conf, como) => ({ unidad: k, conf: multi?.length > 1 && conf === "alta" ? "media" : conf, como: [como, ...nota].filter(Boolean).join(" · "), cand: c.map(x => x.k), multi });
+  /* lo aprendido: este pagador ya pagó antes esta unidad */
+  let yaPago = c.filter(x => conocidas.includes(x.k));
+  if (yaPago.length === 1) return res(yaPago[0].k, "alta", `${yaPago[0].como}; este pagador ya había pagado esta unidad (aprendido)`);
+  if (!c.length && conocidas.length === 1) return res(conocidas[0], "alta", (tx.escrito ? `no se entiende "${tx.escrito}"; ` : "no escribió apartamento; ") + `este pagador siempre paga ${recEtq(conocidas[0])} (aprendido)`);
   if (c.length === 1) {
     let x = c[0], u = U.get(x.k), ok = [];
     if (tx.cc && u.ids.has(tx.cc)) ok.push("la cédula coincide con el titular");
@@ -4664,7 +4691,7 @@ function RecSeccion({ ses, notificar, soloLectura }) {
       for (const [m, L] of porMes) {
         let D = recLeerJ(await ses.store.get(recMesDoc(m)).catch(() => null)) ?? { tx: [], man: {}, archivos: [] };
         let porId = new Map(D.tx.map(t => [t.id, t]));
-        for (const t of L) { let a = porId.get(t.id); if (!a) nuevos++; else if (a.estado !== t.estado) actualizados++; else repetidos++; porId.set(t.id, t); }
+        for (const t of L) { let a = porId.get(t.id); if (!a) nuevos++; else if (a.estado !== t.estado || (t.com != null && a.com == null)) actualizados++; else repetidos++; porId.set(t.id, a ? { ...a, ...Object.fromEntries(Object.entries(t).filter(([k, v]) => v !== "" && v != null)) } : t); }
         D.tx = [...porId.values()].sort((a, b) => (b.f + b.h).localeCompare(a.f + a.h));
         D.archivos = [...new Set([...(D.archivos ?? []), ...files.map(f => f.name)])];
         await guardarMes(m, D);
@@ -4675,7 +4702,7 @@ function RecSeccion({ ses, notificar, soloLectura }) {
       let ult = [...porMes.keys()].sort().pop(); setMes(ult);
       let dias = [...new Set(todos.map(t => t.f))].sort(); if (dias.length === 1) setTimeout(() => setDia(dias[0]), 0);
       setFiltro("todos");
-      setAviso(`${todos.length} transacciones leídas: ${nuevos} nuevas` + (actualizados ? `, ${actualizados} con estado actualizado` : "") + (repetidos ? `, ${repetidos} ya estaban cargadas` : "") + ".");
+      setAviso(`${todos.length} transacciones leídas: ${nuevos} nuevas` + (actualizados ? `, ${actualizados} completadas con datos nuevos (estado o comisiones)` : "") + (repetidos ? `, ${repetidos} ya estaban cargadas` : "") + ".");
       notificar("ok", "Archivo de Wompi cargado.");
     } catch (e) { notificar("error", e?.message ?? String(e)); }
     setOcup(null);
@@ -4686,14 +4713,14 @@ function RecSeccion({ ses, notificar, soloLectura }) {
     if (k) D.man[t.id] = k; else delete D.man[t.id];
     setM(D); setEdit(null);
     try { await guardarMes(mes, D); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); }
-    if (k) { let R = { cc: { ...reglas.cc }, nom: { ...reglas.nom } }; if (t.cc) R.cc[t.cc] = k; else if (t.nombre) R.nom[recN(t.nombre)] = k; await guardarReglas(R); }
+    if (k) { let R = { cc: { ...reglas.cc }, nom: { ...reglas.nom } }, mas = (o, key) => { let a = Array.isArray(o[key]) ? o[key] : o[key] ? [o[key]] : []; o[key] = [...new Set([...a, k])]; }; if (t.cc) mas(R.cc, t.cc); else if (t.nombre) mas(R.nom, recN(t.nombre)); await guardarReglas(R); }
   };
 
   if (base === null) return recH("div", { className: "pantalla" }, recH("p", { className: "tenue" }, "Cargando la base de propietarios…"));
   let encabezado = recH("div", { className: "pantalla-enc" },
     recH("div", null, recH("h2", { className: "h-sec" }, "Recaudo de expensas · pagos por Wompi"),
-      recH("p", { className: "lead" }, "Cargue el reporte de transacciones de Wompi (CSV). La app lee lo que el propietario escribió en el campo APARTAMENTOS y le dice qué unidad está pagando. Cuando falta la torre o el texto no es claro, decide con la cédula y el nombre del pagador frente a la base de propietarios. Lo que usted corrija queda aprendido para los próximos pagos.")),
-    recH("div", { className: "acciones" }, !soloLectura && recH("label", { className: "btn btn-primario" + (ocup ? " deshab" : "") }, ocup ?? "Cargar archivo de Wompi (CSV)",
+      recH("p", { className: "lead" }, "Cargue los reportes de Wompi (CSV): el reporte semanal de pagos (trae comisión, IVA, retenciones e id de conciliación) o el de transacciones; puede seleccionar varios a la vez. La app lee lo que el propietario escribió en el campo APARTAMENTOS y le dice qué unidad está pagando. Cuando falta la torre o el texto no es claro, decide con la cédula y el nombre del pagador frente a la base de propietarios. Lo que usted corrija queda aprendido para los próximos pagos.")),
+    recH("div", { className: "acciones" }, !soloLectura && recH("label", { className: "btn btn-primario" + (ocup ? " deshab" : "") }, ocup ?? "Cargar archivos de Wompi (CSV)",
       recH("input", { type: "file", accept: ".csv,text/csv", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargar(f); } }))));
   if (base === !1) return recH("div", { className: "pantalla" }, encabezado, recH("section", { className: "panel" }, recH("p", { className: "nota-ro" }, "Falta la base de propietarios. Cárguela en Cartera → Actualizar propietarios (base de la administración y base de World Office); con ella la app reconoce cédulas, nombres, parqueaderos y depósitos.")));
 
@@ -4713,7 +4740,7 @@ function RecSeccion({ ses, notificar, soloLectura }) {
   let dias = [...new Set(F.map(f => f.f))].sort().reverse();
   let Fd = dia ? F.filter(f => f.f === dia) : F;
   let ap = Fd.filter(f => f.ok), seguros = ap.filter(f => f.unidad && (f.conf === "alta" || f.conf === "manual")), revisar = ap.filter(f => f.unidad && f.conf === "media"), sinId = ap.filter(f => !f.unidad), noAp = Fd.filter(f => !f.ok);
-  let suma = L => L.reduce((s, f) => s + f.valor, 0);
+  let suma = L => L.reduce((s, f) => s + f.valor, 0), conCom = ap.filter(f => f.com != null);
   let nq = recN(q);
   let vis = (filtro === "todos" ? ap : filtro === "seguros" ? seguros : filtro === "revisar" ? revisar : filtro === "sin" ? sinId : noAp)
     .filter(f => !nq || recN([f.escrito, f.nombre, f.cc, f.correo, f.unidad, recEtq(f.unidad), U.get(f.unidad)?.nombre, f.valor].join(" ")).includes(nq));
@@ -4726,10 +4753,11 @@ function RecSeccion({ ses, notificar, soloLectura }) {
 
   let excel = async () => {
     let L = [...ap].sort((a, b) => (a.f + a.h).localeCompare(b.f + b.h));
-    let filas = L.map(f => ({ estilo: "detalle", celdas: [or(recFd(f.f)), or(f.h), or(f.unidad ?? "SIN IDENTIFICAR"), or(f.unidad ? (U.get(f.unidad)?.nombre ?? "") : ""), er(f.valor), or(REC_MEDIO[f.medio] ?? f.medio), or(f.nombre), or(f.cc), or(f.escrito), or(f.como), or(f.conf === "manual" ? "Asignado a mano" : !f.unidad ? "Sin identificar" : f.conf === "alta" ? "Identificado" : "Revisar"), or(f.id)] }));
-    filas.push({ estilo: "totalDoble", celdas: [or("TOTAL"), or(""), or(`${L.length} pagos`), or(""), er(suma(L)), or(""), or(""), or(""), or(""), or(""), or(""), or("")] });
+    let filas = L.map(f => ({ estilo: "detalle", celdas: [or(recFd(f.f)), or(f.h), or(f.unidad ?? "SIN IDENTIFICAR"), or(f.unidad ? (U.get(f.unidad)?.nombre ?? "") : ""), er(f.valor), or(REC_MEDIO[f.medio] ?? f.medio), or(f.nombre), or(f.cc), or(f.escrito), or(f.como), or(f.conf === "manual" ? "Asignado a mano" : !f.unidad ? "Sin identificar" : f.conf === "alta" ? "Identificado" : "Revisar"), f.com != null ? er(f.com) : or(""), f.com != null ? er(f.ivaCom) : or(""), f.com != null ? er(f.rica + f.riva + f.rfte) : or(""), f.com != null ? er(Math.round(f.neto)) : or(""), or(f.conc || ""), or(f.id)] }));
+    let sC = k => L.filter(f => f.com != null).reduce((s, f) => s + (k === "ret" ? f.rica + f.riva + f.rfte : f[k]), 0);
+    filas.push({ estilo: "totalDoble", celdas: [or("TOTAL"), or(""), or(`${L.length} pagos`), or(""), er(suma(L)), or(""), or(""), or(""), or(""), or(""), or(""), er(sC("com")), er(sC("ivaCom")), er(sC("ret")), er(Math.round(sC("neto"))), or(""), or("")] });
     let d = { entidad: "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: "", leyendas: [], firmasImg: {}, secciones: [{ id: "wompi", nombre: "Pagos Wompi", titulo: "RECAUDO DE EXPENSAS · PAGOS POR WOMPI", subtitulos: [dia ? `Pagos aprobados del ${recFd(dia)}` : `Pagos aprobados de ${recMesTxt(mes)}`], orientacion: "landscape", bloques: [{ tipo: "tabla", cabecera: !0,
-      columnas: [["FECHA", 7], ["HORA", 4], ["UNIDAD", 7], ["PROPIETARIO (WORLD OFFICE)", 16], ["VALOR", 8, "right"], ["MEDIO", 7], ["PAGADOR", 12], ["CÉDULA / NIT", 7], ["ESCRIBIÓ EN WOMPI", 9], ["CÓMO SE IDENTIFICÓ", 18], ["ESTADO", 7], ["ID WOMPI", 12]].map(([t, a, al]) => ({ titulo: t, ancho: a, alin: al ?? "left" })), filas }] }] };
+      columnas: [["FECHA", 7], ["HORA", 4], ["UNIDAD", 7], ["PROPIETARIO (WORLD OFFICE)", 16], ["VALOR", 8, "right"], ["MEDIO", 7], ["PAGADOR", 12], ["CÉDULA / NIT", 7], ["ESCRIBIÓ EN WOMPI", 9], ["CÓMO SE IDENTIFICÓ", 16], ["ESTADO", 7], ["COMISIÓN", 6, "right"], ["IVA COMISIÓN", 6, "right"], ["RETENCIONES", 6, "right"], ["NETO AL BANCO", 8, "right"], ["ID CONCILIACIÓN", 9], ["ID WOMPI", 12]].map(([t, a, al]) => ({ titulo: t, ancho: a, alin: al ?? "left" })), filas }] }] };
     try { await BL(ses, `Recaudo_Wompi_${dia || mes}.xlsx`, await Yn(d), notificar); } catch (e) { notificar("error", "No se pudo generar el Excel: " + (e?.message ?? e)); }
   };
 
@@ -4759,6 +4787,7 @@ function RecSeccion({ ses, notificar, soloLectura }) {
         recH("select", { value: dia, onChange: e => setDia(e.target.value) }, recH("option", { value: "" }, `Todo el mes (${dias.length} días)`), dias.map(d => recH("option", { key: d, value: d }, recFd(d) + ` · ${F.filter(f => f.f === d && f.ok).length} pagos`)))),
       recH("div", { className: "fila espacio", style: { gap: "8px", flexWrap: "wrap" } },
         tarjeta("Pagos aprobados", ap, "todos"), tarjeta("Identificados", seguros, "seguros"), tarjeta("Para revisar", revisar, "revisar", "#b45309"), tarjeta("Sin identificar", sinId, "sin", "#b91c1c"), tarjeta("Rechazados / no aprobados", noAp, "noap")),
+      conCom.length > 0 && recH("p", { className: "tenue espacio", style: { margin: "8px 0 0" } }, `Liquidación de Wompi (${conCom.length} de ${ap.length} pagos con reporte semanal): recaudado ${recFmt(suma(conCom))} − comisión ${recFmt(conCom.reduce((s, f) => s + f.com, 0))} − IVA de la comisión ${recFmt(conCom.reduce((s, f) => s + f.ivaCom, 0))}` + (conCom.some(f => f.rica || f.riva || f.rfte) ? ` − retenciones ${recFmt(conCom.reduce((s, f) => s + f.rica + f.riva + f.rfte, 0))}` : "") + ` = neto al banco ${recFmt(conCom.reduce((s, f) => s + f.neto, 0))}.`),
       recH("div", { className: "fila espacio", style: { gap: "8px", alignItems: "center", flexWrap: "wrap" } },
         recH("input", { type: "search", placeholder: "Buscar apartamento, nombre, cédula, valor…", value: q, onChange: e => setQ(e.target.value), style: { minWidth: "280px" } }),
         recH("button", { type: "button", className: "btn btn-sm", style: { marginLeft: "auto" }, onClick: excel, disabled: !ap.length }, "Descargar Excel para recibos de caja")),
@@ -4770,7 +4799,7 @@ function RecSeccion({ ses, notificar, soloLectura }) {
           recH("td", null, f.escrito ? recH("span", { className: "mono" }, f.escrito) : recH("span", { className: "tenue" }, "(no escribió)")),
           recH("td", { style: { minWidth: "190px" } }, celdaUnidad(f)),
           recH("td", { style: { fontSize: "12.5px", maxWidth: "320px" } }, f.como),
-          recH("td", { className: "mono", style: { textAlign: "right", whiteSpace: "nowrap" } }, recFmt(f.valor)),
+          recH("td", { className: "mono", style: { textAlign: "right", whiteSpace: "nowrap" } }, recFmt(f.valor), f.com != null && recH("div", { className: "tenue", style: { fontSize: "11.5px" }, title: `Comisión ${recFmt(f.com)} + IVA ${recFmt(f.ivaCom)}${f.rica || f.riva || f.rfte ? ` + retenciones ${recFmt(f.rica + f.riva + f.rfte)}` : ""} · id conciliación ${f.conc}` }, `neto ${recFmt(f.neto)}`)),
           recH("td", { style: { whiteSpace: "nowrap" } }, REC_MEDIO[f.medio] ?? f.medio),
           recH("td", null, chip(f)))) : recH("tr", null, recH("td", { colSpan: 8, className: "tenue" }, "No hay pagos en este filtro."))))),
       recH("p", { className: "tenue espacio", style: { fontSize: "12px" } }, `Archivos cargados en ${recMesTxt(mes)}: ${(M.archivos ?? []).join(", ") || "—"}. Si vuelve a cargar un archivo, los pagos que ya estaban no se duplican. Las horas están en hora de Colombia.`)));
