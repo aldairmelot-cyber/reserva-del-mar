@@ -4235,588 +4235,303 @@ function RgSeccion({ ses, notificar, soloLectura }) {
 }
 
 /* ===================== RECAUDO DE EXPENSAS · RECIBOS DE CAJA ===================== */
-/* Identifica qué apartamento hizo cada abono del banco de expensas (51748523433) para hacer los
-   recibos de caja en World Office. Usa:
-   - el libro auxiliar cargado en Verificación contable (terceros "1606 T1 NOMBRE", cuota del último mes
-     en 41701001 y pagos anteriores en 11200501),
-   - el extracto y el libro del banco de expensas de cada mes cargados en Conciliación bancaria (aprende
-     qué cuenta, referencia o documento usa cada apartamento),
-   - lo que el contador confirma aquí (queda como regla para los meses siguientes).
-   Se guarda en cbl_seg (mismos permisos que la conciliación): rec_reglas y rec_lote_<cuenta>_<desde>_<hasta>. */
+/* ===================== RECAUDO DE EXPENSAS (Wompi) =====================
+   Cada vez que se carga el reporte de transacciones de Wompi (CSV), la app lee lo que el propietario
+   escribió en el campo APARTAMENTOS ("21224", "T4 APTO 1938", "1113 TORRE 3", "PAQUEADERO 21"…) y lo
+   traduce a la unidad. Si falta la torre o el texto no es claro, decide con la cédula y el nombre del
+   pagador frente a la base de propietarios (Cartera → Actualizar propietarios) y con la cuota.
+   Lo que el contador corrige queda como regla (cédula / nombre → unidad) para los meses siguientes.
+   Se guarda en cbl_seg: rec_wompi_reglas, rec_wompi_idx y rec_wompi_<AAAA-MM>. */
 var REC_VISTAS = ["cb_rec"];
-var REC_CTA = "51748523433", REC_CC = "11200501";
-var recH = Ve.createElement;
+var REC_REGLAS = "cbl_seg/rec_wompi_reglas", REC_IDX = "cbl_seg/rec_wompi_idx", recMesDoc = m => "cbl_seg/rec_wompi_" + m;
 var recN = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
-var recR = v => Math.round(v);
-var recMeses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
-var recUnidad = t => { let m = recN(t).match(/^(\d{3,4}[A-Z]?)\s*T\s?(\d)\b/); return m ? `${m[1].replace(/^0+/, "")} T${m[2]}` : null; };
-var recNombreDe = t => recN(t).replace(/^\d{3,4}[A-Z]?\s*T\s?\d\s*/, "");
-var recIsoDe = n => { let s = String(n); return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`; };
-function recTipo(m) {
-  let d = recN(m[1]), v = m[6];
-  if (v <= 0) return "salida";
-  if (/INTERES|RENDIMIENTO/.test(d)) return "interes";
-  if (/WOMPI/.test(d) || /WOMPI/.test(recN(m[3] + " " + m[4]))) return "lote";
-  if (/ABONO NETO|ABONO (VISA|MASTER)|CREDIBANCO|REDEBAN/.test(d) || /CREDIBANCO/.test(recN(m[1] + " " + m[3]))) return "lote";
-  if (/REVERSION|REVERSO|DEVOLUCION|ANULACION|TRASLADO/.test(d)) return "otro";
-  return "pago";
-}
-function recPagador(m) {
-  let d = String(m[1] ?? "").trim(), x;
-  if (x = d.match(/^PAGO INTERBANC\s+(.*)$/i)) return x[1];
-  if (x = d.match(/^PAGO (?:DE )?PROV\w*\s+(.*)$/i)) return x[1];
-  if (x = d.match(/^PAGO QR\s+(.*)$/i)) return x[1];
-  if (/NEQUI|DAVIPLATA/i.test(d)) return String(m[3] ?? "").replace(/\d+/g, "").trim();
-  return "";
-}
-/* llave estable de quién paga: cuenta de origen, referencia de consignación, documento o nombre */
-function recClave(m) {
-  let d = recN(m[1]), r1 = String(m[3] ?? "").replace(/\s+/g, ""), r2 = recN(m[4]), dig = r1.replace(/\D/g, "");
-  if (/TRANSFERENCIA CTA|TRANSF CTA|TRANSFERENCIA DESDE CTA/.test(d) && dig.length >= 6) return "CTA:" + dig.replace(/^0+/, "");
-  if (/CONSIG|RECAUDO SUCURSAL|DEPOSITO/.test(d) && dig) return "REF:" + dig.replace(/^0+/, "");
-  if (/NEQUI|DAVIPLATA/.test(d)) { let n = recN(m[3]).replace(/[^A-Z ]/g, "").trim(), k = ((recN(m[3]) + " " + r2).match(/\d{3,}/) ?? [""])[0]; return n ? "NEQ:" + n + (k ? "|" + k : "") : null; }
-  if (/PAGO INTERBANC/.test(d) && dig.length >= 5) return "DOC:" + dig.replace(/^0+/, "");
-  if (/PAGO (DE )?PROV|PAGO QR/.test(d) && dig.length >= 6) return "DOC:" + dig.replace(/^0+/, "");
-  return null;
-}
-function recAptoTextoCrudo(m) {
-  let t = recN([m[1], m[3], m[4], m[5]].join(" ")), x = t.match(/\b(?:APTO|APTOS|APT|APARTAMENTO|AP)\.?\s*(\d{3,4}[A-Z]?)\s*(?:-|\/)?\s*T(?:ORRE)?\s?(\d)\b/);
-  return x ? `${x[1].replace(/^0+/, "")} T${x[2]}` : null;
-}
-var recAptoTexto = (m, U) => { let u = recAptoTextoCrudo(m); return u && U.has(u) ? u : null; };
-/* referencia de consignación: torre + apartamento (41327 = T4 1327; 01502 = T1 502). Si solo trae el
-   apartamento (00725), devuelve las unidades con ese número en cualquier torre. */
-function recAptoReferencia(m, U) {
-  if (!/CONSIG|RECAUDO SUCURSAL|DEPOSITO/.test(recN(m[1]))) return [];
-  let r = String(m[3] ?? "").replace(/\D/g, "").replace(/^0+/, ""), x;
-  if (x = r.match(/^([1-4])(\d{3,4})$/)) { let u = `${x[2].replace(/^0+/, "")} T${x[1]}`; if (U.has(u)) return [u]; }
-  if (/^\d{3,4}$/.test(r)) return [...U.keys()].filter(u => u.split(" ")[0] === r);
-  return [];
-}
-function recPorNombre(nombre, U) {
-  let w = recN(nombre).split(" ").filter(x => x.length >= 3 && !/^(SAS|BANK|BANCO|PAGO|INTERBANC|LTDA)$/.test(x));
-  if (w.length < 2) return [];
-  let res = [];
-  for (const [u, info] of U) {
-    let p = new Set(recN(info.nombre).split(/[^A-Z]+/).filter(x => x.length >= 3)), n = 0;
-    for (const x of w) if (p.has(x) || [...p].some(y => y.length >= 5 && x.length >= 4 && y.startsWith(x))) n++;
-    if (n >= 2) res.push([u, n]);
+var REC_STOP = new Set(["DE", "DEL", "LA", "LAS", "LOS", "Y", "E", "SAS", "S", "A", "LTDA", "SA", "EN", "C", "Y/O", "SOCIEDAD"]);
+var recTok = s => recN(s).replace(/[^A-Z0-9 ]/g, " ").split(" ").filter(w => w.length > 1 && !REC_STOP.has(w));
+var recEtq = k => !k ? "" : k.replace(/^(\d+[A-Z]?) T(\d)$/, "Apto $1 · Torre $2").replace(/^PQ(\d+)$/, "Parqueadero $1").replace(/^LC(\d+)$/, "Local $1").replace(/^(DEP|DP)(\d*)$/, "Depósito $2");
+var recOrd = (a, b) => { let t = k => { let m = k.match(/ T(\d)$/); return m ? +m[1] : /^LC/.test(k) ? 5 : /^PQ/.test(k) ? 6 : 7; }; return t(a) - t(b) || a.localeCompare(b, "es", { numeric: !0 }); };
+var REC_MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var recMesTxt = m => m ? `${REC_MESES[+m.slice(5, 7) - 1]} de ${m.slice(0, 4)}` : "";
+
+/* unidades: base de World Office + base de la administración (cédulas, parqueaderos y depósitos) */
+function recUnidades(doc) {
+  let U = new Map(), dueno = new Map();
+  for (const [k, w] of Object.entries(doc?.wo ?? {})) U.set(k, { k, nombre: w.nombre || "", coef: w.coef || 0, admon: w.admon || 0, titular: "", tenedor: "", ids: new Set(), anexos: [] });
+  for (const a of doc?.adm ?? []) {
+    let k = a.k; if (/^DP/.test(k)) k = k.replace(/^DP/, "DEP");
+    let u = U.get(k); if (!u) continue;
+    u.titular = String(a.titular || "").replace(/\s*\n\s*/g, " / ");
+    u.tenedor = /^N\/?A$/i.test(String(a.tenedor || "").trim()) ? "" : String(a.tenedor || "").replace(/\s*\n\s*/g, " / ");
+    for (const x of [...(a.idTit || []), ...(a.idTen || [])]) { let d = String(x).replace(/\D/g, ""); if (d.length >= 5) u.ids.add(d); }
+    for (const [p, col] of [["PQ", a.pq], ["DEP", a.dep]]) for (const n of String(col ?? "").match(/\d+/g) ?? []) { let x = p + Number(n); u.anexos.push(x); if (!dueno.has(x)) dueno.set(x, k); }
   }
-  let max = Math.max(0, ...res.map(x => x[1]));
-  return res.filter(x => x[1] === max).map(x => x[0]);
+  return { U, dueno };
 }
-function recPorValor(v, U) {
-  let out = [];
-  for (const [u, info] of U) {
-    if (info.cuota && (Math.abs(info.cuota - v) <= 2 || Math.abs(info.cuotaDesc - v) <= 2)) out.push(u);
-    else if (info.pagos?.some(p => Math.abs(p - v) <= 1)) out.push(u);
-  }
-  return out;
-}
-/* aprende de un mes ya registrado: une cada abono con el recibo de caja del mismo valor (mismo día o hasta 7 días después) */
-function recAprender(movsBanco, libro) {
-  let usados = new Set(), votos = new Map(), dias = (a, b) => (Date.parse(b) - Date.parse(a)) / 864e5;
-  let L = libro.map((r, i) => ({ i, f: r[0], u: recUnidad(r[1]), v: recR(r[4]) })).filter(x => x.u && x.v > 0);
-  for (const m of movsBanco) {
-    if (recTipo(m) !== "pago") continue;
-    let k = recClave(m); if (!k || recAptoTextoCrudo(m)) continue;
-    let v = recR(m[6]), c = L.filter(x => !usados.has(x.i) && x.v === v && dias(m[0], x.f) >= -1 && dias(m[0], x.f) <= 7);
-    if (!c.length) continue;
-    c.sort((a, b) => Math.abs(dias(m[0], a.f)) - Math.abs(dias(m[0], b.f)));
-    if (c.length > 1 && new Set(c.map(x => x.u)).size > 1 && dias(m[0], c[0].f) === dias(m[0], c[1].f)) continue;
-    usados.add(c[0].i);
-    let s = votos.get(k) ?? new Map(); s.set(c[0].u, (s.get(c[0].u) ?? 0) + 1); votos.set(k, s);
-  }
-  let reglas = {};
-  for (const [k, s] of votos) reglas[k] = s.size === 1 ? [...s.keys()][0] : [...s.keys()];
-  return reglas;
-}
-/* unidades conocidas para una llave (una o varias: hay cuentas que pagan varios apartamentos) */
-var recRegla = (reglas, k, U) => { let x = k ? reglas[k] : null; return (Array.isArray(x) ? x : x ? [x] : []).filter(u => U.has(u)); };
-/* suma una unidad a la regla de una llave sin perder las que ya tenía */
-/* une reglas de varias fuentes; si el contador confirmó una llave, manda lo confirmado */
-var recUnir = (conf, ...fuentes) => { let out = {}; for (const F of fuentes) for (const [k, v] of Object.entries(F ?? {})) for (const u of Array.isArray(v) ? v : [v]) recSumarRegla(out, k, u); return { ...out, ...(conf ?? {}) }; };
-/* pagos sin apartamento que vienen de la misma cuenta (o cédula, o referencia) que otro pago ya asignado en el mismo extracto */
-function recHermanos(filas, reglas, U) {
-  filas = filas.map(f => f.hermano ? { ...f, sel: null, hermano: !1, como: f.comoOrig ?? "", conf: f.confOrig ?? "" } : f);
-  let por = new Map();
-  for (const f of filas) if (f.clave && f.sel && f.tipo === "pago") { let g = por.get(f.clave) ?? []; g.push(f); por.set(f.clave, g); }
-  return filas.map(f => {
-    if (f.sel || f.tipo !== "pago" || !f.clave || !por.has(f.clave) || recRegla(reglas, f.clave, U).length > 1) return f;
-    let g = por.get(f.clave), us = [...new Set(g.map(x => x.sel))];
-    if (us.length !== 1) return f;
-    return { ...f, sel: us[0], hermano: !0, comoOrig: f.como, confOrig: f.conf, conf: "media", como: `Misma ${/^CTA:/.test(f.clave) ? "cuenta" : /^WDOC:/.test(f.clave) ? "cédula" : "referencia"} que el pago del ${g[0].fecha} por $ ${pe(g[0].valor, "0")} (${us[0]})` };
-  });
-}
-var recSumarRegla = (reglas, k, u) => { let a = recRegla(reglas, k, { has: () => !0 }); if (!a.includes(u)) a = [...a, u]; reglas[k] = a.length === 1 ? a[0] : a; };
-/* identifica cada abono. reglas: { llave: unidad } */
-function recIdentificar(movs, U, reglas) {
-  return movs.map((m, i) => {
-    let tipo = recTipo(m), v = recR(m[6]), r = { i, fecha: m[0], desc: m[1], ref1: m[3], ref2: m[4], valor: m[6], tipo, clave: recClave(m), pagador: recPagador(m), unidad: null, como: "", conf: "", cands: [] };
-    if (tipo !== "pago") return r;
-    let u;
-    if (u = recAptoTexto(m, U)) return { ...r, unidad: u, como: "Apartamento escrito en el banco", conf: "alta" };
-    let rg = recRegla(reglas, r.clave, U), pv = recPorValor(v, U);
-    if (rg.length === 1) return { ...r, unidad: rg[0], como: "Misma cuenta o referencia de pagos anteriores", conf: "alta" };
-    if (rg.length > 1) { let x = rg.filter(y => pv.includes(y)); if (x.length === 1) return { ...r, unidad: x[0], como: `Cuenta que paga ${rg.length} apartamentos; el valor corresponde a este`, conf: "alta" }; return { ...r, cands: rg.slice(0, 8), como: `Cuenta que paga ${rg.length} apartamentos: escoja cuál` }; }
-    let pr = recAptoReferencia(m, U), pn = r.pagador ? recPorNombre(r.pagador, U) : [];
-    if (pr.length === 1) return { ...r, unidad: pr[0], como: "Referencia = torre y apartamento", conf: "alta" };
-    let prv = pr.filter(x => pv.includes(x));
-    if (prv.length === 1) return { ...r, unidad: prv[0], como: "Referencia (apartamento) y valor", conf: "alta" };
-    let ambos = pn.filter(x => pv.includes(x));
-    if (ambos.length === 1) return { ...r, unidad: ambos[0], como: "Nombre y valor coinciden", conf: "alta" };
-    if (pv.length === 1) return { ...r, unidad: pv[0], como: "Valor igual a la cuota o a pagos anteriores", conf: "media" };
-    return { ...r, cands: [...new Set([...pn, ...pr, ...pv])].slice(0, 8), como: pn.length ? "Nombre parecido a: " + pn.slice(0, 3).join(", ") : pv.length > 1 ? `${pv.length} apartamentos pagan ese valor` : "" };
-  });
-}
-/* lee el PDF del banco con el lector de la conciliación y recupera los textos de segunda línea ("1020A T3") */
-async function recLeerPdf(f) {
-  let buf = new Uint8Array(await f.arrayBuffer()), F = await cmPdfFilas(buf), B = cmParseBanco(F, f.name);
-  let fechados = [], idx = -1;
-  for (const r of F) {
-    if (/^\d{4}\/\d{2}\/\d{2}$/.test(r.it[0]?.s ?? "")) { fechados.push([]); idx = fechados.length - 1; continue; }
-    if (idx < 0) continue;
-    let t = r.it.map(x => x.s).join(" ").trim();
-    if (!t || /P[AÁ]GINA|SALDO|FECHA Y HORA|IMPRESO/i.test(t) || r.it.length > 3) continue;
-    fechados[idx].push(t);
-  }
-  if (fechados.length === B.movs.length) B.movs.forEach((m, i) => { for (const t of fechados[i]) if (!recN(m[4]).includes(recN(t))) m[4] = (m[4] + " " + t).trim(); });
-  return B;
-}
-/* base: apartamentos, cuota del último mes, pagos anteriores y reglas aprendidas */
-async function recBase(ses) {
-  let metas = (await ses.store.list("verif_idx")).map(x => x.data).filter(m => m?.cuentas?.some(c => String(c[0]) === "41701001")).sort((a, b) => b.hasta.localeCompare(a.hasta));
-  if (!metas.length) throw new Error("Falta el libro auxiliar. Cárguelo en Verificación contable → Libro auxiliar (el del año en curso).");
-  let A = await vxCargar(ses.store, metas[0]), ci = c => A.meta.cuentas.findIndex(x => String(x[0]) === c), iIng = ci("41701001"), iBan = ci(REC_CC);
-  let ult = Math.max(...A.movs.filter(m => m[0] === iIng).map(m => Math.floor(m[1] / 100))), U = new Map(), libroHist = [];
-  for (const m of A.movs) {
-    if (m[0] !== iIng && m[0] !== iBan) continue;
-    let t = A.strs[m[2]], u = recUnidad(t); if (!u) continue;
-    let x = U.get(u) ?? { tercero: t, nombre: recNombreDe(t), cuota: 0, pagos: [] };
-    x.tercero = t; x.nombre = recNombreDe(t);
-    if (m[0] === iIng && Math.floor(m[1] / 100) === ult) x.cuota += m[6] - m[5];
-    if (m[0] === iBan && m[5] > 0) { libroHist.push([recIsoDe(m[1]), t, A.strs[m[3]], A.strs[m[4]], m[5]]); if (m[1] >= (ult - 5) * 100) x.pagos.push(recR(m[5])); }
-    U.set(u, x);
-  }
-  for (const x of U.values()) { x.cuota = recR(x.cuota); x.cuotaDesc = recR(x.cuota * 0.9); }
-  /* meses del banco de expensas cargados en Conciliación bancaria: extracto + libro */
-  let aprendidas = {}, meses = (await ses.store.list("cbl_idx")).map(x => x.data).filter(x => x?.cuenta === REC_CTA).map(x => x.mes);
-  for (const mes of meses) {
-    let [b, l] = await Promise.all([cmLeerArr(ses.store, `cbl_raw/${REC_CTA}_${mes}_banco`), cmLeerArr(ses.store, `cbl_raw/${REC_CTA}_${mes}_libro`)]);
-    if (l) for (const r of l.arr) { let u = recUnidad(r[1]); if (u && U.has(u) && r[4] > 0) U.get(u).pagos.push(recR(r[4])); }
-    if (b && l) aprendidas = recUnir(null, aprendidas, recAprender(b.arr, l.arr));
-  }
-  let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {};
-  return { U, ult, libroHist, meses, metaLibro: metas[0], reglas: recUnir(G.confirmadas, aprendidas, G.aprendidas), G };
-}
-/* ---------- reportes de desembolso de Wompi ---------- */
-/* Cada abono de Wompi en el banco es un desembolso que agrupa varios pagos. El reporte
-   (CSV "disbursement-report") trae una línea por pago: valor, comisión, neto, cédula del
-   pagador y, a veces, la referencia del apartamento ("APARTAMENTOS 21325" = T2 1325). */
+
+/* lector del CSV de transacciones de Wompi */
 function recCsv(txt) {
-  let out = [], fila = [], c = "", q = !1;
+  let out = [], fila = [], c = "", q = !1, sep = null;
+  txt = txt.replace(/^﻿/, "");
+  let l1 = txt.split(/\r?\n/, 1)[0]; sep = (l1.match(/;/g) || []).length > (l1.match(/,/g) || []).length ? ";" : ",";
   for (let i = 0; i < txt.length; i++) {
     let ch = txt[i];
     if (q) { if (ch === '"') { if (txt[i + 1] === '"') { c += '"'; i++; } else q = !1; } else c += ch; }
     else if (ch === '"') q = !0;
-    else if (ch === ",") { fila.push(c); c = ""; }
-    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && txt[i + 1] === "\n") i++; fila.push(c); c = ""; if (fila.some(x => x.trim())) out.push(fila); fila = []; }
+    else if (ch === sep) { fila.push(c); c = ""; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && txt[i + 1] === "\n") i++; fila.push(c); c = ""; if (fila.some(x => x !== "")) out.push(fila); fila = []; }
     else c += ch;
   }
-  fila.push(c); if (fila.some(x => x.trim())) out.push(fila);
+  if (c !== "" || fila.length) { fila.push(c); if (fila.some(x => x !== "")) out.push(fila); }
   return out;
 }
-function recLeerWompi(txt, nombre) {
-  let F = recCsv(txt.replace(/^﻿/, "")), cab = (F[0] ?? []).map(x => recN(x));
-  let col = (...ks) => cab.findIndex(h => ks.some(k => h === k || h.startsWith(k)));
-  let iId = col("ID DE LA TRANSACCION"), iF = col("FECHA"), iRef = col("REFERENCIA"), iM = col("MONTO"), iMed = col("MEDIO DE PAGO"), iNeto = col("TOTAL DESEMBOLSADO"),
-    iDoc = col("DOCUMENTO DEL PAGADOR"), iTd = col("TIPO DE DOCUMENTO"), iDes = col("DISBURSEMENT ID"), iR1n = col("REF. 1 NOMBRE"), iR1 = cab.findIndex(h => h === "REF. 1"), iR2n = col("REF. 2 NOMBRE"), iR2 = cab.findIndex(h => h === "REF. 2");
-  if (iId < 0 || iM < 0 || iNeto < 0 || iDes < 0) throw new Error(`"${nombre}": no es un reporte de desembolsos de Wompi (faltan las columnas de transacción, monto, total desembolsado o disbursement id).`);
-  let num = x => Number(String(x ?? "").replace(/[^\d.-]/g, "")) || 0;
-  return F.slice(1).filter(r => r[iId]?.trim()).map(r => {
-    let f = String(r[iF] ?? "").match(/(\d{2})-(\d{2})-(\d{4})/), m = num(r[iM]), neto = num(r[iNeto]);
-    return { id: r[iId].trim(), fecha: f ? `${f[3]}-${f[2]}-${f[1]}` : "", ref: (r[iRef] ?? "").trim(), monto: m, neto, comision: Math.round((m - neto) * 100) / 100, medio: (r[iMed] ?? "").trim(),
-      doc: String(r[iDoc] ?? "").replace(/\D/g, ""), tdoc: (r[iTd] ?? "").trim(), r1n: iR1n >= 0 ? (r[iR1n] ?? "").trim() : "", r1: iR1 >= 0 ? (r[iR1] ?? "").trim() : "",
-      r2n: iR2n >= 0 ? (r[iR2n] ?? "").trim() : "", r2: iR2 >= 0 ? (r[iR2] ?? "").trim() : "", des: String(r[iDes] ?? "").trim(), archivo: nombre };
-  });
+/* "2026-11-10 21:14:35 UTC" → hora de Colombia (UTC-5) */
+function recHoraCo(s) {
+  let m = String(s || "").match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return { f: "", h: "" };
+  let utc = /UTC|Z|\+00/.test(s) || !/[+-]\d{2}:?\d{2}$/.test(s);
+  let d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) - (utc ? 5 * 3600e3 : 0));
+  let p = n => String(n).padStart(2, "0");
+  return { f: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`, h: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}` };
 }
-/* "21325" o "1325 T2" o "APTO 1325 T2" → unidad */
-function recAptoDeCodigo(x, U) {
-  let t = recN(x), m;
-  if (m = t.match(/(\d{3,4}[A-Z]?)\s*-?\s*T(?:ORRE)?\s?(\d)\b/)) { let u = `${m[1].replace(/^0+/, "")} T${m[2]}`; if (U.has(u)) return u; }
-  if (m = t.match(/\bT(?:ORRE)?\s?(\d)\s*-?\s*(?:APTO|AP)?\s*(\d{3,4}[A-Z]?)\b/)) { let u = `${m[2].replace(/^0+/, "")} T${m[1]}`; if (U.has(u)) return u; }
-  let d = t.replace(/\D/g, "").replace(/^0+/, "");
-  if (m = d.match(/^([1-4])(\d{3,4})$/)) { let u = `${m[2].replace(/^0+/, "")} T${m[1]}`; if (U.has(u)) return u; }
-  return null;
-}
-function recIdentificarWompi(tx, U, reglas) {
-  let clave = tx.doc ? "WDOC:" + tx.doc : null, u;
-  let base = { clave, pagador: tx.tdoc && tx.doc ? `${tx.tdoc} ${tx.doc}` : "", unidad: null, como: "", conf: "", cands: [] };
-  for (const x of [tx.r1, tx.r2, tx.ref]) if (x && (u = recAptoDeCodigo(x, U))) return { ...base, unidad: u, como: "Apartamento en la referencia de Wompi", conf: "alta" };
-  let rg = recRegla(reglas, clave, U), pv = recPorValor(recR(tx.monto), U);
-  if (rg.length === 1) return { ...base, unidad: rg[0], como: "Misma cédula de pagos anteriores", conf: "alta" };
-  if (rg.length > 1) { let x = rg.filter(y => pv.includes(y)); if (x.length === 1) return { ...base, unidad: x[0], como: `Cédula que paga ${rg.length} apartamentos; el valor corresponde a este`, conf: "alta" }; return { ...base, cands: rg.slice(0, 8), como: `Cédula que paga ${rg.length} apartamentos: escoja cuál` }; }
-  if (pv.length === 1) return { ...base, unidad: pv[0], como: "Valor igual a la cuota o a pagos anteriores", conf: "media" };
-  return { ...base, cands: pv.slice(0, 8), como: pv.length > 1 ? `${pv.length} apartamentos pagan ese valor` : "" };
-}
-/* reemplaza cada abono de Wompi del banco por los pagos de su desembolso */
-function recExpandirWompi(R, wompi, U, reglas) {
-  if (!wompi?.length) return { R, abiertos: 0, sinBanco: [] };
-  let grupos = new Map();
-  for (const t of wompi) { let g = grupos.get(t.des) ?? []; g.push(t); grupos.set(t.des, g); }
-  let usados = new Set(), out = [], abiertos = 0;
-  for (const r of R) {
-    if (r.tipo !== "lote" || !/WOMPI/.test(recN(r.desc + " " + r.ref1 + " " + r.ref2))) { out.push(r); continue; }
-    let cand = [...grupos.entries()].filter(([d, g]) => !usados.has(d) && Math.abs(g.reduce((s, t) => s + t.neto, 0) - r.valor) <= 1 && g.every(t => !t.fecha || t.fecha <= r.fecha));
-    if (!cand.length) { out.push(r); continue; }
-    let [d, g] = cand[0]; usados.add(d); abiertos++;
-    g.forEach((t, k) => out.push({ i: `${r.i}.${k}`, fecha: t.fecha || r.fecha, desc: `WOMPI · ${t.medio || "pago"} · desembolso ${d}`, ref1: t.ref, ref2: [t.r1n && t.r1 ? `${t.r1n} ${t.r1}` : "", t.r2n && t.r2 ? `${t.r2n} ${t.r2}` : ""].filter(Boolean).join(" · "),
-      valor: t.monto, neto: t.neto, comision: t.comision, tipo: "pago", w: { id: t.id, des: d, fechaBanco: r.fecha }, ...recIdentificarWompi(t, U, reglas) }));
+function recLeerWompi(txt, archivo) {
+  let F = recCsv(txt); if (F.length < 2) throw new Error(`${archivo}: el archivo está vacío.`);
+  let H = F[0].map(h => recN(h).toLowerCase()), col = (...n) => { for (const x of n) { let i = H.indexOf(x); if (i >= 0) return i; } return -1; };
+  let iId = col("id", "transaction_id", "id transaccion"), iCr = col("created_at", "fecha", "fecha de creacion"), iAm = col("amount", "monto", "valor"), iAc = col("amount_in_cents"),
+    iRef = col("reference", "referencia"), iMail = col("customer_email", "email"), iMet = col("payment_method_type", "metodo de pago"), iSt = col("status", "estado"), iCd = col("customer_data"), iLink = col("payment_link_id");
+  if (iId < 0 || (iAm < 0 && iAc < 0) || iSt < 0) throw new Error(`${archivo}: no parece el reporte de transacciones de Wompi (faltan las columnas id, amount o status).`);
+  let out = [];
+  for (const r of F.slice(1)) {
+    if (!r[iId]) continue;
+    let cd = {}; try { cd = JSON.parse(r[iCd] || "{}") || {}; } catch { }
+    let refs = (cd.customer_references || []).map(x => String(x?.value ?? "").trim()).filter(Boolean);
+    /* pagos por Bancolombia (tu360) traen el código en la referencia: "11404|…" */
+    let rc = String(r[iRef] || "").match(/^(\d{4,5})\|/); if (!refs.length && rc) refs.push(rc[1]);
+    let valor = iAm >= 0 && r[iAm] !== "" ? Number(String(r[iAm]).replace(/[^\d.-]/g, "")) : Number(r[iAc]) / 100;
+    let { f, h } = recHoraCo(r[iCr]);
+    out.push({ id: r[iId].trim(), f, h, valor: Math.round(valor || 0), escrito: refs.join(" · "), ref: (r[iRef] || "").trim(), link: iLink >= 0 ? (r[iLink] || "").trim() : "",
+      correo: (r[iMail] || "").trim(), medio: (r[iMet] || "").trim(), estado: recN(r[iSt]), nombre: String(cd.full_name || "").trim(), cc: String(cd.legal_id || "").replace(/\D/g, ""), tipoId: cd.legal_id_type || "", tel: cd.phone_number || "" });
   }
-  return { R: out, abiertos, sinBanco: [...grupos.keys()].filter(d => !usados.has(d)) };
+  return out;
 }
-/* ===== Comprobantes de pago recibidos (correo / WhatsApp) =====
-   Se guardan en cbl_seg/rec_comprobantes { lista: [...] }. Cada comprobante se cruza con el extracto:
-   mismo valor, fecha cercana y, si la hay, la "pista" (cuenta, referencia o nombre que sale en el banco).
-   Si el comprobante trae el apartamento, se propone para el pago del banco (para revisar). */
-var REC_COMP_INI = [
-  { n: 1, fecha: "2026-11-03", valor: 664782, medio: "Transferencia cta *5334", apto: "", pista: "5334" },
-  { n: 2, fecha: "2026-11-04", valor: 472091, medio: "Transferencia Mauricio Mejía *8349", apto: "", pista: "8349" },
-  { n: 3, fecha: "2026-11-04", valor: 606974, medio: "Redeban corresponsal ref. 1502", apto: "502 T1", pista: "01502", obs: "La referencia 01502 se lee como Torre 1 apto 502: confirmar que no sea el apto 1502." },
-  { n: 4, fecha: "2026-11-04", valor: 500000, medio: "BBVA cta *0515", apto: "", pista: "BASSIN", obs: "En el banco entra como PAGO INTERBANC MARK BASSIN (tercero del 607 T1, que ya pagó $ 676.343 el 05/11). Confirmar a qué apartamento corresponde." },
-  { n: 5, fecha: "2026-11-05", valor: 615646, medio: "Transferencia a RDM ADMON", apto: "", pista: "79333434976" },
-  { n: 6, fecha: "2026-11-05", valor: 619981, medio: "Transferencia cta *6033", apto: "", pista: "6033" },
-  { n: 7, fecha: "2026-11-05", valor: 676350, medio: "Corresponsal Wompi ref. 31515", apto: "1515 T3", pista: "31515" },
-  { n: 8, fecha: "2026-11-05", valor: 676343, medio: "Banco de Bogotá", apto: "", pista: "NADER" },
-  { n: 9, fecha: "2026-11-06", valor: 615646, medio: "Pago factura, apto 00725", apto: "725", pista: "00725" },
-  { n: 10, fecha: "2026-11-06", valor: 771725, medio: "Transferencia cta *8880", apto: "", pista: "8880" },
-  { n: 11, fecha: "2026-11-06", valor: 459566, medio: "Transferencia Bancolombia", apto: "", pista: "16727712007" },
-  { n: 12, fecha: "2026-11-06", valor: 763054, medio: "Transferencia Johanna Hernández *1226", apto: "", pista: "1226" },
-  { n: 13, fecha: "2026-10-30", valor: 823751, medio: "Wompi PSE (joseidavila)", apto: "", wompi: !0 },
-  { n: 14, fecha: "2026-11-01", valor: 971159, medio: "Wompi PSE", apto: "", wompi: !0 },
-  { n: 15, fecha: "2026-11-03", valor: 450000, medio: "Wompi · Andrea Palacios", apto: "924", wompi: !0 },
-  { n: 16, fecha: "2026-11-03", valor: 538777, medio: "Wompi PSE (Nu)", apto: "", wompi: !0 },
-  { n: 17, fecha: "2026-11-03", valor: 1453008, medio: "Wompi PSE (CUS 795348029)", apto: "1718", wompi: !0, obs: "El soporte lo envió el 1718: no es del 1616. Si ya se hizo recibo de caja al 1616, anularlo y hacerlo al 1718." },
-  { n: 18, fecha: "2026-11-06", valor: 1409048, medio: "Wompi · Patricia Maestre", apto: "", wompi: !0 },
-  { n: 19, fecha: "2026-11-06", valor: 771725, medio: "Wompi botón Bancolombia *1267", apto: "", wompi: !0 },
-  { n: 20, fecha: "2026-11-07", valor: 800000, medio: "Wompi · alex.santamaria", apto: "", wompi: !0 },
-  { n: 21, fecha: "2026-11-04", valor: 756310, medio: "Davivienda · Adriana Guzmán", apto: "", pista: "ADRIANA" },
-  { n: 22, fecha: "2026-11-05", valor: 848000, medio: "Transferencia cta *5778 «Admón Nov 1008»", apto: "1008", pista: "CLAUDIA" },
-  { n: 23, fecha: "2026-11-06", valor: 784732, medio: "Transferencia cta *8840", apto: "", pista: "8840" },
-  { n: 24, fecha: "2026-11-06", valor: 455250, medio: "Redeban corresponsal ref. 41327", apto: "1327 T4", pista: "41327" },
-  { n: 25, fecha: "2026-11-07", valor: 767390, medio: "Transferencia Adiela Patricia *2470", apto: "", pista: "2470", obs: "El comprobante dice 08-nov 12:31 a.m.; el banco lo registró el 07/11. Usar la fecha del banco en el recibo." },
-  { n: 26, fecha: "2026-11-07", valor: 481244, medio: "Transferencia cta *9847", apto: "", pista: "9847" },
-  { n: 27, fecha: "2026-11-06", valor: 901791, medio: "Wompi PSE (jarojasf61)", apto: "1034 T4", wompi: !0 },
-  { n: 28, fecha: "2026-11-06", valor: 767390, medio: "Wompi · Leonardo Sanguino", apto: "", wompi: !0 },
-  { n: 29, fecha: "2026-11-06", valor: 815081, medio: "Wompi · dcontreras", apto: "", wompi: !0 },
-  { n: 30, fecha: "2026-11-06", valor: 771725, medio: "Wompi · Carlos E. Bermúdez", apto: "", wompi: !0 },
-  { n: 31, fecha: "2026-11-06", valor: 999433, medio: "Wompi · Juan F. Agudelo", apto: "", wompi: !0 },
-  { n: 32, fecha: "2026-11-06", valor: 455231, medio: "Wompi PSE", apto: "", wompi: !0 },
-  { n: 33, fecha: "2026-11-07", valor: 672008, medio: "Wompi PSE (fbarrazacoll)", apto: "", wompi: !0 },
-  { n: 34, fecha: "2026-11-06", valor: 715363, medio: "DaviBank cta *6380", apto: "", pista: "6380" },
-  { n: 35, fecha: "2026-11-07", valor: 1309331, medio: "Davivienda · Héctor Benites *2856", apto: "", pista: "BENITES", obs: "Posible pago doble: el 06/11 entró PAGO DE PROV FLEX PACK SAS por el mismo valor. Confirmar si es el mismo apartamento." },
-  { n: 36, fecha: "2026-11-02", valor: 270000, medio: "Transferencia cta 51700003586 (confirmado por Contabilidad)", apto: "1503", pista: "51700003586" },
-  { n: 37, fecha: "2026-11-06", valor: 250000, medio: "Transferencia cta 51700003586 (confirmado por Contabilidad)", apto: "1503", pista: "51700003586" }
-];
-/* "725" sin torre: si solo existe en una torre, esa; si no, null y las opciones */
-function recAptoComp(a, U) {
-  let t = String(a ?? "").trim().toUpperCase().replace(/\s+/g, " ");
-  if (!t) return { u: null, op: [] };
-  let u = recUnidad(t);
-  if (u && U.has(u)) return { u, op: [u] };
-  let num = t.replace(/\D/g, "").replace(/^0+/, ""), op = [...U.keys()].filter(k => k.split(" ")[0] === num);
-  return { u: op.length === 1 ? op[0] : null, op };
-}
-var recDias = (a, b) => Math.round((new Date(a + "T12:00:00") - new Date(b + "T12:00:00")) / 864e5);
-/* cruza los comprobantes con las filas del extracto. Devuelve filas marcadas (f.comp) y el estado de cada comprobante */
-function recCruzarComp(filas, lista, U) {
-  filas = filas.map(f => { let g = { ...f, comp: void 0 }; if (f.compAsig) Object.assign(g, { sel: f.selOrigC ?? null, manual: !!f.manualOrigC, compAsig: !1, como: f.comoOrigC ?? "", conf: f.confOrigC ?? "" }); return g; });
-  let usadas = new Set(), est = [];
-  for (const c of [...(lista ?? [])].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.n - b.n)) {
-    let P = recN(c.pista ?? "").replace(/\s+/g, ""), txt = f => recN([f.desc, f.ref1, f.ref2, f.pagador].join(" ")).replace(/\s+/g, "");
-    let cand = filas.filter(f => f.tipo === "pago" && !usadas.has(f.i) && Math.abs(f.valor - c.valor) < 1 && (c.wompi ? !!f.w && Math.abs(recDias(f.fecha, c.fecha)) <= 1 : !f.w && recDias(f.fecha, c.fecha) >= 0 && recDias(f.fecha, c.fecha) <= 5));
-    let pun = f => (P && txt(f).includes(P) ? 0 : 100) + (f.sel ? 10 : 0) + Math.abs(recDias(f.fecha, c.fecha));
-    cand.sort((a, b) => pun(a) - pun(b));
-    let r = { ...c, estado: "pendiente", fila: null, banco: "", alerta: c.obs ?? "" }, ap = recAptoComp(c.apto, U);
-    if (c.apto && !ap.u) r.alerta = (r.alerta ? r.alerta + " " : "") + (ap.op.length ? `El comprobante dice apto ${c.apto} sin torre: puede ser ${ap.op.join(", ")}.` : `El apto ${c.apto} del comprobante no está en la base.`);
-    let f = cand[0];
-    if (f) {
-      usadas.add(f.i); r.estado = "banco"; r.fila = f.i;
-      r.banco = `${f.fecha} · ${f.w ? `dentro del abono PAGO DE PROV WOMPI del ${f.w.fechaBanco}` : [f.desc, f.ref1, f.ref2].filter(Boolean).join(" · ")}`;
-      let k = filas.indexOf(f), g = { ...f, comp: c.n };
-      if (ap.u && f.sel !== ap.u) {
-        Object.assign(g, { sel: ap.u, compAsig: !0, selOrigC: f.sel ?? null, manualOrigC: !!f.manual, manual: !1, comoOrigC: f.como, confOrigC: f.conf, conf: "media", como: f.sel ? `CORREGIDO por comprobante #${c.n}: estaba aplicado al ${f.sel}; el soporte es del ${ap.u}` : `Comprobante #${c.n}: ${c.medio}` });
-        if (f.sel) { r.corregido = f.sel; r.alerta = `CORREGIDO: estaba aplicado al ${f.sel} y el soporte es del ${ap.u}; ya quedó en el ${ap.u}. Si se hizo recibo de caja al ${f.sel}, anularlo.`; }
-      }
-      if (!g.sel && !ap.u && !c.apto) r.alerta = (r.alerta ? r.alerta + " " : "") + "Ya está en el banco pero sin apartamento: anotarlo según el correo.";
-      filas[k] = g;
-    } else if (c.wompi) {
-      let L = filas.filter(x => x.tipo === "lote" && /WOMPI/.test(recN(x.desc)) && recDias(x.fecha, c.fecha) >= 1 && recDias(x.fecha, c.fecha) <= 5).sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
-      if (L) { r.estado = "probable"; r.banco = `${L.fecha} · dentro del abono WOMPI de $ ${pe(L.valor, "0")} (falta su reporte de desembolso)`; }
+var REC_MEDIO = { PSE: "PSE", BANCOLOMBIA_TRANSFER: "Botón Bancolombia", BANCOLOMBIA_QR: "QR Bancolombia", CARD: "Tarjeta", NEQUI: "Nequi", DAVIPLATA: "Daviplata", BANCOLOMBIA_COLLECT: "Corresponsal Bancolombia", PCOL: "Puntos Colombia", BANCOLOMBIA_BNPL: "Bancolombia BNPL" };
+var REC_ESTADO = { APPROVED: "Aprobado", DECLINED: "Rechazado", VOIDED: "Anulado", ERROR: "Error", PENDING: "Pendiente" };
+
+/* lo que escribió el propietario → unidades posibles, con la explicación */
+function recCandTexto(txt, U, dueno) {
+  let t = recN(txt); if (!t) return { c: [], como: "" };
+  let out = new Map(), add = (k, como, fuerte) => { if (U.has(k) && !out.has(k)) out.set(k, { k, como, fuerte }); };
+  /* parqueadero, depósito o local */
+  let m;
+  if ((m = t.match(/\bP\w{0,2}Q\w*\.?\s*(?:N[O°º.]*\s*)?(\d{1,3})\b/)) || (m = t.match(/\bPARQ?\w*\s*(\d{1,3})\b/))) {
+    let k = "PQ" + Number(m[1]); if (U.has(k) && (U.get(k).coef > 0 || !dueno.has(k))) add(k, `escribió parqueadero ${Number(m[1])}`, !0); else if (dueno.has(k)) add(dueno.get(k), `escribió parqueadero ${Number(m[1])}, que es de ${recEtq(dueno.get(k))}`, !0);
+  }
+  if ((m = t.match(/\bDEP\w*\.?\s*(\d{1,3})\b/))) { let k = "DEP" + Number(m[1]); if (U.has(k) && (U.get(k).coef > 0 || !dueno.has(k))) add(k, `escribió depósito ${Number(m[1])}`, !0); else if (dueno.has(k)) add(dueno.get(k), `escribió depósito ${Number(m[1])}, que es de ${recEtq(dueno.get(k))}`, !0); }
+  if ((m = t.match(/\bLOCAL\w*\s*(?:COMERCIAL\s*)?(\d)\b/))) add("LC" + m[1], `escribió local ${m[1]}`, !0);
+  if (out.size) return { c: [...out.values()], como: "" };
+  /* torre escrita: "TORRE 3", "T4", "TO4", "TR 2" */
+  let torre = null, tm = t.match(/\b(?:TORRE|TORR|TOR|TO|TR|T)\s*[-.:#]?\s*([1-4])(?!\d)/) || t.match(/(?:TORRE|TO|T)([1-4])\b/);
+  if (tm) torre = tm[1];
+  let sinTorre = tm ? t.replace(tm[0], " ") : t;
+  let nums = (sinTorre.match(/\d+[A-Z]?\b|\d+/g) ?? []).map(x => x.replace(/^0+/, "")).filter(x => /^\d{3,5}[A-Z]?$/.test(x));
+  for (const n of nums) {
+    let d = n.replace(/\D/g, "");
+    if (torre) {
+      add(`${n} T${torre}`, `escribió apartamento ${n} de la torre ${torre}`, !0);
+      if (d.length >= 4 && d[0] === torre) add(`${n.slice(1)} T${torre}`, `escribió ${n}: torre ${torre}, apartamento ${n.slice(1)}`, !0);
+    } else if (d.length === 5) add(`${n.slice(1)} T${n[0]}`, `escribió ${n}: torre ${n[0]}, apartamento ${n.slice(1)}`, !0);
+    else {
+      for (const T of ["1", "2", "3", "4"]) add(`${n} T${T}`, `escribió ${n} sin torre → torre ${T}`, !1);
+      if (d.length === 4 && /[1-4]/.test(d[0])) add(`${n.slice(1)} T${n[0]}`, `escribió ${n}: puede ser torre ${n[0]}, apartamento ${n.slice(1)}`, !1);
     }
-    est.push(r);
   }
-  return { filas, comps: est.sort((a, b) => a.n - b.n) };
+  return { c: [...out.values()], como: "" };
 }
-function RecSeccion({ ses, notificar, soloLectura, entidad }) {
-  let [base, setBase] = Ve.useState(null), [err, setErr] = Ve.useState(null), [lote, setLote] = Ve.useState(null), [ocup, setOcup] = Ve.useState(null);
-  let [filtro, setFiltro] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [lotes, setLotes] = Ve.useState([]), [wPend, setWPend] = Ve.useState([]);
-  let cargarBase = async () => { setErr(null); try { let b = await recBase(ses), C = await ses.store.get("cbl_seg/rec_comprobantes").catch(() => null); b.compsQ = C?.quitados ?? []; b.comps = [...REC_COMP_INI.filter(c => !b.compsQ.includes(c.n)), ...(C?.lista ?? []).filter(c => c.propio && !b.compsQ.includes(c.n))]; setBase(b); } catch (e) { setErr(e?.message ?? String(e)); } };
-  let cargarLotes = async () => { try { setLotes((await ses.store.list("cbl_seg")).filter(x => String(x.id ?? x.data?.id ?? "").startsWith("rec_lote_") || x.data?.tipo === "rec_lote").map(x => x.data).filter(Boolean).sort((a, b) => b.hasta.localeCompare(a.hasta))); } catch { } };
-  Ve.useEffect(() => { cargarBase(); cargarLotes(); }, [ses]);
-  let mesTxt = f => { let p = String(f).split("-"); return `${recMeses[+p[1] - 1]} ${p[0]}`; };
-  let armar = (B, guardado) => {
-    let wompi = B.wompi ?? guardado?.wompi ?? [], X = recExpandirWompi(recIdentificar(B.movs, base.U, base.reglas), wompi, base.U, base.reglas), R = X.R, A = guardado?.asign ?? {};
-    let filas = R.filter(r => r.valor > 0 && r.tipo !== "interes").map(r => {
-      let a = A[r.i] ?? {}, u = a.u !== undefined ? a.u : r.unidad;
-      return { ...r, sel: u, manual: a.u !== undefined && a.u !== r.unidad, concepto: a.c ?? `PAGO EXPENSAS ADMON ${mesTxt(r.fecha)}`, incl: a.x !== undefined ? a.x : r.tipo === "pago" };
+function recSimNombre(a, u) {
+  let A = new Set(recTok(a)); if (!A.size) return 0;
+  let best = 0;
+  for (const n of [u.nombre, u.titular, u.tenedor]) { let B = recTok(n); if (!B.length) continue; let c = B.filter(w => A.has(w)).length; best = Math.max(best, c / Math.min(A.size, B.length)); }
+  return best;
+}
+var recCuotaOk = (v, u) => { if (!u.admon) return !1; let r = v / u.admon; return Math.abs(r - Math.round(r)) < 0.02 && Math.round(r) >= 1 && Math.round(r) <= 12; };
+
+/* identifica un pago */
+function recIdentificar(tx, B, reglas) {
+  let { U, dueno } = B;
+  let regla = (tx.cc && reglas.cc?.[tx.cc]) || (tx.nombre && reglas.nom?.[recN(tx.nombre)]);
+  let { c } = recCandTexto(tx.escrito, U, dueno);
+  let porCc = tx.cc ? [...U.values()].filter(u => u.ids.has(tx.cc)) : [];
+  let nota = [];
+  let res = (k, conf, como) => ({ unidad: k, conf, como: [como, ...nota].filter(Boolean).join(" · "), cand: c.map(x => x.k) });
+  /* regla aprendida y el texto no la contradice */
+  if (regla && U.has(regla) && (!c.length || c.some(x => x.k === regla))) return res(regla, "alta", `regla guardada: ${tx.cc && reglas.cc?.[tx.cc] === regla ? "cédula " + tx.cc : "nombre"} → ${recEtq(regla)}`);
+  if (c.length === 1) {
+    let x = c[0], u = U.get(x.k), ok = [];
+    if (tx.cc && u.ids.has(tx.cc)) ok.push("la cédula coincide con el titular");
+    else if (recSimNombre(tx.nombre, u) >= 0.5) ok.push("el nombre coincide con el propietario");
+    if (recCuotaOk(tx.valor, u)) ok.push("el valor es la cuota de la unidad");
+    let conf = x.fuerte || ok.length ? "alta" : "media";
+    if (!x.fuerte && !ok.length) nota.push("confirme: solo existe en una torre pero el pagador no coincide con el propietario");
+    return res(x.k, conf, [x.como, ...ok].join("; "));
+  }
+  if (c.length > 1) {
+    let sc = c.map(x => ({ ...x, como: x.como.replace(/ sin torre; existe en la torre (\d)/, " sin torre → torre $1") })).map(x => { let u = U.get(x.k), s = 0, por = []; if (tx.cc && u.ids.has(tx.cc)) { s += 10; por.push("la cédula coincide con el titular"); } let sn = recSimNombre(tx.nombre, u); if (sn >= 0.5) { s += 4 * sn; por.push("el nombre coincide con el propietario"); } if (recCuotaOk(tx.valor, u)) { s += 2; por.push("el valor es la cuota de la unidad"); } if (x.fuerte) s += 1; return { ...x, s, por }; }).sort((a, b) => b.s - a.s);
+    if (sc[0].s >= 4 && sc[0].s - (sc[1]?.s ?? 0) >= 2) return res(sc[0].k, sc[0].s >= 10 ? "alta" : "media", `${sc[0].como}; ${sc[0].por.join("; ")}`);
+    nota.push(`puede ser ${c.map(x => recEtq(x.k)).join(", ")}`);
+    return res(null, "baja", `escribió "${tx.escrito}"`);
+  }
+  /* sin texto útil: por cédula o nombre */
+  if (porCc.length === 1) return res(porCc[0].k, "media", (tx.escrito ? `no se entiende "${tx.escrito}"; ` : "no escribió apartamento; ") + "la cédula del pagador es del titular de esta unidad");
+  if (porCc.length > 1) {
+    let apto = porCc.filter(u => / T\d$/.test(u.k));
+    nota.push(`la cédula ${tx.cc} es titular de ${porCc.map(u => recEtq(u.k)).join(", ")}`);
+    return res(null, "baja", tx.escrito ? `no se entiende "${tx.escrito}"` : "no escribió apartamento");
+  }
+  let pn = tx.nombre ? [...U.values()].map(u => ({ u, s: recSimNombre(tx.nombre, u) })).filter(x => x.s >= 0.99).sort((a, b) => b.s - a.s) : [];
+  let pnApt = pn.filter(x => / T\d$/.test(x.u.k) || x.u.coef > 0);
+  if (pnApt.length === 1) return res(pnApt[0].u.k, "media", (tx.escrito ? `no se entiende "${tx.escrito}"; ` : "no escribió apartamento; ") + "el nombre del pagador es el del propietario");
+  if (pnApt.length > 1) nota.push(`el nombre coincide con ${pnApt.slice(0, 4).map(x => recEtq(x.u.k)).join(", ")}`);
+  return res(null, "baja", tx.escrito ? `no se entiende "${tx.escrito}"` : "no escribió apartamento");
+}
+
+var recH = Ve.createElement;
+var recFmt = v => "$ " + pe(Math.round(v || 0), "0");
+var recFd = f => f ? f.split("-").reverse().join("/") : "";
+var recLeerJ = d => d ? (typeof d.j === "string" ? JSON.parse(d.j) : d) : null;
+function RecSeccion({ ses, notificar, soloLectura }) {
+  let [base, setBase] = Ve.useState(null), [reglas, setReglas] = Ve.useState({ cc: {}, nom: {} }), [idx, setIdx] = Ve.useState({ meses: [] });
+  let [mes, setMes] = Ve.useState(""), [M, setM] = Ve.useState(null), [ocup, setOcup] = Ve.useState(null), [filtro, setFiltro] = Ve.useState("todos"), [dia, setDia] = Ve.useState(""), [q, setQ] = Ve.useState(""), [edit, setEdit] = Ve.useState(null), [txtEdit, setTxtEdit] = Ve.useState(""), [aviso, setAviso] = Ve.useState(null);
+  Ve.useEffect(() => {
+    Promise.all([ses.store.get("cartera_p/bdprop").catch(() => null), ses.store.get(REC_REGLAS).catch(() => null), ses.store.get(REC_IDX).catch(() => null)]).then(([d, r, i]) => {
+      let doc = recLeerJ(d); setBase(doc?.wo ? recUnidades(doc) : !1);
+      let R = recLeerJ(r); setReglas({ cc: R?.cc ?? {}, nom: R?.nom ?? {} });
+      let I = recLeerJ(i); I = { meses: I?.meses ?? [] }; setIdx(I); if (I.meses.length) setMes(I.meses[0]);
     });
-    let XC = recCruzarComp(filas, base.comps, base.U);
-    filas = recHermanos(XC.filas, base.reglas, base.U);
-    return { id: `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, archivo: B.archivo, cuenta: B.cuenta, desde: B.desde, hasta: B.hasta, movs: B.movs, wompi, wompiSinBanco: X.sinBanco, filas, comps: XC.comps, cambios: !1 };
-  };
-  let cargarPdf = async f => {
-    if (!f) return;
-    setOcup("Leyendo el extracto…");
+  }, [ses]);
+  Ve.useEffect(() => { if (!mes) { setM(null); return; } setM(null); setDia(""); ses.store.get(recMesDoc(mes)).then(d => setM(recLeerJ(d) ?? { tx: [], man: {}, archivos: [] })).catch(() => setM({ tx: [], man: {}, archivos: [] })); }, [ses, mes]);
+
+  let guardarMes = async (m, datos) => { await ses.store.set(recMesDoc(m), { j: JSON.stringify(datos) }); };
+  let guardarReglas = async R => { setReglas(R); try { await ses.store.set(REC_REGLAS, { j: JSON.stringify(R) }); } catch (e) { notificar("error", "No se pudo guardar la regla: " + (e?.message ?? e)); } };
+
+  let cargar = async files => {
+    setOcup("Leyendo el archivo de Wompi…"); setAviso(null);
     try {
-      let B = await recLeerPdf(f);
-      if (B.cuenta && String(B.cuenta).replace(/\D/g, "") !== REC_CTA) notificar("error", `El extracto es de la cuenta ${B.cuenta}; el recaudo de expensas es la ${REC_CTA}. Se procesa de todas formas.`);
-      let id = `rec_lote_${B.cuenta || REC_CTA}_${B.desde}_${B.hasta}`, g = await ses.store.get("cbl_seg/" + id);
-      if (wPend.length) { let M = new Map((g?.wompi ?? []).map(t => [t.id, t])); wPend.forEach(t => M.set(t.id, t)); B.wompi = [...M.values()]; }
-      let L = armar(B, g); setLote(wPend.length ? { ...L, cambios: !0 } : L); setFiltro("todos");
-      if (wPend.length) { notificar(L.wompiSinBanco.length ? "error" : "ok", `Extracto leído con ${wPend.length} pago(s) de Wompi.` + (L.wompiSinBanco.length ? ` Desembolsos sin abono en este extracto: ${L.wompiSinBanco.join(", ")}.` : "")); setWPend([]); }
+      let todos = [];
+      for (const fl of files) { let txt = await fl.text(); todos.push(...recLeerWompi(txt, fl.name).map(t => ({ ...t, archivo: fl.name }))); }
+      if (!todos.length) throw new Error("El archivo no trae transacciones.");
+      let porMes = new Map(); todos.forEach(t => { let m = t.f.slice(0, 7); if (!porMes.has(m)) porMes.set(m, []); porMes.get(m).push(t); });
+      let nuevos = 0, repetidos = 0, actualizados = 0, meses = [...idx.meses];
+      for (const [m, L] of porMes) {
+        let D = recLeerJ(await ses.store.get(recMesDoc(m)).catch(() => null)) ?? { tx: [], man: {}, archivos: [] };
+        let porId = new Map(D.tx.map(t => [t.id, t]));
+        for (const t of L) { let a = porId.get(t.id); if (!a) nuevos++; else if (a.estado !== t.estado) actualizados++; else repetidos++; porId.set(t.id, t); }
+        D.tx = [...porId.values()].sort((a, b) => (b.f + b.h).localeCompare(a.f + a.h));
+        D.archivos = [...new Set([...(D.archivos ?? []), ...files.map(f => f.name)])];
+        await guardarMes(m, D);
+        if (!meses.includes(m)) meses.push(m);
+        if (m === mes) setM(D);
+      }
+      meses.sort().reverse(); let I = { meses }; setIdx(I); await ses.store.set(REC_IDX, { j: JSON.stringify(I) });
+      let ult = [...porMes.keys()].sort().pop(); setMes(ult);
+      let dias = [...new Set(todos.map(t => t.f))].sort(); if (dias.length === 1) setTimeout(() => setDia(dias[0]), 0);
+      setFiltro("todos");
+      setAviso(`${todos.length} transacciones leídas: ${nuevos} nuevas` + (actualizados ? `, ${actualizados} con estado actualizado` : "") + (repetidos ? `, ${repetidos} ya estaban cargadas` : "") + ".");
+      notificar("ok", "Archivo de Wompi cargado.");
     } catch (e) { notificar("error", e?.message ?? String(e)); }
     setOcup(null);
   };
-  let abrirGuardado = async L => { setOcup("Abriendo…"); try { let g = await ses.store.get("cbl_seg/" + L.id); g && setLote(armar({ archivo: g.archivo, cuenta: g.cuenta, desde: g.desde, hasta: g.hasta, movs: g.movs, wompi: g.wompi }, g)); } catch (e) { notificar("error", e?.message ?? String(e)); } setOcup(null); };
-  let aprenderDe = async files => {
-    setOcup("Aprendiendo de extractos anteriores…");
-    try {
-      let nuevas = {}, n = 0;
-      for (const f of files) {
-        if (/\.csv$/i.test(f.name)) {
-          let T = recLeerWompi(await f.text(), f.name), usados = new Set(), dias = (a, b) => (Date.parse(b) - Date.parse(a)) / 864e5;
-          for (const t of T) {
-            if (!t.doc) continue;
-            let c = base.libroHist.map((r, i) => ({ i, r })).filter(({ i, r }) => !usados.has(i) && recUnidad(r[1]) && (Math.abs(r[4] - t.monto) <= 1 || Math.abs(r[4] - t.neto) <= 1) && dias(t.fecha, r[0]) >= -1 && dias(t.fecha, r[0]) <= 10);
-            let w = c.filter(x => /WOMPI/.test(recN(x.r[2]))); c = w.length ? w : c;
-            if (new Set(c.map(x => recUnidad(x.r[1]))).size !== 1) continue;
-            usados.add(c[0].i); recSumarRegla(nuevas, "WDOC:" + t.doc, recUnidad(c[0].r[1])); n++;
-          }
-          continue;
-        }
-        let B = await recLeerPdf(f), lib = base.libroHist.filter(r => r[0] >= B.desde && r[0] <= addDias(B.hasta, 7));
-        let R = recAprender(B.movs, lib); nuevas = recUnir(null, nuevas, R); n += Object.keys(R).length;
-      }
-      let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {};
-      G.aprendidas = recUnir(null, G.aprendidas, nuevas); G.act = new Date().toISOString();
-      await ses.store.set("cbl_seg/rec_reglas", G);
-      setBase(b => ({ ...b, reglas: recUnir(G.confirmadas, b.reglas, nuevas), G }));
-      notificar("ok", `Se aprendieron ${n} cuentas o referencias de ${files.length} extracto(s).`);
-      if (lote) setLote(l => armar({ archivo: l.archivo, cuenta: l.cuenta, desde: l.desde, hasta: l.hasta, movs: l.movs, wompi: l.wompi }, { asign: asignDe(l) }));
-    } catch (e) { notificar("error", e?.message ?? String(e)); }
-    setOcup(null);
+
+  let asignar = async (t, k) => {
+    let D = { ...M, man: { ...(M.man ?? {}) } };
+    if (k) D.man[t.id] = k; else delete D.man[t.id];
+    setM(D); setEdit(null);
+    try { await guardarMes(mes, D); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); }
+    if (k) { let R = { cc: { ...reglas.cc }, nom: { ...reglas.nom } }; if (t.cc) R.cc[t.cc] = k; else if (t.nombre) R.nom[recN(t.nombre)] = k; await guardarReglas(R); }
   };
-  /* botón principal: acepta el PDF del banco y los CSV de Wompi, en cualquier orden */
-  let cargarArchivos = async files => {
-    let pdf = files.filter(f => /\.pdf$/i.test(f.name)), csv = files.filter(f => /\.csv$/i.test(f.name)), otros = files.filter(f => !/\.(pdf|csv)$/i.test(f.name));
-    if (otros.length) notificar("error", `No se reconoce: ${otros.map(f => f.name).join(", ")}. Use el PDF del banco y el reporte de desembolsos de Wompi en CSV.`);
-    let T = [];
-    try { for (const f of csv) T.push(...recLeerWompi(await f.text(), f.name)); } catch (e) { notificar("error", e?.message ?? String(e)); return; }
-    if (pdf.length) { if (T.length) wPend.push(...T); await cargarPdf(pdf[0]); return; }
-    if (!T.length) return;
-    if (lote) { await cargarWompi(csv); return; }
-    setWPend(p => [...p, ...T]);
-    notificar("ok", `${T.length} pago(s) de Wompi listos. Ahora cargue el PDF del banco de esos días.`);
-  };
-  let cargarWompi = async files => {
-    setOcup("Leyendo los reportes de Wompi…");
-    try {
-      let T = [];
-      for (const f of files) T.push(...recLeerWompi(await f.text(), f.name));
-      let M = new Map((lote.wompi ?? []).map(t => [t.id, t])); T.forEach(t => M.set(t.id, t));
-      let L = armar({ archivo: lote.archivo, cuenta: lote.cuenta, desde: lote.desde, hasta: lote.hasta, movs: lote.movs, wompi: [...M.values()] }, { asign: asignDe(lote) });
-      let antes = lote.filas.filter(f => f.tipo === "lote" && /WOMPI/.test(recN(f.desc))).length, despues = L.filas.filter(f => f.tipo === "lote" && /WOMPI/.test(recN(f.desc))).length;
-      setLote({ ...L, cambios: !0 });
-      notificar(L.wompiSinBanco.length ? "error" : "ok", `${T.length} pago(s) de Wompi leídos. Abonos de Wompi abiertos: ${antes - despues} de ${antes}.` + (L.wompiSinBanco.length ? ` Desembolsos sin abono en este extracto: ${L.wompiSinBanco.join(", ")}.` : ""));
-    } catch (e) { notificar("error", e?.message ?? String(e)); }
-    setOcup(null);
-  };
-  let addDias = (iso, d) => { let t = new Date(iso + "T12:00:00"); t.setDate(t.getDate() + d); return t.toISOString().slice(0, 10); };
-  let asignDe = l => Object.fromEntries(l.filas.map(f => [f.i, { u: f.hermano || f.compAsig ? null : f.sel ?? null, c: f.concepto, x: f.incl }]));
-  let recruzar = (l, filas, lista) => { let XC = recCruzarComp(filas, lista ?? base.comps, base.U); return { ...l, filas: recHermanos(XC.filas, base.reglas, base.U), comps: XC.comps }; };
-  let setFila = (i, cambios) => setLote(l => ({ ...recruzar(l, l.filas.map(f => f.i === i ? { ...f, ...cambios, ...("sel" in cambios || cambios.manual ? { hermano: !1, compAsig: !1 } : {}) } : f)), cambios: !0 }));
-  let [cForm, setCForm] = Ve.useState(null), [verComp, setVerComp] = Ve.useState(!1);
-  let guardarComps = async (lista, quitar) => {
-    let Q = [...(base.compsQ ?? []), ...(quitar != null ? [quitar] : [])];
-    if (quitar != null) lista = lista.filter(c => c.n !== quitar);
-    try { await ses.store.set("cbl_seg/rec_comprobantes", JSON.parse(JSON.stringify({ lista: lista.filter(c => c.propio), quitados: Q, act: new Date().toISOString() }))); setBase(b => ({ ...b, comps: lista, compsQ: Q })); setLote(l => l ? recruzar(l, l.filas, lista) : l); notificar("ok", "Comprobantes actualizados y cruzados con el extracto."); }
-    catch (e) { notificar("error", "No se pudieron guardar los comprobantes: " + (e?.message ?? e)); }
-  };
-  let guardar = async () => {
-    setOcup("Guardando…");
-    try {
-      let G = (await ses.store.get("cbl_seg/rec_reglas")) ?? {}, conf = { ...(G.confirmadas ?? {}) };
-      for (const f of lote.filas) if (f.incl && f.sel && f.clave && f.tipo === "pago" && (f.manual || f.conf === "alta") && (f.w || !recAptoTextoCrudo(lote.movs[f.i]))) recSumarRegla(conf, f.clave, f.sel);
-      G.confirmadas = conf; G.act = new Date().toISOString();
-      await ses.store.set("cbl_seg/rec_reglas", G);
-      await ses.store.set("cbl_seg/" + lote.id, JSON.parse(JSON.stringify({ id: lote.id, tipo: "rec_lote", archivo: lote.archivo, cuenta: lote.cuenta, desde: lote.desde, hasta: lote.hasta, movs: lote.movs, wompi: lote.wompi ?? [], asign: asignDe(lote), act: G.act,
-        resumen: { n: lote.filas.filter(f => f.incl && f.sel).length, v: lote.filas.filter(f => f.incl && f.sel).reduce((s, f) => s + f.valor, 0) } })));
-      setBase(b => ({ ...b, reglas: { ...b.reglas, ...conf }, G }));
-      setLote(l => ({ ...l, cambios: !1 })); cargarLotes();
-      notificar("ok", "Guardado. Las cuentas y referencias confirmadas se usarán para identificar los próximos pagos.");
-    } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); }
-    setOcup(null);
-  };
-  let excel = async () => {
-    let U = base.U, F = lote.filas.filter(f => f.incl && f.sel), sin = lote.filas.filter(f => f.incl && !f.sel && f.tipo === "pago"), lt = lote.filas.filter(f => f.tipo === "lote");
-    let n = Number(String(lote.hasta).replace(/-/g, "")), fila = (f, est) => [{ d: vxSerial(Number(f.fecha.replace(/-/g, ""))) }, f.sel ?? "", f.sel ? U.get(f.sel)?.tercero ?? "" : "", expDe(f)?.cuota ?? "", expDe(f)?.dto ?? "", f.valor, f.w ? f.comision : "", f.concepto, REC_CC, [f.comp ? `Comprobante #${f.comp}` : "", f.desc, f.ref1, f.ref2, f.pagador, f.w ? `neto al banco ${pe(f.neto, "0")}; en el extracto va dentro del abono PAGO DE PROV WOMPI del ${f.w.fechaBanco} por $ ${pe(lote.filas.filter(x => x.w && x.w.des === f.w.des).reduce((s, x) => s + (x.neto ?? 0), 0), "0")} (desembolso ${f.w.des})` : ""].filter(Boolean).join(" · "), est, f.como || ""];
-    let filas = [...F.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.sel.localeCompare(b.sel, "es", { numeric: !0 })).map(f => fila(f, "Para recibo de caja")),
-      ...sin.map(f => fila(f, "Sin identificar")), ...lt.map(f => fila(f, /WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargue el reporte de desembolso" : "Lote datáfono: requiere el detalle"))];
-    filas.push(["", "", "TOTAL PARA RECIBOS DE CAJA", F.reduce((s, f) => s + (expDe(f)?.cuota ?? 0), 0), F.reduce((s, f) => s + (expDe(f)?.dto ?? 0), 0), F.reduce((s, f) => s + f.valor, 0), F.reduce((s, f) => s + (f.w ? f.comision : 0), 0), "", "", "", "", ""]);
-    let CP = (lote.comps ?? []).filter(c => c.estado !== "banco" || c.alerta);
-    if (CP.length) { filas.push(["", "", "", "", "", "", "", "", "", "", "", ""], ["", "", "COMPROBANTES RECIBIDOS: PARA CORREGIR O QUE AÚN NO LLEGAN AL BANCO", "", "", "", "", "", "", "", "", ""]);
-      CP.forEach(c => filas.push([{ d: vxSerial(Number(c.fecha.replace(/-/g, ""))) }, c.apto || "", `Comprobante #${c.n} · ${c.medio}`, "", "", c.valor, "", "", "", c.banco || "Aún no aparece en el extracto", c.estado === "banco" ? "En el banco: revisar" : c.estado === "probable" ? "Probable (lote Wompi sin reporte)" : "Aún no llega al banco", c.alerta || ""])); }
-    let bin = await vxXlsx(`${entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H."} · Relación de pagos para recibos de caja`,
-      `Banco de expensas ${REC_CTA} · del ${lote.desde} al ${lote.hasta} · ${F.length} pagos identificados`,
-      ["Fecha", "Apartamento", "Tercero (World Office)", "Expensa", "Descuento 10%", "Valor transferido", "Comisión Wompi", "Concepto", "Cuenta débito", "Detalle del banco", "Estado", "Cómo se identificó"], [12, 12, 46, 14, 14, 15, 14, 40, 12, 60, 26, 40], filas);
-    await BL(ses, `Recaudo_expensas_${lote.desde}_a_${lote.hasta}.xlsx`, bin, notificar);
-  };
-  let expDe = f => { let x = f.sel ? base.U.get(f.sel) : null; if (!x?.cuota) return null; let dto = Number(String(f.fecha).slice(8, 10)) <= 15 ? x.cuota - x.cuotaDesc : 0; return { cuota: x.cuota, dto }; };
-  let pdf = async () => {
-    setOcup("Generando PDF…");
-    try {
-      let U = base.U, F = lote.filas.filter(f => f.incl && f.sel).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.sel.localeCompare(b.sel, "es", { numeric: !0 })),
-        sin = lote.filas.filter(f => f.incl && !f.sel && f.tipo === "pago"), lt = lote.filas.filter(f => f.tipo === "lote");
-      let corto = (t, n) => (t = String(t ?? "").replace(/\s+/g, " ").trim()).length > n ? t.slice(0, n - 1) + "…" : t;
-      let det = f => corto([f.desc, f.ref1, f.ref2, f.pagador].filter(Boolean).join(" · "), 36);
-      let WG = new Map(); lote.filas.filter(f => f.w).forEach(f => { let g = WG.get(f.w.des) ?? []; g.push(f); WG.set(f.w.des, g); });
-      let abonoW = f => WG.get(f.w.des).reduce((s, x) => s + (x.neto ?? 0), 0), fc = d => { let [y, m, dd] = String(d).split("-"); return `${dd}/${m}`; };
-      let detW = f => (f.comp ? `C#${f.comp}${f.compAsig && f.selOrigC ? ` CORREGIDO (antes ${f.selOrigC})` : ""} ` : "") + (f.w ? `BANCO ${fc(f.w.fechaBanco)} WOMPI $ ${pe(abonoW(f), "0")}` : corto(det(f), 21));
-      let col = [{ titulo: "No.", ancho: 3, alin: "center" }, { titulo: "FECHA", ancho: 7, alin: "left" }, { titulo: "APTO", ancho: 6, alin: "left" }, { titulo: "TERCERO (WORLD OFFICE)", ancho: 22, alin: "left" },
-        { titulo: "EXPENSA", ancho: 9, alin: "right" }, { titulo: "DTO. 10%", ancho: 8, alin: "right" }, { titulo: "TRANSFERIDO", ancho: 10, alin: "right" }, { titulo: "WOMPI", ancho: 6, alin: "right" }, { titulo: "DETALLE DEL BANCO", ancho: 17, alin: "left" }, { titulo: "RECIBO No.", ancho: 8, alin: "center" }, { titulo: "REG.", ancho: 4, alin: "center" }];
-      let vacio = or(""), fila = (f, k) => { let x = expDe(f); return { estilo: "detalle", celdas: [or(String(k + 1)), or(f.fecha), or(f.sel ?? "", { bold: !0 }), or(corto(f.sel ? U.get(f.sel)?.tercero ?? "" : "", 30)), x ? er(x.cuota) : vacio, x ? er(x.dto) : vacio, er(f.valor, { bold: !0 }), f.w ? er(f.comision) : vacio, or(detW(f)), or("________"), or("[   ]")] }; };
-      let sum = (L, g) => L.reduce((s, f) => s + (g(f) ?? 0), 0);
-      let tot = (t, L, est) => ({ estilo: est, celdas: [vacio, vacio, vacio, or(t, { bold: !0 }), er(sum(L, f => expDe(f)?.cuota), { bold: !0 }), er(sum(L, f => expDe(f)?.dto), { bold: !0 }), er(sum(L, f => f.valor), { bold: !0 }), er(sum(L, f => f.w ? f.comision : 0), { bold: !0 }), or(`${L.length} pago${L.length === 1 ? "" : "s"}`), vacio, vacio] });
-      let bl = [{ tipo: "parrafo", estilo: "normal", texto: `Banco de expensas ${REC_CTA} · cuenta débito ${REC_CC} · ${F.length} pagos identificados por $ ${pe(F.reduce((s, f) => s + f.valor, 0), "0")}. Descuento del 10 % de la expensa para los pagos hechos entre el 1 y el 15 del mes. Anote el número del recibo de caja de World Office y marque [X] en REG. al registrarlo.` },
-        { tipo: "parrafo", estilo: "h3", texto: "PAGOS PARA RECIBO DE CAJA" },
-        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...F.map(fila), tot("TOTAL PARA RECIBOS DE CAJA", F, "totalDoble")] }];
-      if (sin.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "PAGOS SIN IDENTIFICAR (asignar antes de registrar)" },
-        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...sin.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), or("______"), or("____________________"), vacio, vacio, er(f.valor, { bold: !0 }), vacio, or(detW(f)), or("________"), or("[   ]")] })), tot("TOTAL SIN IDENTIFICAR", sin, "subtotal")] });
-      if (lt.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "LOTES DE WOMPI Y DATÁFONO SIN DETALLE" },
-        { tipo: "tabla", cabecera: !0, columnas: col, filas: [...lt.map((f, k) => ({ ...fila(f, k), celdas: [or(String(k + 1)), or(f.fecha), vacio, or(/WOMPI/.test(recN(f.desc)) ? "Lote Wompi: cargar reporte de desembolso" : "Lote datáfono: requiere el detalle", { italic: !0 }), vacio, vacio, er(f.valor), vacio, or(detW(f)), vacio, vacio] })), tot("TOTAL LOTES", lt, "subtotal")] });
-      if (WG.size) {
-        let cw = [{ titulo: "No.", ancho: 4, alin: "center" }, { titulo: "FECHA PAGO", ancho: 9, alin: "left" }, { titulo: "APTO", ancho: 7, alin: "left" }, { titulo: "TERCERO (WORLD OFFICE)", ancho: 28, alin: "left" },
-          { titulo: "VALOR PAGADO", ancho: 12, alin: "right" }, { titulo: "COMISIÓN + IVA", ancho: 11, alin: "right" }, { titulo: "NETO AL BANCO", ancho: 12, alin: "right" }, { titulo: "PAGADOR", ancho: 17, alin: "left" }], fw = [];
-        [...WG.entries()].sort((a, b) => a[1][0].w.fechaBanco.localeCompare(b[1][0].w.fechaBanco)).forEach(([d, g]) => {
-          let tN = g.reduce((s, x) => s + (x.neto ?? 0), 0);
-          fw.push({ estilo: "grupo", celdas: [vacio, or(g[0].w.fechaBanco, { bold: !0 }), vacio, or(`EXTRACTO: PAGO DE PROV WOMPI S.A.S. · desembolso ${d}`, { bold: !0 }), vacio, vacio, er(tN, { bold: !0 }), or(`${g.length} pago${g.length === 1 ? "" : "s"}`)] });
-          g.forEach((f, k) => fw.push({ estilo: "detalle", celdas: [or(String(k + 1)), or(f.fecha), or(f.sel ?? "______", { bold: !!f.sel }), or(corto(f.sel ? U.get(f.sel)?.tercero ?? "" : "sin asignar", 40)), er(f.valor), er(f.comision ?? f.valor - (f.neto ?? 0)), er(f.neto ?? 0), or(corto(f.pagador || "sin cédula", 22))] }));
-          fw.push({ estilo: "subtotal", celdas: [vacio, vacio, vacio, or("Abono en el banco = suma de los netos", { italic: !0 }), er(g.reduce((s, x) => s + x.valor, 0), { bold: !0 }), er(g.reduce((s, x) => s + (x.comision ?? 0), 0), { bold: !0 }), er(tN, { bold: !0 }), vacio] });
-        });
-        bl.push({ tipo: "parrafo", estilo: "h3", texto: "PAGOS DE WOMPI: CÓMO APARECEN EN EL EXTRACTO DEL BANCO" },
-          { tipo: "parrafo", estilo: "normal", texto: "Wompi agrupa los pagos y consigna un solo abono (PAGO DE PROV WOMPI S.A.S.) al día hábil siguiente, ya descontada la comisión con IVA. El recibo de caja se hace por el valor pagado; la comisión es gasto bancario." },
-          { tipo: "tabla", cabecera: !0, columnas: cw, filas: fw });
-      }
-      let CC = lote.comps ?? [], cAl = CC.filter(c => c.alerta), cPe = CC.filter(c => c.estado !== "banco");
-      if (CC.length) {
-        let cc = [{ titulo: "C#", ancho: 4, alin: "center" }, { titulo: "FECHA", ancho: 8, alin: "left" }, { titulo: "VALOR", ancho: 9, alin: "right" }, { titulo: "MEDIO / PAGADOR", ancho: 19, alin: "left" }, { titulo: "APTO", ancho: 6, alin: "left" }, { titulo: "EN EL BANCO", ancho: 20, alin: "left" }, { titulo: "QUÉ HACER", ancho: 29, alin: "left" }, { titulo: "HECHO", ancho: 5, alin: "center" }];
-        let fc2 = c => ({ estilo: "detalle", celdas: [or(String(c.n)), or(c.fecha), er(c.valor), or(corto(c.medio, 36)), or(c.apto || "", { bold: !0 }), or(corto(c.banco || "Aún no aparece", 56)), or(c.alerta || (c.estado === "probable" ? "Cargar el reporte de desembolso de Wompi de ese abono." : c.estado === "pendiente" ? "No hacer recibo hasta que aparezca en el extracto." : "")), or("[   ]")] });
-        bl.push({ tipo: "parrafo", estilo: "normal", texto: `Comprobantes de pago recibidos: ${CC.length}. En el banco: ${CC.filter(c => c.estado === "banco").length} · probables en lote Wompi sin reporte: ${CC.filter(c => c.estado === "probable").length} · aún no llegan al banco: ${CC.filter(c => c.estado === "pendiente").length}. En las tablas de arriba, C#n indica el comprobante que respalda el pago.` });
-        if (cAl.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "PARA CORREGIR O CONFIRMAR ANTES DE HACER EL RECIBO" }, { tipo: "tabla", cabecera: !0, columnas: cc, filas: cAl.map(fc2) });
-        let cPe2 = cPe.filter(c => !c.alerta);
-        if (cPe2.length) bl.push({ tipo: "parrafo", estilo: "h3", texto: "COMPROBANTES RECIBIDOS QUE AÚN NO LLEGAN AL BANCO (no hacer recibo todavía)" }, { tipo: "tabla", cabecera: !0, columnas: cc, filas: [...cPe2.map(fc2), { estilo: "subtotal", celdas: [vacio, vacio, er(cPe2.reduce((s, c) => s + c.valor, 0), { bold: !0 }), or(`${cPe2.length} comprobantes`), vacio, vacio, vacio, vacio] }] });
-      }
-      let doc = { entidad: entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: "NIT. " + (entidad?.nit ?? ""), logo: entidad?.logo || void 0, firmantes: entidad?.firmantes, firmasImg: {}, leyendas: [],
-        secciones: [{ id: "recaudo", nombre: "Recaudo", titulo: "RELACIÓN DE PAGOS PARA RECIBOS DE CAJA", subtitulos: [`Recaudo de expensas del ${lote.desde} al ${lote.hasta}`], orientacion: "landscape", bloques: bl }] };
-      await BL(ses, `Recaudo_expensas_${lote.desde}_a_${lote.hasta}.pdf`, await en(doc), notificar);
-    } catch (e) { console.error(e); notificar("error", "No se pudo generar el PDF: " + (e?.message ?? e)); }
-    setOcup(null);
-  };
-  if (err) return recH("div", { className: "pantalla" }, recH("section", { className: "panel" }, recH("h2", { className: "h-sec" }, "Recaudo de expensas"), recH("p", { className: "nota-ro" }, err), recH("button", { type: "button", className: "btn", onClick: cargarBase }, "Reintentar")));
-  if (!base) return recH("div", { className: "pantalla" }, recH("p", { className: "tenue" }, "Cargando el libro auxiliar y los pagos anteriores…"));
-  let U = base.U, opciones = [...U.entries()].sort((a, b) => a[0].localeCompare(b[0], "es", { numeric: !0 }));
-  let fmt = v => "$ " + pe(Math.round(v), "0");
+
+  if (base === null) return recH("div", { className: "pantalla" }, recH("p", { className: "tenue" }, "Cargando la base de propietarios…"));
   let encabezado = recH("div", { className: "pantalla-enc" },
-    recH("div", null, recH("h2", { className: "h-sec" }, "Recaudo de expensas · recibos de caja"),
-      recH("p", { className: "lead" }, "Cargue el movimiento del banco de expensas (PDF de Bancolombia) y, si los tiene, los reportes de desembolso de Wompi (CSV); puede seleccionarlos juntos. La app identifica qué apartamento hizo cada pago con el libro auxiliar, la cuota de cada apartamento y los pagos anteriores, y arma la relación para hacer los recibos de caja en World Office.")),
-    recH("div", { className: "acciones" },
-      !soloLectura && recH("label", { className: "btn btn-primario" + (ocup ? " deshab" : ""), title: "Seleccione el PDF del banco y, si los tiene, los reportes de desembolso de Wompi (CSV). Puede seleccionar varios a la vez." }, ocup ?? (wPend.length ? `Cargar PDF del banco (${wPend.length} pagos de Wompi listos)` : "Cargar banco (PDF) y Wompi (CSV)"),
-        recH("input", { type: "file", accept: "application/pdf,.pdf,.csv,text/csv,application/vnd.ms-excel", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargarArchivos(f); } }))));
-  let infoBase = recH("section", { className: "panel" },
-    recH("div", { className: "fila", style: { justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" } },
-      recH("p", { className: "tenue", style: { margin: 0 } },
-        `Base: ${U.size} apartamentos · cuota de ${mesTxt(recIsoDe(base.ult * 100 + 1))} (libro ${base.metaLibro.etiqueta}) · ${Object.keys(base.reglas).length} cuentas o referencias conocidas` + (base.meses.length ? ` · meses del banco cruzados: ${base.meses.join(", ")}` : "") + "."),
-      !soloLectura && recH("label", { className: "btn btn-sm" + (ocup ? " deshab" : ""), title: "Suelte los PDF del banco de expensas y los reportes de desembolso de Wompi (CSV) de meses ya registrados: la app los cruza con los recibos del libro auxiliar y aprende de qué cuenta o cédula paga cada apartamento." }, "Aprender de extractos anteriores",
-        recH("input", { type: "file", accept: "application/pdf,.pdf,.csv,text/csv", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && aprenderDe(f); } }))),
-    !lote && lotes.length > 0 && recH("div", { className: "espacio" }, recH("span", { className: "tenue" }, "Extractos trabajados: "),
-      lotes.slice(0, 8).map(L => recH("button", { key: L.id, type: "button", className: "btn btn-sm", style: { marginRight: "6px" }, onClick: () => abrirGuardado(L) }, `${L.desde} a ${L.hasta}` + (L.resumen ? ` · ${L.resumen.n} pagos` : "")))));
-  if (!lote) return recH("div", { className: "pantalla" }, encabezado, infoBase);
-  let F = lote.filas, ident = F.filter(f => f.incl && f.sel), sinId = F.filter(f => f.incl && !f.sel && f.tipo === "pago"), media = ident.filter(f => !f.manual && f.conf === "media"), lt = F.filter(f => f.tipo === "lote");
-  let porU = new Map(); ident.forEach(f => porU.set(f.sel, (porU.get(f.sel) ?? 0) + 1));
-  let nq = recN(q), vis = F.filter(f => (filtro === "todos" || filtro === "ident" && f.incl && f.sel || filtro === "revisar" && (f.incl && !f.sel && f.tipo === "pago" || !f.manual && f.conf === "media" && f.sel) || filtro === "lotes" && f.tipo !== "pago") &&
-    (!nq || recN([f.desc, f.ref1, f.ref2, f.sel, f.sel ? U.get(f.sel)?.nombre : "", f.valor].join(" ")).includes(nq)));
-  let chip = f => f.tipo !== "pago" ? recH("span", { className: "chip chip-warn" }, f.tipo === "lote" ? "Lote · requiere detalle" : "No es pago de expensas") :
-    !f.sel ? recH("span", { className: "chip chip-err" }, "Sin identificar") : f.manual ? recH("span", { className: "chip chip-ok" }, "Asignado a mano") : recH("span", { className: "chip " + (f.conf === "alta" ? "chip-ok" : "chip-warn") }, f.conf === "alta" ? "Seguro" : "Revisar");
-  let tarjeta = (t, n, v, k) => recH("button", { type: "button", className: "btn" + (filtro === k ? " btn-primario" : ""), onClick: () => setFiltro(k), style: { display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: "170px" } }, recH("span", { style: { fontSize: "12px" } }, t), recH("b", null, `${n} · ${fmt(v)}`));
-  return recH("div", { className: "pantalla" }, encabezado, infoBase,
-    recH("datalist", { id: "rec-unidades" }, opciones.map(([u, x]) => recH("option", { key: u, value: `${u} · ${x.nombre}` }))),
-    recH("section", { className: "panel" },
-      recH("div", { className: "panel-tit" }, recH("h2", null, `Extracto del ${lote.desde} al ${lote.hasta}`),
-        recH("div", { className: "acciones" },
-          recH("button", { type: "button", className: "btn btn-sm", onClick: () => setLote(null) }, "Cerrar"),
-          !soloLectura && recH("label", { className: "btn btn-sm" + (ocup ? " deshab" : ""), title: "Reporte de desembolsos de Wompi (CSV): abre cada abono de Wompi en los pagos de cada apartamento." }, "Cargar reporte de Wompi (CSV)",
-            recH("input", { type: "file", accept: ".csv,text/csv,application/vnd.ms-excel", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargarWompi(f); } })),
-          recH("button", { type: "button", className: "btn btn-sm", disabled: !ident.length, onClick: excel }, "Descargar relación (Excel)"),
-          recH("button", { type: "button", className: "btn btn-sm", disabled: !ident.length || !!ocup, onClick: pdf }, "Descargar relación (PDF para imprimir)"),
-          !soloLectura && recH("button", { type: "button", className: "btn btn-sm btn-primario", disabled: !!ocup, onClick: guardar }, lote.cambios ? "Guardar y aprender" : "Guardar"))),
-      recH("p", { className: "tenue" }, lote.archivo),
-      recH("div", { className: "fila", style: { gap: "8px", flexWrap: "wrap" } },
-        tarjeta("Todos los abonos", F.length, F.reduce((s, f) => s + f.valor, 0), "todos"),
-        tarjeta("Para recibo de caja", ident.length, ident.reduce((s, f) => s + f.valor, 0), "ident"),
-        tarjeta("Por revisar", sinId.length + media.length, [...sinId, ...media].reduce((s, f) => s + f.valor, 0), "revisar"),
-        tarjeta("Lotes y otros", F.filter(f => f.tipo !== "pago").length, F.filter(f => f.tipo !== "pago").reduce((s, f) => s + f.valor, 0), "lotes")),
-      lt.length > 0 && recH("p", { className: "nota-ro espacio" }, `${lt.length} abono(s) agrupan pagos de varios apartamentos.` + (lt.some(f => /WOMPI/.test(recN(f.desc))) ? " Para los de Wompi, use Cargar reporte de Wompi (CSV) con los reportes de desembolso de esos días: la app los abre en los pagos de cada apartamento." : "") + (lt.some(f => !/WOMPI/.test(recN(f.desc))) ? " Los del datáfono se registran con el reporte del datáfono." : "")),
-      (() => { let CC = lote.comps ?? [], nb = CC.filter(c => c.estado === "banco").length, np = CC.filter(c => c.estado === "probable").length, nn = CC.filter(c => c.estado === "pendiente").length, na = CC.filter(c => c.alerta).length;
-        let campo = (k, ph, w, t) => recH("input", { type: t ?? "text", placeholder: ph, value: cForm?.[k] ?? "", onChange: e => setCForm(v => ({ ...v, [k]: e.target.value })), style: { width: w } });
-        return recH("div", { className: "espacio", style: { border: "1px solid var(--borde, #ddd)", borderRadius: "8px", padding: "10px 12px" } },
-          recH("div", { className: "fila", style: { justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
-            recH("b", null, `Comprobantes recibidos: ${CC.length}`, recH("span", { className: "tenue", style: { fontWeight: 400 } }, ` · en el banco ${nb} · probables ${np} · aún no llegan ${nn}` + (na ? ` · ${na} para corregir o confirmar` : ""))),
-            recH("div", { className: "acciones" },
-              recH("button", { type: "button", className: "btn btn-sm", onClick: () => setVerComp(v => !v) }, verComp ? "Ocultar" : "Ver comprobantes"),
-              !soloLectura && recH("button", { type: "button", className: "btn btn-sm", onClick: () => { setVerComp(!0); setCForm({ fecha: lote.hasta }); } }, "Agregar comprobante"))),
-          verComp && cForm && !soloLectura && recH("div", { className: "fila espacio", style: { gap: "6px", flexWrap: "wrap", alignItems: "center" } },
-            campo("fecha", "Fecha", "140px", "date"), campo("valor", "Valor", "110px"), campo("medio", "Medio / pagador", "220px"), campo("apto", "Apto (ej. 803 T2)", "120px"), campo("pista", "Cuenta o ref. (opcional)", "160px"), campo("obs", "Observación (opcional)", "220px"),
-            recH("button", { type: "button", className: "btn btn-sm btn-primario", onClick: () => { let v = Number(String(cForm.valor ?? "").replace(/[^\d]/g, "")); if (!cForm.fecha || !v) return notificar("error", "Escriba la fecha y el valor del comprobante."); let L = base.comps ?? []; guardarComps([...L, { propio: !0, n: Math.max(100, ...L.map(c => c.n), ...(base.compsQ ?? [])) + 1, fecha: cForm.fecha, valor: v, medio: cForm.medio || "", apto: cForm.apto || "", pista: cForm.pista || "", obs: cForm.obs || "", wompi: /WOMPI|PSE/i.test(cForm.medio || "") }]); setCForm(null); } }, "Guardar"),
-            recH("button", { type: "button", className: "btn btn-sm", onClick: () => setCForm(null) }, "Cancelar")),
-          verComp && recH("div", { className: "tabla-scroll espacio" }, recH("table", { className: "t-datos" },
-            recH("thead", null, recH("tr", null, ["#", "Fecha", "Valor", "Medio / pagador", "Apto", "Estado", "En el banco", "Qué hacer", ""].map((h, i) => recH("th", { key: i }, h)))),
-            recH("tbody", null, CC.map(c => recH("tr", { key: c.n },
-              recH("td", { className: "mono" }, c.n), recH("td", { className: "mono", style: { whiteSpace: "nowrap" } }, c.fecha), recH("td", { className: "mono", style: { textAlign: "right", whiteSpace: "nowrap" } }, fmt(c.valor)),
-              recH("td", null, c.medio), recH("td", null, recH("b", null, c.apto || "")),
-              recH("td", null, recH("span", { className: "chip " + (c.alerta ? "chip-err" : c.estado === "banco" ? "chip-ok" : "chip-warn") }, c.alerta ? "Revisar" : c.estado === "banco" ? "En el banco" : c.estado === "probable" ? "Probable" : "Aún no llega")),
-              recH("td", { className: "tenue" }, c.banco || "—"), recH("td", null, c.alerta || ""),
-              recH("td", null, !soloLectura && recH("button", { type: "button", className: "enlace", onClick: () => guardarComps(base.comps ?? [], c.n) }, "Quitar")))))))); })(),
-      recH("input", { type: "search", className: "espacio", placeholder: "Buscar: apartamento, nombre, referencia o valor…", value: q, onChange: e => setQ(e.target.value), "aria-label": "Buscar en el extracto", style: { maxWidth: "420px" } }),
+    recH("div", null, recH("h2", { className: "h-sec" }, "Recaudo de expensas · pagos por Wompi"),
+      recH("p", { className: "lead" }, "Cargue el reporte de transacciones de Wompi (CSV). La app lee lo que el propietario escribió en el campo APARTAMENTOS y le dice qué unidad está pagando. Cuando falta la torre o el texto no es claro, decide con la cédula y el nombre del pagador frente a la base de propietarios. Lo que usted corrija queda aprendido para los próximos pagos.")),
+    recH("div", { className: "acciones" }, !soloLectura && recH("label", { className: "btn btn-primario" + (ocup ? " deshab" : "") }, ocup ?? "Cargar archivo de Wompi (CSV)",
+      recH("input", { type: "file", accept: ".csv,text/csv", multiple: !0, hidden: !0, "data-no-archivo": "", disabled: !!ocup, onChange: e => { let f = [...(e.target.files ?? [])]; e.target.value = ""; f.length && cargar(f); } }))));
+  if (base === !1) return recH("div", { className: "pantalla" }, encabezado, recH("section", { className: "panel" }, recH("p", { className: "nota-ro" }, "Falta la base de propietarios. Cárguela en Cartera → Actualizar propietarios (base de la administración y base de World Office); con ella la app reconoce cédulas, nombres, parqueaderos y depósitos.")));
+
+  let U = base.U;
+  let selMes = idx.meses.length > 0 && recH("div", { className: "fila", style: { gap: "8px", flexWrap: "wrap", alignItems: "center" } },
+    recH("span", { className: "tenue" }, "Mes:"),
+    idx.meses.map(m => recH("button", { key: m, type: "button", className: "btn btn-sm" + (m === mes ? " btn-primario" : ""), onClick: () => setMes(m) }, recMesTxt(m))),
+    recH("span", { className: "tenue", style: { marginLeft: "auto" } }, `Base: ${U.size} unidades · ${Object.keys(reglas.cc).length + Object.keys(reglas.nom).length} pagadores aprendidos`));
+  if (!idx.meses.length) return recH("div", { className: "pantalla" }, encabezado, recH("section", { className: "panel" }, recH("p", { className: "tenue" }, `Base de propietarios lista (${U.size} unidades). Cargue el primer archivo de Wompi.`)));
+  if (!M) return recH("div", { className: "pantalla" }, encabezado, recH("section", { className: "panel" }, selMes, recH("p", { className: "tenue" }, "Cargando el mes…")));
+
+  let F = M.tx.map(t => {
+    let r = recIdentificar(t, base, reglas), man = M.man?.[t.id];
+    if (man) r = { ...r, unidad: man, conf: "manual", como: "asignado por el contador" + (r.unidad && r.unidad !== man ? ` (la app había leído ${recEtq(r.unidad)})` : "") };
+    return { ...t, ...r, ok: t.estado === "APPROVED" };
+  });
+  let dias = [...new Set(F.map(f => f.f))].sort().reverse();
+  let Fd = dia ? F.filter(f => f.f === dia) : F;
+  let ap = Fd.filter(f => f.ok), seguros = ap.filter(f => f.unidad && (f.conf === "alta" || f.conf === "manual")), revisar = ap.filter(f => f.unidad && f.conf === "media"), sinId = ap.filter(f => !f.unidad), noAp = Fd.filter(f => !f.ok);
+  let suma = L => L.reduce((s, f) => s + f.valor, 0);
+  let nq = recN(q);
+  let vis = (filtro === "todos" ? ap : filtro === "seguros" ? seguros : filtro === "revisar" ? revisar : filtro === "sin" ? sinId : noAp)
+    .filter(f => !nq || recN([f.escrito, f.nombre, f.cc, f.correo, f.unidad, recEtq(f.unidad), U.get(f.unidad)?.nombre, f.valor].join(" ")).includes(nq));
+  let tarjeta = (t, L, k, tono) => recH("button", { type: "button", className: "btn" + (filtro === k ? " btn-primario" : ""), onClick: () => setFiltro(k), style: { display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: "160px" } },
+    recH("span", { style: { fontSize: "12px" } }, t), recH("b", { style: tono && L.length && filtro !== k ? { color: tono } : null }, `${L.length} · ${recFmt(suma(L))}`));
+  let chip = f => !f.ok ? recH("span", { className: "chip chip-err" }, REC_ESTADO[f.estado] ?? f.estado) :
+    f.conf === "manual" ? recH("span", { className: "chip chip-ok" }, "Asignado a mano") : !f.unidad ? recH("span", { className: "chip chip-err" }, "Sin identificar") :
+    f.conf === "alta" ? recH("span", { className: "chip chip-ok" }, "Identificado") : recH("span", { className: "chip chip-warn" }, "Revisar");
+  let opciones = [...U.values()].sort((a, b) => recOrd(a.k, b.k));
+
+  let excel = async () => {
+    let L = [...ap].sort((a, b) => (a.f + a.h).localeCompare(b.f + b.h));
+    let filas = L.map(f => ({ estilo: "detalle", celdas: [or(recFd(f.f)), or(f.h), or(f.unidad ?? "SIN IDENTIFICAR"), or(f.unidad ? (U.get(f.unidad)?.nombre ?? "") : ""), er(f.valor), or(REC_MEDIO[f.medio] ?? f.medio), or(f.nombre), or(f.cc), or(f.escrito), or(f.como), or(f.conf === "manual" ? "Asignado a mano" : !f.unidad ? "Sin identificar" : f.conf === "alta" ? "Identificado" : "Revisar"), or(f.id)] }));
+    filas.push({ estilo: "totalDoble", celdas: [or("TOTAL"), or(""), or(`${L.length} pagos`), or(""), er(suma(L)), or(""), or(""), or(""), or(""), or(""), or(""), or("")] });
+    let d = { entidad: "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: "", leyendas: [], firmasImg: {}, secciones: [{ id: "wompi", nombre: "Pagos Wompi", titulo: "RECAUDO DE EXPENSAS · PAGOS POR WOMPI", subtitulos: [dia ? `Pagos aprobados del ${recFd(dia)}` : `Pagos aprobados de ${recMesTxt(mes)}`], orientacion: "landscape", bloques: [{ tipo: "tabla", cabecera: !0,
+      columnas: [["FECHA", 7], ["HORA", 4], ["UNIDAD", 7], ["PROPIETARIO (WORLD OFFICE)", 16], ["VALOR", 8, "right"], ["MEDIO", 7], ["PAGADOR", 12], ["CÉDULA / NIT", 7], ["ESCRIBIÓ EN WOMPI", 9], ["CÓMO SE IDENTIFICÓ", 18], ["ESTADO", 7], ["ID WOMPI", 12]].map(([t, a, al]) => ({ titulo: t, ancho: a, alin: al ?? "left" })), filas }] }] };
+    try { await BL(ses, `Recaudo_Wompi_${dia || mes}.xlsx`, await Yn(d), notificar); } catch (e) { notificar("error", "No se pudo generar el Excel: " + (e?.message ?? e)); }
+  };
+
+  let celdaUnidad = f => {
+    if (edit === f.id) return recH("div", { className: "fila", style: { gap: "6px", alignItems: "center" } },
+      recH("input", { list: "rec-unidades", autoFocus: !0, value: txtEdit, placeholder: "Ej. 1224 T2", style: { width: "150px" }, onChange: e => setTxtEdit(e.target.value),
+        onKeyDown: e => { if (e.key === "Enter") { let k = recN(e.target.value); if (U.has(k)) asignar(f, k); else notificar("error", "Esa unidad no está en la base. Escríbala como 1224 T2, PQ21, DEP54 o LC3."); } if (e.key === "Escape") setEdit(null); } }),
+      recH("button", { type: "button", className: "btn btn-sm btn-primario", onClick: () => { let k = recN(txtEdit); if (U.has(k)) asignar(f, k); else notificar("error", "Esa unidad no está en la base. Escríbala como 1224 T2, PQ21, DEP54 o LC3."); } }, "Guardar"),
+      recH("button", { type: "button", className: "btn btn-sm", onClick: () => setEdit(null) }, "×"));
+    let u = f.unidad ? U.get(f.unidad) : null;
+    return recH("div", null,
+      u ? recH("div", null, recH("b", null, recEtq(f.unidad)), recH("div", { className: "tenue", style: { fontSize: "12px" } }, u.nombre || u.titular)) : recH("span", { className: "tenue" }, "—"),
+      f.ok && !soloLectura && recH("div", { style: { marginTop: "4px", display: "flex", gap: "6px", flexWrap: "wrap" } },
+        f.conf === "media" && recH("button", { type: "button", className: "btn btn-sm btn-primario", onClick: () => asignar(f, f.unidad) }, "Confirmar"),
+        recH("button", { type: "button", className: "btn btn-sm", onClick: () => { setEdit(f.id); setTxtEdit(f.unidad ?? ""); } }, f.unidad ? "Cambiar" : "Asignar"),
+        f.conf === "manual" && recH("button", { type: "button", className: "btn btn-sm", title: "Quitar la asignación manual de este pago", onClick: () => asignar(f, null) }, "Deshacer")),
+      !f.unidad && f.cand?.length > 1 && !soloLectura && recH("div", { style: { marginTop: "4px", display: "flex", gap: "4px", flexWrap: "wrap" } },
+        f.cand.slice(0, 4).map(k => recH("button", { key: k, type: "button", className: "btn btn-sm", onClick: () => asignar(f, k) }, k))));
+  };
+
+  return recH("div", { className: "pantalla" }, encabezado,
+    recH("datalist", { id: "rec-unidades" }, opciones.map(u => recH("option", { key: u.k, value: u.k }, `${recEtq(u.k)} · ${u.nombre || u.titular}`))),
+    recH("section", { className: "panel" }, selMes,
+      aviso && recH("p", { className: "nota-ro espacio" }, aviso),
+      recH("div", { className: "fila espacio", style: { gap: "8px", flexWrap: "wrap", alignItems: "center" } },
+        recH("span", { className: "tenue" }, "Día:"),
+        recH("select", { value: dia, onChange: e => setDia(e.target.value) }, recH("option", { value: "" }, `Todo el mes (${dias.length} días)`), dias.map(d => recH("option", { key: d, value: d }, recFd(d) + ` · ${F.filter(f => f.f === d && f.ok).length} pagos`)))),
+      recH("div", { className: "fila espacio", style: { gap: "8px", flexWrap: "wrap" } },
+        tarjeta("Pagos aprobados", ap, "todos"), tarjeta("Identificados", seguros, "seguros"), tarjeta("Para revisar", revisar, "revisar", "#b45309"), tarjeta("Sin identificar", sinId, "sin", "#b91c1c"), tarjeta("Rechazados / no aprobados", noAp, "noap")),
+      recH("div", { className: "fila espacio", style: { gap: "8px", alignItems: "center", flexWrap: "wrap" } },
+        recH("input", { type: "search", placeholder: "Buscar apartamento, nombre, cédula, valor…", value: q, onChange: e => setQ(e.target.value), style: { minWidth: "280px" } }),
+        recH("button", { type: "button", className: "btn btn-sm", style: { marginLeft: "auto" }, onClick: excel, disabled: !ap.length }, "Descargar Excel para recibos de caja")),
       recH("div", { className: "tabla-scroll espacio" }, recH("table", { className: "t-datos" },
-        recH("thead", null, recH("tr", null, ["Fecha", "Banco", "Valor", "Apartamento", "Cuota (con descuento)", "Cómo se identificó", "Concepto", "Incluir"].map((h, i) => recH("th", { key: i }, h)))),
-        recH("tbody", null, vis.map(f => {
-          let x = f.sel ? U.get(f.sel) : null, dup = f.sel && porU.get(f.sel) > 1;
-          return recH("tr", { key: f.i, style: f.incl ? null : { opacity: .55 } },
-            recH("td", { className: "mono", style: { whiteSpace: "nowrap" } }, f.fecha),
-            recH("td", null, recH("div", null, f.desc), recH("div", { className: "tenue" }, [...new Set([f.ref1, f.ref2].filter(Boolean))].join(" · "))),
-            recH("td", { className: "mono", style: { whiteSpace: "nowrap", textAlign: "right" } }, fmt(f.valor), f.w && recH("div", { className: "tenue", style: { fontSize: "11px" } }, `neto ${fmt(f.neto)}`)),
-            recH("td", { style: { minWidth: "260px" } },
-              f.tipo === "pago" ? recH("input", { list: "rec-unidades", disabled: soloLectura, value: f.edit ?? (f.sel ? `${f.sel} · ${x?.nombre ?? ""}` : ""), placeholder: "Escriba el apartamento…", style: { width: "100%" },
-                onChange: e => { let v = e.target.value, u = recUnidad(v); setFila(f.i, u && U.has(u) ? { sel: u, edit: undefined, manual: u !== f.unidad } : { edit: v, sel: v.trim() ? f.sel : null, manual: !v.trim() ? !0 : f.manual }); } }) : recH("span", { className: "tenue" }, "—"),
-              !f.sel && f.cands.length > 0 && recH("div", { className: "tenue", style: { marginTop: "4px" } }, "Posibles: ", f.cands.map(u => recH("button", { key: u, type: "button", className: "enlace", style: { marginRight: "6px" }, onClick: () => setFila(f.i, { sel: u, edit: undefined, manual: !0 }) }, u))),
-              dup && recH("div", { className: "tenue", style: { color: "#b45309" } }, "Este apartamento tiene más de un pago en el extracto.")),
-            recH("td", { className: "mono", style: { whiteSpace: "nowrap" } }, x?.cuota ? `${fmt(x.cuota)} (${fmt(x.cuotaDesc)})` : ""),
-            recH("td", null, chip(f), f.comp && recH("span", { className: "chip chip-ok", style: { marginLeft: "6px" }, title: "Hay comprobante de pago para este movimiento" }, `Comprobante #${f.comp}`), !soloLectura && f.sel && !f.manual && f.conf === "media" && recH("button", { type: "button", className: "enlace", style: { marginLeft: "6px" }, onClick: () => setFila(f.i, { manual: !0 }) }, "Confirmar"), f.como && recH("div", { className: "tenue" }, f.como)),
-            recH("td", { style: { minWidth: "220px" } }, recH("input", { value: f.concepto, disabled: soloLectura || f.tipo !== "pago", onChange: e => setFila(f.i, { concepto: e.target.value }), style: { width: "100%" } })),
-            recH("td", { style: { textAlign: "center" } }, recH("input", { type: "checkbox", checked: !!f.incl, disabled: soloLectura, onChange: e => setFila(f.i, { incl: e.target.checked }), "aria-label": "Incluir en la relación" })));
-        })))),
-      recH("p", { className: "pie" }, `${ident.length} pagos para recibo de caja por ${fmt(ident.reduce((s, f) => s + f.valor, 0))}. Al guardar, las cuentas y referencias de los pagos seguros y de los que usted asignó o confirmó quedan aprendidas para los próximos extractos.`)));
+        recH("thead", null, recH("tr", null, ["Fecha", "Pagador", "Escribió en Wompi", "Apartamento que paga", "Cómo se identificó", "Valor", "Medio", "Estado"].map((h, i) => recH("th", { key: i, style: i === 5 ? { textAlign: "right" } : null }, h)))),
+        recH("tbody", null, vis.length ? vis.map(f => recH("tr", { key: f.id },
+          recH("td", { className: "mono", style: { whiteSpace: "nowrap" } }, recFd(f.f), recH("div", { className: "tenue" }, f.h)),
+          recH("td", null, f.nombre || "—", recH("div", { className: "tenue", style: { fontSize: "12px" } }, [f.cc && `${f.tipoId || "CC"} ${f.cc}`, f.correo].filter(Boolean).join(" · "))),
+          recH("td", null, f.escrito ? recH("span", { className: "mono" }, f.escrito) : recH("span", { className: "tenue" }, "(no escribió)")),
+          recH("td", { style: { minWidth: "190px" } }, celdaUnidad(f)),
+          recH("td", { style: { fontSize: "12.5px", maxWidth: "320px" } }, f.como),
+          recH("td", { className: "mono", style: { textAlign: "right", whiteSpace: "nowrap" } }, recFmt(f.valor)),
+          recH("td", { style: { whiteSpace: "nowrap" } }, REC_MEDIO[f.medio] ?? f.medio),
+          recH("td", null, chip(f)))) : recH("tr", null, recH("td", { colSpan: 8, className: "tenue" }, "No hay pagos en este filtro."))))),
+      recH("p", { className: "tenue espacio", style: { fontSize: "12px" } }, `Archivos cargados en ${recMesTxt(mes)}: ${(M.archivos ?? []).join(", ") || "—"}. Si vuelve a cargar un archivo, los pagos que ya estaban no se duplican. Las horas están en hora de Colombia.`)));
 }
 
 /* ===================== COMUNICACIONES EMITIDAS ===================== */
