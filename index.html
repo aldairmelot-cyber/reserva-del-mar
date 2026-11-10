@@ -2553,7 +2553,7 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
     noRec.push({ ...r, concepto: FI_CFG.conceptos[k][1] });
   }
   /* traslados: de la contabilidad (débitos a la inversión con concepto de fondo de imprevistos) y los registrados a mano que la contabilidad aún no tiene */
-  let trasC = aux.filter(r => FI_CFG.inversion.includes(r.cta) && r.d > 0 && r.f >= ini && /IMPROVI|IMPREVI/i.test(r.nota)).map(r => ({ f: r.f, valor: r.d, doc: fiDocL(r.doc), nota: r.nota, origen: "Contabilidad" }));
+  let trasC = aux.filter(r => FI_CFG.inversion.includes(r.cta) && r.d > 0 && r.f >= ini && !/RENDIMIENTO|INTERESES FINANCIEROS/i.test(r.nota)).map(r => ({ f: r.f, valor: r.d, doc: fiDocL(r.doc), nota: r.nota, origen: "Contabilidad" }));
   let usados = new Set(), manual = [], marcados = new Set();
   let candO = aux.filter(r => FI_CFG.inversion.includes(r.cta) && r.d > 0 && r.f >= ini && !/IMPROVI|IMPREVI|RENDIMIENTO|INTERESES FINANCIEROS/i.test(r.nota));
   for (const t of cfg.traslados ?? []) {
@@ -2566,12 +2566,15 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
   let todos = [...trasC, ...manual].sort((a, b) => a.f - b.f);
   for (const t of todos) if (t.f >= ini && t.f <= fin) M[mesDe(t.f) - 1].tras.push(t);
   let posteriores = todos.filter(t => t.f > fin);
-  let esRend = x => /RENDIMIENTO|INTERESES FINANCIEROS/i.test(x.nota), esTras = x => /IMPROVI|IMPREVI/i.test(x.nota);
+  let esRend = x => /RENDIMIENTO|INTERESES FINANCIEROS/i.test(x.nota), esTras = x => !esRend(x);
   let invMov = aux.filter(x => FI_CFG.inversion.includes(x.cta) && x.f >= ini && x.f <= fin);
   let rend = invMov.filter(x => x.d > 0 && esRend(x)).reduce((s, x) => s + x.d, 0);
   /* rendimientos (art. 79 d): se deben al fondo y quedan abonados en la misma inversión, por eso cuentan como trasladados en el mes */
   for (const x of invMov) if (x.d > 0 && esRend(x)) M[mesDe(x.f) - 1].rend = (M[mesDe(x.f) - 1].rend || 0) + x.d;
-  let saldo = +cfg.saldoInicial || 0;
+  let siManual = cfg.saldoInicial != null && cfg.saldoInicial !== "";
+  let fSF0 = bal.cuentas.filter(c => String(c[0]).startsWith(FI_CFG.fondo)).reduce((a, c) => a + (+c[6] || 0), 0), iSI0 = bal.cuentas.filter(c => FI_CFG.inversion.includes(c[0])).reduce((a, c) => a + (+c[3] || 0), 0);
+  let saldoIni = siManual ? +cfg.saldoInicial || 0 : Math.max(0, Math.round(fSF0 - iSI0));
+  let saldo = saldoIni;
   for (const x of M) {
     x.rend = x.rend || 0; x.trasDinero = x.tras.reduce((s, t) => s + t.valor, 0);
     x.ant = saldo; x.total = x.uno + x.c.reduce((s, v) => s + v, 0) + x.rend; x.trasladado = x.trasDinero + x.rend;
@@ -2583,10 +2586,10 @@ function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
   let s = f => M.reduce((a, x) => a + f(x), 0);
   let r = {
     anio, mes, M, noRec, posteriores, rend, otrosDep, retiros, fondoCtas, invCtas, descSI, siCart, yaLiq, movFondo: R.filter(x => x.cta.startsWith(FI_CFG.fondo)),
-    saldoInicial: +cfg.saldoInicial || 0, uno: s(x => x.uno), rendT: s(x => x.rend), conc: FI_CFG.conceptos.map((_, k) => s(x => x.c[k])), incrementos: s(x => x.total), trasladado: s(x => x.trasladado),
+    saldoInicial: saldoIni, saldoIniAuto: !siManual, uno: s(x => x.uno), rendT: s(x => x.rend), conc: FI_CFG.conceptos.map((_, k) => s(x => x.c[k])), incrementos: s(x => x.total), trasladado: s(x => x.trasladado),
     fondoSI: fondoCtas.reduce((a, c) => a + c.si, 0), fondoSF: fondoCtas.reduce((a, c) => a + c.sf, 0), inversion: invCtas.reduce((a, c) => a + c.sf, 0)
   };
-  r.pendiente = M.length ? M[M.length - 1].saldo : r.saldoInicial;
+  r.pendiente = M.length ? M[M.length - 1].saldo : saldoIni;
   r.trasPost = posteriores.reduce((a, t) => a + t.valor, 0);
   r.pendienteHoy = r.pendiente - r.trasPost;
   r.debeEstar = r.fondoSF + r.incrementos; /* se recalcula abajo con el ajuste de a\xF1os anteriores */
@@ -2764,8 +2767,8 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
       r.posteriores.length > 0 && aH("div", { className: "aviso espacio " + (Math.abs(r.pendienteHoy) < 1 ? "aviso-ok" : "aviso-adv") },
         aH("p", null, `Traslados despu\xE9s del corte: ${r.posteriores.map(t => `${fiFecha(t.f)} ${P(t.valor)}${t.origen !== "Contabilidad" ? " (registrado a mano)" : ""}`).join("; ")}. Saldo por trasladar hoy: ${P(r.pendienteHoy)} — ${fiEstado(r.pendienteHoy).toLowerCase()}.`)),
       aH("div", { className: "herramientas espacio" },
-        aH("span", { className: "herr-tit" }, "Saldo por trasladar al 1 de enero"),
-        soloLectura ? aH("b", null, P(r.saldoInicial)) : aH("input", { className: "num a-right", defaultValue: r.saldoInicial ? Math.round(r.saldoInicial).toLocaleString("es-CO") : "0", style: { width: "10rem" }, title: "Lo que qued\xF3 pendiente (positivo) o trasladado de m\xE1s (negativo) del a\xF1o anterior", onBlur: e => { let v = aclNum(e.target.value) || 0; v !== r.saldoInicial && guardarCfg({ ...cfg, saldoInicial: v }); } })),
+        aH("span", { className: "herr-tit" }, "Saldo por trasladar al 1 de enero", r.saldoIniAuto ? aH("small", { className: "tenue" }, " (calculado: fondo 3305 \u2212 inversi\xF3n al 1 de enero)") : null),
+        soloLectura ? aH("b", null, P(r.saldoInicial)) : aH("input", { key: "si" + Math.round(r.saldoInicial), className: "num a-right", defaultValue: r.saldoInicial ? Math.round(r.saldoInicial).toLocaleString("es-CO") : "0", style: { width: "10rem" }, title: "Lo que qued\xF3 pendiente (positivo) o trasladado de m\xE1s (negativo) de a\xF1os anteriores. Si no lo escribe, se calcula: saldo del fondo (3305) menos la inversi\xF3n al 1 de enero.", onBlur: e => { let v = aclNum(e.target.value) || 0; v !== r.saldoInicial && guardarCfg({ ...cfg, saldoInicial: v }); } })),
       !soloLectura && aH("div", { className: "herramientas espacio" },
         aH("span", { className: "herr-tit" }, "Registrar un traslado ya hecho"),
         aH("input", { type: "date", value: nuevo.fecha, onChange: e => setNuevo({ ...nuevo, fecha: e.target.value }) }),
