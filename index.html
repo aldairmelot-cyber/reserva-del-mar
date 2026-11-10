@@ -1040,21 +1040,22 @@ function ppCalc(base, cfgIn) {
 }
 function ppPyg(M, base) {
   let it = c => base.items.find(x => x.c === c) ?? { p26: 0 }, cu = it(PP_CUOTAS).p26, de = it(PP_DESC).p26, fo = it(PP_FONDO).p26, ma = it(PP_MAN).p26, ot = M.otros.reduce((a, x) => a + x.p26, 0);
-  let ing26 = cu + de + fo + ma + ot, col = (a26, f) => [a26, ...M.ops.map(f)];
+  let ing26 = cu + de + ma + ot, col = (a26, f) => [a26, ...M.ops.map(f)];
   let F = [
     { t: "INGRESOS", h: 1 },
     { t: "Cuotas de administración", v: col(cu, o => o.cuotas) },
     { t: "Menos: descuento por pronto pago", v: col(de, o => o.desc) },
-    { t: "Cuota para el fondo de imprevistos", v: col(fo, o => o.fondo) },
     { t: "Ingresos por manillas de acceso (sin IVA)", v: col(ma, o => o.man27) },
     { t: "Otros ingresos (concesiones, intereses, sanciones, reintegros)", v: col(ot, o => M.O) },
-    { t: "TOTAL INGRESOS", v: col(ing26, o => o.ing), s: 1 },
+    { t: "TOTAL INGRESOS DE FUNCIONAMIENTO", v: col(ing26, o => o.ing - o.fondo), s: 1 },
     { t: "GASTOS", h: 1 },
     ...M.grupos.map(g => ({ t: g.n.charAt(0) + g.n.slice(1).toLowerCase(), v: col(g.p26, o => g.v27) })),
     { t: "TOTAL GASTOS DE FUNCIONAMIENTO", v: col(M.G26, o => M.G), s: 1 },
-    { t: "Apropiación al fondo de imprevistos (art. 35 Ley 675; art. 79 RPH)", v: col(fo, o => o.fondo) },
-    { t: "TOTAL GASTOS Y APROPIACIONES", v: col(M.G26 + fo, o => M.G + o.fondo), s: 1 },
-    { t: "RESULTADO DEL EJERCICIO", v: col(ing26 - M.G26 - fo, o => o.res), r: 1 }];
+    { t: "RESULTADO DEL PRESUPUESTO DE FUNCIONAMIENTO", v: col(ing26 - M.G26, o => o.ing - o.fondo - M.G), r: 1 },
+    { t: "FONDO DE IMPREVISTOS (aparte del presupuesto de funcionamiento)", h: 1 },
+    { t: "Cuota del fondo de imprevistos (1 % de los gastos, art. 35 Ley 675)", v: col(fo, o => o.fondo) },
+    { t: "Destino: inversión del fondo (fiducia), con uso restringido", v: col(fo, o => o.fondo) },
+    { t: "TOTAL A FACTURAR A LAS UNIDADES (CUOTAS + FONDO)", v: col(cu + fo, o => o.cuotas + o.fondo), s: 1 }];
   return F;
 }
 function ppCuotasTipo(M, uni) {
@@ -1092,7 +1093,7 @@ function ppDoc(M, base, config) {
   let tipos = ppCuotasTipo(M, uni);
   let pyg = ppPyg(M, base);
   let secPyg = { id: "pp_pyg", nombre: "Estado de resultados", titulo: "PRESUPUESTO 2027 · ESTADO DE RESULTADOS PRESUPUESTADO", subtitulos: s("Ingresos, gastos y fondo de imprevistos · resultado cero"), orientacion: "portrait", bloques: [
-    { tipo: "parrafo", estilo: "normal", texto: "El presupuesto se arma para que los ingresos cubran exactamente los gastos de funcionamiento más la apropiación al fondo de imprevistos, de modo que el resultado presupuestado sea cero. El fondo se recauda dentro de la cuota de cada unidad y se traslada a la inversión del fondo." },
+    { tipo: "parrafo", estilo: "normal", texto: "El presupuesto de funcionamiento se arma para que las cuotas de administración, las manillas y los otros ingresos cubran exactamente los gastos: su resultado es cero. El fondo de imprevistos se presenta aparte: es el 1 % de los gastos, se factura junto con la cuota de cada unidad y se traslada a la inversión del fondo, donde queda con uso restringido." },
     { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 40, "left"), col("PPTO 2026", 20), ...M.ops.map((o, i) => col(`2027 · OPCIÓN ${i + 1}`, 20))], filas: pyg.map(f => f.h ? { estilo: "grupo", celdas: [or(f.t), or(""), ...M.ops.map(() => or(""))] } : { estilo: f.r ? "totalDoble" : f.s ? "subtotal" : "detalle", celdas: [or(f.t), ...f.v.map(x => er(x))] }) },
     { tipo: "parrafo", estilo: "normal", texto: M.ops.map((o, i) => `Opción ${i + 1}: manilla a ${ppP(o.precio27)} (IVA incluido) y recaudo mensual de cuotas de ${ppP(o.mes)}, ${ppPct(o.inc)} más que en 2026.`).join(" ") }] };
   let secc = [secPyg,
@@ -1146,7 +1147,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let alerta = M.man.p26 && M.man.proy < M.man.p26 * .97 ? h("div", { className: "aviso aviso-atencion" }, h("b", null, "Ojo con las manillas: "), `en 2026 se presupuestaron ${ppP(M.man.p26)} y la proyección del año da ${ppP(M.man.proy)} (${ppPct(M.man.proy / M.man.p26 - 1)}). El presupuesto 2027 parte de la proyección para no repetir el faltante.`) : null;
   let pyg = ppPyg(M, base);
   let vPyg = h("section", { className: "panel" }, h("h2", null, "Estado de resultados presupuestado 2027"),
-    h("p", { className: "sub" }, "Ingresos por cuotas y por manillas frente a los gastos y la apropiación al fondo de imprevistos. El resultado debe ser cero: la cuota se calcula para cerrar exactamente."),
+    h("p", { className: "sub" }, "Presupuesto de funcionamiento: cuotas, manillas y otros ingresos frente a los gastos; la cuota se calcula para que el resultado sea cero. El fondo de imprevistos va aparte: se factura con la cuota y se traslada a la fiducia del fondo."),
     h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
       h("thead", null, h("tr", null, h("th", null, "Concepto"), h("th", { className: "a-right" }, "Ppto 2026"), ...M.ops.map((o, i) => h("th", { key: i, className: "a-right" }, `2027 · Opción ${i + 1}`)))),
       h("tbody", null, pyg.map((f, k) => f.h ? h("tr", { key: k, className: "fila-grupo" }, h("td", { colSpan: 2 + M.ops.length }, h("b", null, f.t))) :
