@@ -1769,7 +1769,7 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
   let ajTipo = t => {
     let F = filasTipo(t), dec = F.filter(f => f.D && f.S && !f.S.faltan && !f.S.error); if (!dec.length || !DCM_AJ[t]) return null;
     let ul = dec[dec.length - 1], prox = F.find(f => !f.D && f.P.per > ul.P.per && f.S && !f.S.faltan && !f.S.error) ?? null;
-    let filas = DCM_AJ[t].k.map(k => { let d = dec.reduce((a, f) => a + (f.D.renglones[k] || 0), 0), sv = dec.reduce((a, f) => a + (f.S.renglones[k] || 0), 0), dif = sv - d, p = prox ? prox.S.renglones[k] || 0 : null;
+    let filas = DCM_AJ[t].k.map(k => { let d = dec.reduce((a, f) => a + (f.D.renglones[k] || 0) - (DCM_T[t].ajSanc?.[k] ?? []).reduce((x, j) => x + (f.D.renglones[j] || 0), 0), 0), sv = dec.reduce((a, f) => a + (f.S.renglones[k] || 0), 0), dif = sv - d, p = prox ? prox.S.renglones[k] || 0 : null;
       return { k, t: DCM_T[t].R[k] ?? `Renglón ${k}`, d, s: sv, dif, p, a: p == null ? null : p + dif, imp: DCM_AJ[t].imp.includes(k), ok: Math.abs(dif) <= DCM_TOL * 2 * dec.length }; });
     return { t, desde: dec[0].P.txt, hasta: ul.P.txt, n: dec.length, prox, filas, hay: filas.some(f => !f.ok) };
   };
