@@ -7846,21 +7846,26 @@ function cxPistas(pend, pares, H) {
       : duenos.length > 1 ? `Varios propietarios encajan: ${duenos.map(t => cpmUnidad(t).unidad).join(" o ")}. ` + cand.get(duenos[0]).txt[0].replace(/^./, m => m.toUpperCase()) + "." : top.txt.slice(0, 2).join("; ").replace(/^./, m => m.toUpperCase()) + ".";
     let dobles = (mismoDia.get(v + "|" + c.f) ?? []).filter(d => d !== c.doc);
     dobles.length && (porque += ` Ojo: el mismo día hay otra consignación por el mismo valor (${dobles.join(", ")}); revisar en el extracto si llegaron dos o si quedó registrada dos veces.`);
-    return { ...c, v, duenos, seg, porque, k: `${c.doc}|${c.f}|${v}` };
+    return { ...c, v, duenos, seg, porque, cands: L.slice(0, 4).map(o => ({ ter: o.ter, pts: o.pts, txt: o.txt })), k: `${c.doc}|${c.f}|${v}` };
   });
 }
 var CXI_SEG = { alta: ["Alta", "est-ok", "verde"], media: ["Media", "est-atencion", "ambar"], baja: ["Baja", "est-info", null], sin: ["Sin pista", "est-sin", null] };
 
+var cxAnio = x => String(x.fo && x.fo <= x.f ? x.fo : x.f).slice(0, 4);
+var CXI_ORD = { alta: 0, media: 1, baja: 2, sin: 3 };
 function cxDocPdf(L, X, cfg, hoy) {
   let pesos = v => "$" + pe(Math.round(v)), tot = L.reduce((s, x) => s + x.v, 0), fuertes = L.filter(x => x.seg === "alta");
   let cols = [{ titulo: "FECHA Y RECIBO", ancho: 13, alin: "left" }, { titulo: "VALOR", ancho: 11, alin: "right" }, { titulo: "POSIBLE DUEÑO", ancho: 22, alin: "left" }, { titulo: "¿POR QUÉ LO CREEMOS?", ancho: 33, alin: "left" }, { titulo: "SEGURIDAD", ancho: 10, alin: "left" }, { titulo: "¿CORRECTO?", ancho: 11, alin: "center" }];
   let fila = x => ({ estilo: "detalle", sep: !0, celdas: [Zt(`${cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f))}\n${x.doc}`), Zt(pesos(x.v), { bold: !0 }), Zt(x.duenos.length ? x.duenos.map(t => { let u = cpmUnidad(t); return `${u.unidad.replace(/^Apto /, "")} ${u.prop}`.trim(); }).join(" o ") : "—"), Zt(x.porque), Zt(CXI_SEG[x.seg][0], { fondo: CXI_SEG[x.seg][2] || void 0 }), Zt("[   ]")] });
-  let grupos = [["alta", "Con pista fuerte"], ["media", "Con pista media"], ["baja", "Con pista débil"], ["sin", "Sin pista"]].map(([s, t]) => [t, L.filter(x => x.seg === s)]).filter(g => g[1].length);
+  let anios = [...new Set(L.map(cxAnio))].sort((a, b) => b.localeCompare(a));
+  let resumen = { tipo: "tabla", cabecera: !0, columnas: [{ titulo: "AÑO", ancho: 20, alin: "left" }, { titulo: "CONSIGNACIONES", ancho: 20, alin: "right" }, { titulo: "VALOR", ancho: 30, alin: "right" }, { titulo: "CON PISTA FUERTE", ancho: 30, alin: "right" }],
+    filas: [...anios.map(a => { let G = L.filter(x => cxAnio(x) === a), F = G.filter(x => x.seg === "alta"); return { estilo: "detalle", celdas: [Zt(a), Zt(String(G.length)), ho(G.reduce((s, x) => s + x.v, 0)), Zt(F.length ? `${F.length} · ${pesos(F.reduce((s, x) => s + x.v, 0))}` : "—")] }; }),
+      { estilo: "totalDoble", celdas: [Zt("TOTAL", { bold: !0 }), Zt(String(L.length), { bold: !0 }), ho(tot, { bold: !0 }), Zt(`${fuertes.length} · ${pesos(fuertes.reduce((s, x) => s + x.v, 0))}`, { bold: !0 })] }] };
   let b = [
     { tipo: "parrafo", estilo: "normal", texto: `Señores Administración ${cfg.entidad}:` },
     { tipo: "parrafo", estilo: "normal", texto: "En las cuentas bancarias de la copropiedad hay consignaciones que llegaron sin decir quién las hizo, y por eso no se han podido abonar a ningún inmueble. Revisamos el historial de pagos, las referencias bancarias ya identificadas y las cuotas de cada inmueble para darles una pista de quién puede ser el dueño de cada una. Son posibilidades, no certezas: les pedimos confirmarlas con el extracto bancario o llamando al propietario, pedir el soporte del pago y marcar en la última columna si es correcto." },
-    { tipo: "tabla", cabecera: !0, columnas: [{ titulo: "CONSIGNACIONES", ancho: 33, alin: "left" }, { titulo: "VALOR TOTAL", ancho: 33, alin: "left" }, { titulo: "CON PISTA FUERTE", ancho: 34, alin: "left" }], filas: [{ estilo: "detalle", celdas: [Zt(String(L.length), { bold: !0 }), Zt(pesos(tot), { bold: !0 }), Zt(`${fuertes.length} · ${pesos(fuertes.reduce((s, x) => s + x.v, 0))}`, { bold: !0 })] }] },
-    ...grupos.map(([t, G]) => ({ tipo: "tabla", cabecera: !0, etiqueta: `${t.toUpperCase()} · ${G.length} consignaciones · ${pesos(G.reduce((s, x) => s + x.v, 0))}`, columnas: cols, filas: G.map(fila) })),
+    resumen,
+    ...anios.map(a => { let G = L.filter(x => cxAnio(x) === a).sort((p, q) => CXI_ORD[p.seg] - CXI_ORD[q.seg] || q.f - p.f); return { tipo: "tabla", cabecera: !0, etiqueta: `AÑO ${a} · ${G.length} consignaciones · ${pesos(G.reduce((s, x) => s + x.v, 0))}`, columnas: cols, filas: G.map(fila) }; }),
     { tipo: "parrafo", estilo: "h3", texto: "Qué les pedimos" },
     { tipo: "parrafo", estilo: "enumerado", numero: 1, texto: "Empezar por las de seguridad alta: con una llamada al propietario se resuelven casi todas." },
     { tipo: "parrafo", estilo: "enumerado", numero: 2, texto: "En las que tienen dos posibles dueños, el banco o la sucursal de la consignación suele decir cuál es." },
@@ -7874,42 +7879,68 @@ function cxDocPdf(L, X, cfg, hoy) {
 
 function CxiPantalla({ ses, config, notificar, soloLectura }) {
   let h = cxH, [X, setX] = Ve.useState(null), [prog, setProg] = Ve.useState(""), [err, setErr] = Ve.useState(""), [seg, setSeg] = Ve.useState({}), [fil, setFil] = Ve.useState("todas"), [oc, setOc] = Ve.useState(null), [verOk, setVerOk] = Ve.useState(!1);
+  let [anioSel, setAnioSel] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [abierta, setAbierta] = Ve.useState(null), [plegados, setPlegados] = Ve.useState({});
   let cargar = async () => { setErr(""); setX(null); try { let H = await cxLeer(ses, config.entidad || "", setProg); setProg("Buscando los posibles dueños…"); await new Promise(r => setTimeout(r, 30)); let P = cxPendientes(H.pool), L = cxPistas(P.pend, P.pares, H); setX({ ...H, L }); } catch (e) { setErr(e?.message ?? String(e)); } setProg(""); };
   Ve.useEffect(() => { cargar(); ses.store.get("cxi_seg/estado").then(d => setSeg(d?.items ?? {})).catch(() => { }); }, [ses]);
   let marcar = async (k, v) => { let n = { ...seg }; v ? n[k] = { ok: !0, fecha: new Date().toISOString().slice(0, 10) } : delete n[k]; setSeg(n); try { await ses.store.set("cxi_seg/estado", { items: n }); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } };
   if (err) return h("section", { className: "panel vacio" }, h("h2", null, "Consignaciones por identificar"), h("p", { className: "sub" }, err), h("button", { type: "button", className: "btn", onClick: cargar }, "Reintentar"));
-  if (!X) return h("section", { className: "panel" }, h("h2", null, "Consignaciones por identificar"), h("p", { className: "tenue" }, prog || "Cargando…"), h("p", { className: "sub" }, "La primera vez lee todos los libros auxiliares; puede tardar un minuto."));
-  let pesos = v => "$" + pe(Math.round(v)), hoy = new Date().toISOString().slice(0, 10);
-  let act = X.L.filter(x => !seg[x.k]), ok = X.L.filter(x => seg[x.k]);
-  let ver = (verOk ? ok : act).filter(x => fil === "todas" || x.seg === fil).sort((a, b) => ({ alta: 0, media: 1, baja: 2, sin: 3 })[a.seg] - ({ alta: 0, media: 1, baja: 2, sin: 3 })[b.seg] || b.f - a.f);
-  let tot = act.reduce((s, x) => s + x.v, 0), fuertes = act.filter(x => x.seg === "alta"), dif = X.saldo ? X.saldo.v - X.L.reduce((s, x) => s + x.v, 0) : null;
-  let bajar = async () => { setOc("pdf"); try { await PO(ses, `Informe_consignaciones_por_identificar_${hoy}.pdf`, await en(cxDocPdf(act, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
+  if (!X) return h("section", { className: "panel" }, h("h2", null, "Consignaciones por identificar"), h("p", { className: "tenue" }, prog || "Cargando…"), h("p", { className: "sub" }, "Lee todos los libros auxiliares cargados; puede tardar un minuto."));
+  let pesos = v => "$" + pe(Math.round(v)), hoy = new Date().toISOString().slice(0, 10), sum = L => L.reduce((s, x) => s + x.v, 0);
+  let act = X.L.filter(x => !seg[x.k]), ok = X.L.filter(x => seg[x.k]), base = verOk ? ok : act;
+  let qN = cxN(q).replace(/[$.\s]/g, ""), busca = x => !qN || cxN([x.doc, x.nota, x.porque, ...x.duenos].join(" ")).replace(/\s/g, "").includes(qN) || String(Math.round(x.v)).includes(qN);
+  let vis = base.filter(x => (fil === "todas" || x.seg === fil) && busca(x));
+  let anios = [...new Set(base.map(cxAnio))].sort((a, b) => b.localeCompare(a)), aniosVis = anioSel === "todos" ? anios : [anioSel];
+  let fuertes = act.filter(x => x.seg === "alta"), dif = X.saldo ? X.saldo.v - sum(X.L) : null;
+  let pagosDe = ter => X.pagos.filter(p => p.ter === ter).sort((a, b) => b.f - a.f).slice(0, 6);
+  let bajar = async () => { setOc("pdf"); try { let L = act.filter(x => anioSel === "todos" || cxAnio(x) === anioSel); await PO(ses, `Informe_consignaciones_por_identificar_${anioSel === "todos" ? "" : anioSel + "_"}${hoy}.pdf`, await en(cxDocPdf(L, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
+  let chip = (activo, txt, sub, onClick, key) => h("button", { key, type: "button", onClick, style: { textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: activo ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: activo ? "var(--acento-suave, #e8f3f4)" : "var(--hoja, #fff)", minWidth: 120 } }, h("div", { style: { fontWeight: 700 } }, txt), h("div", { className: "tenue", style: { fontSize: 12 } }, sub));
+  let detalle = x => h("tr", { key: x.k + "-d" }, h("td", { colSpan: 6, style: { background: "var(--acento-suave, #f3f8f8)", padding: "12px 16px" } },
+    h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 } },
+      h("div", null, h("b", null, "Lo que dice el banco"), h("p", { style: { margin: "4px 0" } }, x.nota || "—"), h("div", { className: "tenue" }, `${x.doc} · registrado el ${cbFecha(cxF(x.f))} · cuenta ${x.cta}`)),
+      h("div", null, h("b", null, "Posibles dueños y por qué"), !(x.cands ?? []).length ? h("p", { className: "tenue", style: { margin: "4px 0" } }, "Sin candidatos.") :
+        h("ol", { style: { margin: "4px 0", paddingLeft: 18 } }, x.cands.map((o, i) => { let u = cpmUnidad(o.ter); return h("li", { key: i, style: { marginBottom: 6 } }, h("b", null, u.unidad), " ", h("span", { className: "tenue" }, u.prop), h("div", { style: { fontSize: 13 } }, o.txt.join("; ") + ".")); }))),
+      x.duenos[0] && h("div", null, h("b", null, `Últimos pagos de ${cpmUnidad(x.duenos[0]).unidad}`), (() => { let P = pagosDe(x.duenos[0]); return !P.length ? h("p", { className: "tenue" }, "Sin pagos en los libros.") :
+        h("table", { className: "t-datos", style: { marginTop: 4 } }, h("tbody", null, P.map((p, i) => h("tr", { key: i, style: Math.abs(p.v - x.v) <= 1 ? { fontWeight: 700 } : null }, h("td", null, cbFecha(cxF(p.f))), h("td", { className: "mono" }, p.doc), h("td", { className: "a-right num" }, pesos(p.v)))))); })()))));
   return h("div", { className: "pantalla" },
     h("div", { className: "pantalla-enc" }, h("div", null, h("h2", { className: "h-sec" }, "Consignaciones por identificar"),
-      h("p", { className: "lead" }, "Pagos que llegaron al banco sin decir de quién son, con una pista del posible dueño. El informe en PDF es para que cartera lo confirme con los propietarios y pida el soporte."))),
-    h("div", { className: "herramientas" },
-      h("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !act.length, onClick: bajar }, oc === "pdf" ? "Generando…" : "Descargar informe para cartera (PDF)"),
-      h("button", { type: "button", className: "btn", onClick: cargar }, "Volver a calcular"),
-      h("span", { className: "tenue" }, `Libros auxiliares: ${X.libros.join(", ")}`)),
+      h("p", { className: "lead" }, "Pagos que llegaron al banco sin decir de quién son, con una pista del posible dueño, separados por año. Toque una consignación para ver el detalle. El informe en PDF es para que cartera lo confirme con los propietarios y pida el soporte."))),
     h("div", { className: "kpis" },
       h("div", { className: "kpi" }, h("span", null, "Consignaciones"), h("b", null, act.length), h("small", null, ok.length ? `${ok.length} ya confirmadas` : "sin identificar")),
-      h("div", { className: "kpi" }, h("span", null, "Valor total"), h("b", { className: "num" }, pesos(tot))),
-      h("div", { className: "kpi" }, h("span", null, "Con pista fuerte"), h("b", null, `${fuertes.length} · ${pesos(fuertes.reduce((s, x) => s + x.v, 0))}`)),
+      h("div", { className: "kpi" }, h("span", null, "Valor total"), h("b", { className: "num" }, pesos(sum(act)))),
+      h("div", { className: "kpi" }, h("span", null, "Con pista fuerte"), h("b", null, `${fuertes.length} · ${pesos(sum(fuertes))}`)),
       X.saldo && h("div", { className: "kpi" }, h("span", null, `Saldo cuenta ${X.saldo.cta}`), h("b", { className: "num" }, pesos(X.saldo.v)), h("small", null, `al ${cbFecha(X.saldo.hasta)}${Math.abs(dif) >= 1 ? ` · ${pesos(dif)} sin detalle en los libros` : " · cuadra con el detalle"}`))),
     h("section", { className: "panel" },
-      h("div", { className: "herramientas" }, ...[["todas", "Todas"], ["alta", "Alta"], ["media", "Media"], ["baja", "Baja"], ["sin", "Sin pista"]].map(([k, t]) => h("button", { key: k, type: "button", className: "btn btn-sm" + (fil === k ? " btn-primario" : ""), onClick: () => setFil(k) }, `${t} (${(verOk ? ok : act).filter(x => k === "todas" || x.seg === k).length})`)),
-        ok.length > 0 && h("label", { style: { marginLeft: 12 } }, h("input", { type: "checkbox", checked: verOk, onChange: e => setVerOk(e.target.checked) }), " Ver las ya confirmadas")),
-      h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
-        h("thead", null, h("tr", null, ["Fecha y recibo", "Valor", "Posible dueño", "¿Por qué lo creemos?", "Seguridad", "Detalle del banco", verOk ? "Confirmada" : "¿Ya se confirmó?"].map((t, i) => h("th", { key: i, className: i === 1 ? "a-right" : "" }, t)))),
-        h("tbody", null, ver.map(x => h("tr", { key: x.k },
-          h("td", null, cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f)), h("div", { className: "tenue mono" }, x.doc)),
-          h("td", { className: "a-right num" }, h("b", null, pesos(x.v))),
-          h("td", null, x.duenos.length ? x.duenos.map((t, i) => { let u = cpmUnidad(t); return h("div", { key: i }, h("b", null, u.unidad), h("div", { className: "tenue" }, u.prop)); }) : "—"),
-          h("td", { style: { maxWidth: 380 } }, x.porque),
-          h("td", null, h("span", { className: "est " + CXI_SEG[x.seg][1] }, CXI_SEG[x.seg][0])),
-          h("td", { className: "tenue", style: { maxWidth: 260, fontSize: 12 } }, x.nota),
-          h("td", null, soloLectura ? (seg[x.k] ? "Sí" : "") : h("label", { style: { cursor: "pointer" } }, h("input", { type: "checkbox", checked: !!seg[x.k], onChange: e => marcar(x.k, e.target.checked) }), seg[x.k] ? ` ${cbFecha(seg[x.k].fecha)}` : ""))))))),
-      h("p", { className: "pie" }, "Marque «¿Ya se confirmó?» cuando cartera confirme el dueño y entregue el soporte; deja de salir en el informe. Cuando contabilidad registre la identificación y se carguen de nuevo los libros auxiliares, la consignación desaparece sola de la lista.")));
+      h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
+        chip(anioSel === "todos", "Todos los años", `${base.length} · ${pesos(sum(base))}`, () => setAnioSel("todos"), "todos"),
+        ...anios.map(a => { let G = base.filter(x => cxAnio(x) === a), F = G.filter(x => x.seg === "alta"); return chip(anioSel === a, a, `${G.length} · ${pesos(sum(G))}${F.length ? ` · ${F.length} fuertes` : ""}`, () => setAnioSel(anioSel === a ? "todos" : a), a); })),
+      h("div", { className: "herramientas" },
+        h("input", { type: "search", placeholder: "Buscar valor, apartamento, referencia…", value: q, onChange: e => setQ(e.target.value), style: { minWidth: 260 } }),
+        ...[["todas", "Todas"], ["alta", "Alta"], ["media", "Media"], ["baja", "Baja"], ["sin", "Sin pista"]].map(([k, t]) => h("button", { key: k, type: "button", className: "btn btn-sm" + (fil === k ? " btn-primario" : ""), onClick: () => setFil(k) }, `${t} (${base.filter(x => (k === "todas" || x.seg === k) && (anioSel === "todos" || cxAnio(x) === anioSel)).length})`)),
+        ok.length > 0 && h("label", { style: { marginLeft: 8 } }, h("input", { type: "checkbox", checked: verOk, onChange: e => setVerOk(e.target.checked) }), " Ver las ya confirmadas"),
+        h("span", { style: { flex: 1 } }),
+        h("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !act.length, onClick: bajar }, oc === "pdf" ? "Generando…" : `Informe para cartera (PDF${anioSel === "todos" ? "" : " · " + anioSel})`),
+        h("button", { type: "button", className: "btn", onClick: cargar }, "Volver a calcular")),
+      ...aniosVis.map(a => { let G = vis.filter(x => cxAnio(x) === a).sort((p, r) => CXI_ORD[p.seg] - CXI_ORD[r.seg] || r.f - p.f); if (!G.length) return null; let cerrado = plegados[a];
+        let cuenta = s => G.filter(x => x.seg === s).length;
+        return h("div", { key: a, style: { marginTop: 14, border: "1px solid var(--linea, #ddd)", borderRadius: 10, overflow: "hidden" } },
+          h("button", { type: "button", onClick: () => setPlegados({ ...plegados, [a]: !cerrado }), style: { width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "var(--fondo-2, #f6f7f8)", border: 0, cursor: "pointer", textAlign: "left" } },
+            h("span", { style: { fontSize: 18, fontWeight: 700 } }, cerrado ? "▸ " + a : "▾ " + a),
+            h("span", null, `${G.length} consignaciones · `, h("b", null, pesos(sum(G)))),
+            h("span", { style: { flex: 1 } }),
+            ...["alta", "media", "baja", "sin"].filter(cuenta).map(s => h("span", { key: s, className: "est " + CXI_SEG[s][1], style: { marginLeft: 4 } }, `${CXI_SEG[s][0]} ${cuenta(s)}`))),
+          !cerrado && h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
+            h("thead", null, h("tr", null, ["Fecha y recibo", "Valor", "Posible dueño", "¿Por qué lo creemos?", "Seguridad", verOk ? "Confirmada" : "¿Ya se confirmó?"].map((t, i) => h("th", { key: i, className: i === 1 ? "a-right" : "" }, t)))),
+            h("tbody", null, G.flatMap(x => [h("tr", { key: x.k, onClick: () => setAbierta(abierta === x.k ? null : x.k), style: { cursor: "pointer", background: abierta === x.k ? "var(--acento-suave, #e8f3f4)" : null } },
+              h("td", null, (abierta === x.k ? "▾ " : "▸ ") + cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f)), h("div", { className: "tenue mono" }, x.doc)),
+              h("td", { className: "a-right num" }, h("b", null, pesos(x.v))),
+              h("td", null, x.duenos.length ? x.duenos.map((t, i) => { let u = cpmUnidad(t); return h("div", { key: i }, h("b", null, u.unidad), h("div", { className: "tenue" }, u.prop)); }) : "—"),
+              h("td", { style: { maxWidth: 420 } }, x.porque),
+              h("td", null, h("span", { className: "est " + CXI_SEG[x.seg][1] }, CXI_SEG[x.seg][0])),
+              h("td", { onClick: e => e.stopPropagation() }, soloLectura ? (seg[x.k] ? "Sí" : "") : h("label", { style: { cursor: "pointer" } }, h("input", { type: "checkbox", checked: !!seg[x.k], onChange: e => marcar(x.k, e.target.checked) }), seg[x.k] ? ` ${cbFecha(seg[x.k].fecha)}` : ""))),
+              abierta === x.k ? detalle(x) : null]).filter(Boolean)))));
+      }),
+      !vis.length && h("p", { className: "tenue", style: { marginTop: 12 } }, "No hay consignaciones con ese filtro."),
+      h("p", { className: "pie" }, `Libros auxiliares: ${X.libros.join(", ")}. Marque «¿Ya se confirmó?» cuando cartera confirme el dueño y entregue el soporte; deja de salir en el informe. Cuando contabilidad registre la identificación y se cargue de nuevo el libro auxiliar, la consignación desaparece sola.`)));
 }
 
 
