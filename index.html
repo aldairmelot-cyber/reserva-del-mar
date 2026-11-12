@@ -1000,6 +1000,7 @@ function ppVentasLeer(sh) {
   return null;
 }
 function ppVentasMan(v) { let f = (v?.filas ?? []).filter(r => /^500$/.test(r[0]) || /BRAZALETE AZUL$/i.test(r[1])); let u = f.reduce((a, r) => a + r[2], 0), t = f.reduce((a, r) => a + r[4], 0); return u ? { u, t, sub: f.reduce((a, r) => a + r[3], 0), precio: t / u } : null; }
+function ppEsExplot(x) { return /^4220/.test(x.c) || /CONCESI|VALLA|BBQ|ALQUILER|SAL[OÓ]N SOCIAL|ZONAS? COMUN|AREAS? COMUN|ÁREAS? COMUN/i.test(x.n); }
 function ppCriterioDef(x) { if (/^5160/.test(x.c)) return "sin"; if (PP_SML.test(x.n)) return "sml"; return "ipc"; }
 function ppCalc(base, cfgIn) {
   let cfg = { ...PP_DEF, ...cfgIn }, ipc = (+cfg.ipc || 0) / 100, sml = (+cfg.sml || 0) / 100, nM = base.nMes || 10;
@@ -1019,6 +1020,9 @@ function ppCalc(base, cfgIn) {
   let gastos = base.items.filter(x => /^5/.test(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
   let otros = base.items.filter(x => /^4/.test(x.c) && ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
   let G = gastos.reduce((a, x) => a + x.v27, 0), O = otros.reduce((a, x) => a + x.v27, 0);
+  // ingresos por explotación económica de zonas comunes (Ley 675, art. 19 par. 2): la Asamblea decide si van a gastos comunes o al fondo (art. 35)
+  for (const x of otros) x.exp = cfg.explot?.[x.c] != null ? !!cfg.explot[x.c] : ppEsExplot(x);
+  let EX = otros.filter(x => x.exp).reduce((a, x) => a + x.v27, 0), trasPct = Math.min(100, Math.max(0, +cfg.trasladoExp || 0)) / 100, ET = ppR(EX * trasPct);
   let cu = base.items.find(x => x.c === PP_CUOTAS) ?? { p26: 0 }, de = base.items.find(x => x.c === PP_DESC) ?? { p26: 0 }, fo = base.items.find(x => x.c === PP_FONDO) ?? { p26: 0 };
   let descPct = cfg.descPct != null && cfg.descPct !== "" ? +cfg.descPct / 100 : cu.p26 ? Math.abs(de.p26) / cu.p26 : 0;
   let fondo = ppR(G * (+cfg.fondoPct || 0) / 100);
@@ -1030,15 +1034,15 @@ function ppCalc(base, cfgIn) {
     let pm = o.pct != null && o.pct !== "" ? +o.pct / 100 : o.idx === "sml" ? sml : ipc, cr = (+cfg.crec || 0) / 100;
     let precio27 = precio26 ? ppR(precio26 * (1 + pm), 100) : 0, pmReal = precio26 ? precio27 / precio26 - 1 : pm;
     let man27 = ppR(manProy * (1 + pmReal) * (1 + cr));
-    let neto = G - man27 - O, cuotas = ppR(neto / (1 - descPct)), desc = neto - cuotas;
+    let neto = G - man27 - (O - ET), cuotas = ppR(neto / (1 - descPct)), desc = neto - cuotas;
     let mes = (cuotas + fondo) / 12, inc = cuotaMes26 ? mes / cuotaMes26 - 1 : null;
     let ing = cuotas + fondo + desc + man27 + O; // la cuota incluye la parte del fondo: ingresos − gastos = excedente = fondo de imprevistos
-    return { ...o, i, pm: pmReal, precio27, man27, cuotas, desc, fondo, mes, inc, ing, res: ing - G, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
+    return { ...o, i, pm: pmReal, precio27, man27, cuotas, desc, fondo, mes, inc, ing, res: ing - G, fondoT: fondo + ET, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
   });
   let porGrupo = {};
   for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; }
   let tot = k => gastos.reduce((a, x) => a + (x[k] || 0), 0);
-  return { cfg, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, precio26, unid26, vm26, vm25, ops, ipc, sml };
+  return { cfg, EX, ET, trasPct, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, precio26, unid26, vm26, vm25, ops, ipc, sml };
 }
 /* estado de resultados presupuestado: valores ANUALES [ppto 2026, opción 1, opción 2…]; la vista mensual divide por 12.
    El fondo de imprevistos no es una línea de ingreso ni de gasto: es el EXCEDENTE (ingresos − gastos) que se traslada al patrimonio. */
@@ -1055,8 +1059,31 @@ function ppPyg(M, base) {
     { t: "GASTOS", h: 1 },
     ...M.grupos.map(g => ({ t: ppxCap(g.n), v: col(g.p26, o => g.v27) })),
     { t: "Total gastos", v: col(M.G26, o => M.G), s: 1 },
-    { t: "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos; se traslada al patrimonio`, v: col(ing26 - M.G26, o => o.ing - M.G), r: 1 },
-    { t: "Resultado después del traslado al fondo", v: col(cero(ing26 - M.G26 - fo), o => cero(o.ing - M.G - o.fondo)) }];
+    { t: "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(ing26 - M.G26, o => o.ing - M.G), r: 1 },
+    ...(M.ET > 0 ? [
+      { t: `De este: ${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos`, sub: 1, v: col(fo, o => o.fondo) },
+      { t: "De este: ingresos por explotación de zonas comunes trasladados al fondo", sub: 1, v: col(null, o => M.ET) }] : []),
+    { t: "Resultado después del traslado al fondo", v: col(cero(ing26 - M.G26 - fo), o => cero(o.ing - M.G - o.fondoT)) }];
+}
+/* proposición para la Asamblea: ingresos por explotación de zonas comunes a gastos comunes (sin traslado) o al fondo (con traslado) */
+var PP_LEY_EXP = "Ley 675 de 2001, art. 19, parágrafo 2: lo que se recibe por la explotación económica de los bienes comunes es para beneficio de la copropiedad y se destina al pago de las expensas comunes o a gastos de inversión, según lo decida la Asamblea General. Art. 35: el fondo de imprevistos se forma con no menos del 1 % del presupuesto anual de gastos y con los demás ingresos que la Asamblea considere pertinentes. Por eso, trasladar estos ingresos al fondo no lo decide el Consejo ni la Administración: es una decisión de la Asamblea.";
+function ppExpComp(M, base) {
+  let A = ppCalc(base, { ...M.cfg, trasladoExp: 0 }), B = ppCalc(base, { ...M.cfg, trasladoExp: 100 }), c = ppCoefTipo(base);
+  let par = f => A.ops.flatMap((o, k) => [f(o, A), f(B.ops[k], B)]);
+  return { A, B, filas: [
+    { t: "Ingresos por explotación de zonas comunes en el año", v: par((o, X) => X.EX) },
+    { t: "Ingresos por explotación de zonas comunes al mes", v: par((o, X) => X.EX / 12) },
+    { t: "Se destinan a", v: par((o, X) => X.ET > 0 ? "Fondo de imprevistos" : "Gastos comunes"), f: "txt" },
+    { t: "Fondo de imprevistos en el año", v: par(o => o.fondoT), s: 1 },
+    { t: "Fondo de imprevistos al mes", v: par(o => o.fondoT / 12) },
+    { t: "Total a facturar a las unidades al mes", v: par(o => o.mes), r: 1 },
+    { t: "Variación de la facturación frente a 2026", v: par(o => o.inc), f: "pct" },
+    { t: `Apartamento con coeficiente ${String(c).replace(".", ",")} %: cuota al mes`, v: par(o => ppR(o.mes * c / 100, 1)) }] };
+}
+function ppExpTab(h, M, base) {
+  let X = ppExpComp(M, base);
+  return ppTab(h, [[["Concepto", 1, "", 2], ...M.ops.map((o, i) => [`Opción ${i + 1}`, 2, "pp-gc"])], M.ops.flatMap(() => [["Sin traslado", 1, "a-right"], ["Con traslado al fondo", 1, "a-right pp-m"]])],
+    X.filas.map(f => ({ ...f, c: f.v, cc: f.v.map((v, j) => j % 2 ? "a-right pp-m" : "a-right") })));
 }
 /* coeficiente más común entre los apartamentos (para el ejemplo de cuota) */
 function ppCoefTipo(base) { let c = {}; (base.uni ?? []).filter(u => / T\d$/.test(u[0])).forEach(u => c[u[1]] = (c[u[1]] || 0) + 1); return +Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || .141; }
@@ -1104,7 +1131,7 @@ function ppEncAM(h, titulos) { return [[["Concepto", 1, "", 2], ...titulos.map(t
 function ppPygTab(h, M, base) {
   let F = ppPyg(M, base);
   return ppTab(h, ppEncAM(h, ["Presupuesto 2026", ...M.ops.map((o, i) => `2027 · Opción ${i + 1}`)]),
-    F.map(f => f.h ? f : { ...f, c: f.v.flatMap(v => [v, v / 12]), cc: f.v.flatMap(() => ["a-right", "a-right pp-m"]) }));
+    F.map(f => f.h ? f : { ...f, c: f.v.flatMap(v => v == null ? ["", ""] : [v, v / 12]), cc: f.v.flatMap(() => ["a-right", "a-right pp-m"]) }));
 }
 function ppResumenTab(h, M, base) {
   let F = ppResumen(M, base);
@@ -1257,6 +1284,10 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
       h("li", null, h("b", null, "Se usa: "), "solo en imprevistos aprobados por los órganos de la copropiedad; los rendimientos se registran como ingreso.")),
       h("p", { className: "ppx-s" }, "Soporte: artículo 35 de la Ley 675 de 2001 (mínimo 1 % del presupuesto de gastos) y orientación del Consejo Técnico de la Contaduría Pública para propiedad horizontal."))) });
 
+  S.push({ t: "Explotación de zonas comunes", nota: "Explique que la ley deja esta decisión a la Asamblea: los ingresos por explotación de zonas comunes pueden seguir pagando gastos comunes o pasar al fondo de imprevistos. Muestre el efecto en la cuota de cada opción.", el: h(Ve.Fragment, null, ...encab("Para decisión de la Asamblea", "Ingresos por explotación de zonas comunes", `${ppP(M.EX)} en el año, ${ppP(M.EX / 12)} al mes. ¿Siguen pagando gastos comunes o se trasladan al fondo de imprevistos?`),
+    card(ppExpTab(h, M, base)),
+    h("p", { className: "ppx-s", style: { fontSize: 16 } }, PP_LEY_EXP)) });
+
   S.push({ t: "Para decidir", nota: "Cierre con lo que se lleva a la Asamblea: el presupuesto de gastos, la opción de financiación (precio de la manilla y cuota) y el fondo de imprevistos.", el: h(Ve.Fragment, null, ...encab("Propuesta", "Lo que se pone a consideración", "El presupuesto de gastos es el mismo en las dos opciones; la decisión es cómo se reparte entre turismo (manillas) y propietarios (cuotas)."),
     card(ppTab(h, [[["Concepto"], ...opsT.map(t => [t])]], [
       { t: "Gastos de funcionamiento al mes", c: M.ops.map(() => M.G / 12) },
@@ -1349,7 +1380,7 @@ function ppDoc(M, base, config) {
   let pyg = ppPyg(M, base), wP = Math.floor(72 / (2 * (1 + nO)));
   let secPyg = { id: "pp_pyg", nombre: "Presupuesto 2027", titulo: "PRESUPUESTO 2027 · INGRESOS Y GASTOS", subtitulos: s("En el año y al mes · el excedente es el fondo de imprevistos, que se traslada al patrimonio"), orientacion: "landscape", bloques: [
     { tipo: "parrafo", estilo: "normal", texto: "Las cuotas de administración, las manillas y los otros ingresos cubren los gastos y dejan un excedente igual al fondo de imprevistos (un porcentaje de los gastos, mínimo 1 % por el art. 35 de la Ley 675). El fondo no es ingreso ni gasto: es el excedente del ejercicio, que se traslada al patrimonio. Los valores mensuales son el valor anual dividido entre doce." },
-    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wP * 2 * (1 + nO), "left"), ...["PPTO 2026", ...M.ops.map((o, i) => `OPCIÓN ${i + 1}`)].flatMap(t => [col(`${t} · AÑO`, wP), col(`${t} · MES`, wP)])], filas: pyg.map(f => fila(f, f.h ? Array(2 * (1 + nO)).fill(0) : f.v.flatMap(v => [v, v / 12]))) } ] };
+    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wP * 2 * (1 + nO), "left"), ...["PPTO 2026", ...M.ops.map((o, i) => `OPCIÓN ${i + 1}`)].flatMap(t => [col(`${t} · AÑO`, wP), col(`${t} · MES`, wP)])], filas: pyg.map(f => fila(f, f.h ? Array(2 * (1 + nO)).fill(0) : f.v.flatMap(v => v == null ? ["", ""] : [v, v / 12]))) } ] };
   let filasG = [];
   for (const g of M.grupos) {
     filasG.push({ estilo: "grupo", celdas: [or(`${g.g} ${g.n}`), ...Array(7).fill(or(""))] });
@@ -1364,7 +1395,14 @@ function ppDoc(M, base, config) {
     { t: "Precio de la manilla (IVA incluido)", v: [null, M.precio26 || null, ...M.ops.map(o => o.precio27 || null)] },
     M.unid26 ? { t: "Manillas en el año", v: [null, M.unid26, ...M.ops.map(o => o.unid27)], f: "n" } : null,
     M.unid26 ? { t: "Manillas al mes (promedio)", v: [null, M.unid26 / 12, ...M.ops.map(o => o.unid27 ? o.unid27 / 12 : null)], f: "n" } : null].filter(Boolean);
-  let secc = [secRes, secPyg,
+  let XC = ppExpComp(M, base), wE = Math.floor(64 / (2 * nO));
+  let secExp = { id: "pp_exp", nombre: "Explotación de zonas comunes", titulo: "PARA DECISIÓN DE LA ASAMBLEA · INGRESOS POR EXPLOTACIÓN DE ZONAS COMUNES", subtitulos: s("Sin traslado (gastos comunes) o con traslado al fondo de imprevistos"), orientacion: "landscape", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: `Se pone a consideración de la Asamblea trasladar al fondo de imprevistos los ingresos por explotación de zonas comunes: ${ppP(M.EX)} en el año (${ppP(M.EX / 12)} al mes). Si se trasladan, dejan de cubrir gastos y la cuota de administración debe cubrir esa diferencia. El presupuesto presentado está calculado ${M.ET > 0 ? "con" : "sin"} el traslado.` },
+    { tipo: "parrafo", estilo: "normal", texto: PP_LEY_EXP },
+    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wE * 2 * nO, "left"), ...M.ops.flatMap((o, i) => [col(`OPCIÓN ${i + 1} · SIN TRASLADO`, wE), col(`OPCIÓN ${i + 1} · CON TRASLADO`, wE)])], filas: XC.filas.map(f => fila(f, f.v)) },
+    { tipo: "parrafo", estilo: "h3", texto: "Ingresos considerados explotación de zonas comunes" },
+    { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 60, "left"), col("PPTO 2027", 20), col("2027 AL MES", 20)], filas: [...M.otros.filter(x => x.exp).map(x => ({ estilo: "detalle", celdas: [or(ppxCap(x.n)), er(x.v27), er(x.v27 / 12)] })), { estilo: "subtotal", celdas: [or("Total"), er(M.EX), er(M.EX / 12)] }] }] };
+  let secc = [secRes, secPyg, secExp,
     { id: "pp_gas", nombre: "Gastos 2027", titulo: "PRESUPUESTO DE GASTOS 2027", subtitulos: s("Por rubro, con su base, criterio de incremento y valor mensual"), orientacion: "landscape", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: `Cada rubro parte del presupuesto 2026 (o de su ejecución proyectada cuando no tenía presupuesto) y se incrementa con el IPC (${ppPct(M.ipc, 2)}) o, si su costo depende de personal (vigilancia, aseo, recepción, administración), con el incremento del salario mínimo (${ppPct(M.sml, 2)}). La proyección 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses.` },
       { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 30, "left"), col("REAL 2025", 10), col("PPTO 2026", 10), col("PROYECCIÓN 2026", 11), col("CRITERIO", 10, "left"), col("% INCR.", 7), col("PPTO 2027", 11), col("2027 AL MES", 11)], filas: filasG }] },
@@ -1402,12 +1440,24 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let tabs = h("div", { className: "seg", role: "tablist", style: { margin: "12px 0" } }, [["res", "1. Resumen mensual"], ["pyg", "2. Presupuesto 2027"], ["gas", "3. Gastos"], ["ing", "4. Ingresos"], ["cuo", "5. Cuota por unidad"], ["sup", "6. Supuestos"]].map(([v, t]) => h("button", { key: v, type: "button", "aria-pressed": tab === v, onClick: () => setTab(v) }, t)));
   let alerta = M.man.p26 && M.man.proy < M.man.p26 * .97 ? h("div", { className: "aviso aviso-atencion" }, h("p", { style: { margin: 0 } }, h("b", null, "Manillas: "), `en 2026 se presupuestaron ${ppP(M.man.p26)} (${ppP(M.man.p26 / 12)} al mes) y la proyección del año da ${ppP(M.man.proy)} (${ppP(M.man.proy / 12)} al mes, ${ppPct(M.man.proy / M.man.p26 - 1)}). El 2027 parte de la proyección para no repetir el faltante.`)) : null;
 
+  /* proposición para la Asamblea: explotación de zonas comunes */
+  let vExp = h("section", { className: "panel" }, h("h2", null, "Para decisión de la Asamblea: ingresos por explotación de zonas comunes"),
+    h("p", { className: "sub" }, `Se pone a consideración de la Asamblea trasladar al fondo de imprevistos los ingresos por explotación de zonas comunes: ${ppP(M.EX)} en el año, ${ppP(M.EX / 12)} al mes. Si se trasladan, dejan de cubrir gastos y la cuota debe cubrir esa diferencia. El presupuesto está calculado ${M.ET > 0 ? "CON el traslado" : "SIN el traslado"} (se cambia en Supuestos).`),
+    h("div", { className: "aviso aviso-info" }, h("p", { style: { margin: 0 } }, PP_LEY_EXP)),
+    ppExpTab(h, M, base),
+    h("h3", { style: { marginTop: 20 } }, "Ingresos que se consideran explotación de zonas comunes"),
+    h("p", { className: "sub" }, soloLectura ? "Rubros incluidos en el cálculo." : "Marque los rubros que son explotación económica de zonas comunes (concesiones, alquileres, publicidad…)."),
+    ppTab(h, [[["Rubro"], ["Explotación", 1, "a-center"], ["Ppto 2027"], ["2027 al mes", 1, "a-right pp-m"]]], M.otros.map(x => ({ t: ppxCap(x.n),
+      c: [h("input", { type: "checkbox", checked: !!x.exp, disabled: soloLectura, onChange: e => guardar({ ...cfg, explot: { ...(cfg.explot ?? {}), [x.c]: e.target.checked } }) }), x.v27, x.v27 / 12], cc: ["a-center", "a-right", "a-right pp-m"] }))
+      .concat([{ t: "Total explotación de zonas comunes", r: 1, c: ["", M.EX, M.EX / 12], cc: ["", "a-right", "a-right pp-m"] }])));
+
   /* 1. resumen mensual */
   let vRes = h(Ve.Fragment, null, alerta,
     h("section", { className: "panel" }, h("h2", null, "Lo que se factura y se gasta cada mes"),
       h("p", { className: "sub" }, `Gastos 2027: ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Las opciones tienen los mismos gastos; cambia el precio de la manilla y, con él, cuánto deben aportar las cuotas.`),
       ppResumenTab(h, M, base),
-      h("p", { className: "pp-nota" }, "Valores mensuales = valor anual ÷ 12. La columna 2026 muestra la facturación vigente (coeficientes de World Office) y el presupuesto 2026 dividido entre doce.")));
+      h("p", { className: "pp-nota" }, "Valores mensuales = valor anual ÷ 12. La columna 2026 muestra la facturación vigente (coeficientes de World Office) y el presupuesto 2026 dividido entre doce.")),
+    vExp);
 
   /* 2. presupuesto (estado de resultados) */
   let vPyg = h("section", { className: "panel" }, h("h2", null, "Presupuesto 2027: ingresos y gastos"),
@@ -1485,6 +1535,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
       ...M.ops.map((o, i) => fS(`Incremento del precio de la manilla · ${o.nombre} (%)`, `Sugerido: ${o.idx === "sml" ? "salario mínimo" : "IPC"}. Precio 2027: ${ppP(o.precio27)}.`, num(o.pct ?? +((o.idx === "sml" ? M.sml : M.ipc) * 100).toFixed(2), v => { let op = cfg.op.map((x, j) => j === i ? { ...x, pct: v } : x); guardar({ ...cfg, op }); }, 90))),
       fS("Crecimiento de visitantes 2027 (%)", M.vm25 && M.vm26 ? `Manillas vendidas: 2025 ${M.vm25.u.toLocaleString("es-CO")} · 2026 ${M.vm26.u.toLocaleString("es-CO")} (a la fecha del informe).` : "", num(cfg.crec, v => guardar({ ...cfg, crec: v }))),
       fS("Fondo de imprevistos (% de los gastos)", "Mínimo legal 1 % (art. 35, Ley 675 de 2001).", num(cfg.fondoPct, v => guardar({ ...cfg, fondoPct: v }))),
+      fS("Ingresos por explotación de zonas comunes que se trasladan al fondo (%)", `0 = financian gastos comunes (como en 2026); 100 = van todos al fondo. Lo decide la Asamblea (Ley 675, arts. 19 par. 2 y 35). Explotación 2027: ${ppP(M.EX)}.`, num(cfg.trasladoExp ?? 0, v => guardar({ ...cfg, trasladoExp: v }), 90, 1)),
       fS("Descuento por pronto pago (% de las cuotas)", `En 2026: ${ppPct(M.cu26 ? Math.abs(base.items.find(x => x.c === PP_DESC)?.p26 ?? 0) / M.cu26 : 0, 2)}.`, num(cfg.descPct ?? +(M.descPct * 100).toFixed(2), v => guardar({ ...cfg, descPct: v }))))),
     h("h3", null, "Ventas de manillas (World Office)"),
     h("p", { className: "sub" }, "Informe “Ventas por producto” de World Office, uno por año. Sirve para conocer el precio promedio y el número de manillas vendidas."),
