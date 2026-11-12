@@ -7824,18 +7824,18 @@ function cxPistas(pend, pares, H) {
   let pesos = v => "$" + pe(Math.round(v)), mesesV = new Map(), mismoDia = new Map();
   for (const c of pend) { let k = Math.round(c.r); mesesV.has(k) || mesesV.set(k, new Set()); mesesV.get(k).add(String(c.fo || c.f).slice(0, 6)); let d = k + "|" + c.f; mismoDia.set(d, [...(mismoDia.get(d) ?? []), c.doc]); }
   return pend.map(c => {
-    let v = Math.round(c.r), cand = new Map(), ev = (ter, pts, txt) => { let o = cand.get(ter) ?? { ter, pts: 0, txt: [] }; o.pts += pts; o.txt.push(txt); cand.set(ter, o); };
-    for (const h of cxHuellas(c.nota)) { let m = huella.get(h); if (!m) continue; for (const [ter, o] of m) ev(ter, m.size === 1 ? 100 : 55, `${cxRefTxt(h)} ya se le identificó antes (${o.refs[0]}${o.n > 1 ? ` y ${o.n - 1} más` : ""})`); }
+    let v = Math.round(c.r), cand = new Map(), ev = (ter, pts, txt, corto) => { let o = cand.get(ter) ?? { ter, pts: 0, txt: [], corto: [] }; o.pts += pts; o.txt.push(txt); corto && o.corto.push(corto); cand.set(ter, o); };
+    for (const h of cxHuellas(c.nota)) { let m = huella.get(h); if (!m) continue; for (const [ter, o] of m) ev(ter, m.size === 1 ? 100 : 55, `${cxRefTxt(h)} ya se le identificó antes (${o.refs[0]}${o.n > 1 ? ` y ${o.n - 1} más` : ""})`, h[0] === "R" ? `Ya pagó antes desde la misma cuenta (${h.slice(1)})` : `Ya pagó antes a nombre de ${h.slice(1)}`); }
     let iguales = [...[-1, 0, 1].flatMap(d => porValor.get(v + d) ?? [])], porTer = new Map();
     for (const p of iguales) { porTer.has(p.ter) || porTer.set(p.ter, []); porTer.get(p.ter).push(p); }
-    if (porTer.size && porTer.size <= 4) for (const [ter, L] of porTer) { let ult = L.map(p => p.f).sort().pop(); ev(ter, L.length >= 3 ? 70 : L.length === 2 ? 55 : 35, L.length > 1 ? `ha pagado ${L.length} veces exactamente ${pesos(v)} (la última el ${cbFecha(cxF(ult))})` : `pagó exactamente ${pesos(v)} el ${cbFecha(cxF(ult))}`); }
+    if (porTer.size && porTer.size <= 4) for (const [ter, L] of porTer) { let ult = L.map(p => p.f).sort().pop(); ev(ter, L.length >= 3 ? 70 : L.length === 2 ? 55 : 35, L.length > 1 ? `ha pagado ${L.length} veces exactamente ${pesos(v)} (la última el ${cbFecha(cxF(ult))})` : `pagó exactamente ${pesos(v)} el ${cbFecha(cxF(ult))}`, L.length > 1 ? `Suele pagar ese mismo valor (${L.length} veces)` : `Pagó ese mismo valor el ${cbFecha(cxF(ult))}`); }
     let fc = c.fo || c.f, mejor = new Map();
     for (const d of [0, -1, 1]) { let mes = ym(fc, d);
       for (const [k, q] of cuotaMes) { if (!k.endsWith("|" + mes)) continue; let ter = k.split("|")[0], ok = Math.abs(q - v) <= 2 ? "su cuota" : Math.abs(Math.round(q * .9) - v) <= 2 ? "su cuota con el descuento por pronto pago" : null; if (!ok) continue;
         let sinPago = !pagoMes.has(ter + "|" + mes), pts = (d === 0 ? 50 : 35) + (sinPago ? 20 : 0);
-        (mejor.get(ter)?.pts ?? -1) < pts && mejor.set(ter, { pts, txt: `${pesos(v)} es exactamente ${ok} de ${CB_MESES[+mes.slice(4) - 1]} de ${mes.slice(0, 4)}${sinPago ? " y ese mes no aparece otro pago suyo" : ""}` }); } }
+        (mejor.get(ter)?.pts ?? -1) < pts && mejor.set(ter, { pts, txt: `${pesos(v)} es exactamente ${ok} de ${CB_MESES[+mes.slice(4) - 1]} de ${mes.slice(0, 4)}${sinPago ? " y ese mes no aparece otro pago suyo" : ""}`, corto: `Es ${ok === "su cuota" ? "su cuota" : "su cuota con descuento"} de ${CB_MESES[+mes.slice(4) - 1]}${sinPago ? " y no aparece pagada" : ""}` }); } }
     let nm = mesesV.get(v)?.size ?? 0;
-    for (const [ter, o] of mejor) ev(ter, o.pts + (nm >= 3 ? 40 : 0), o.txt + (nm >= 3 ? `; además, en ${nm} meses distintos llegó una consignación de este mismo valor sin identificar` : ""));
+    for (const [ter, o] of mejor) ev(ter, o.pts + (nm >= 3 ? 40 : 0), o.txt + (nm >= 3 ? `; además, en ${nm} meses distintos llegó una consignación de este mismo valor sin identificar` : ""), o.corto + (nm >= 3 ? `; llega igual cada mes (${nm} meses)` : ""));
     let L = [...cand.values()].sort((a, b) => b.pts - a.pts), top = L[0], seg = "sin", duenos = [];
     if (top) {
       let empate = L.filter(o => o.pts >= top.pts * .7).slice(0, 3);
@@ -7844,9 +7844,12 @@ function cxPistas(pend, pares, H) {
     }
     var porque = !top ? (cxDatafono(c.nota) ? "Abono de datáfono o pasarela (el banco abona el neto de las ventas con tarjeta). Se identifica con el reporte del datáfono o de la pasarela." : /^NC/.test(c.doc) ? "Es un ajuste contable (nota de contabilidad), no una consignación del banco. Revisar el soporte de la nota." : "No encontramos un pago parecido en el historial.")
       : duenos.length > 1 ? `Varios propietarios encajan: ${duenos.map(t => cpmUnidad(t).unidad).join(" o ")}. ` + cand.get(duenos[0]).txt[0].replace(/^./, m => m.toUpperCase()) + "." : top.txt.slice(0, 2).join("; ").replace(/^./, m => m.toUpperCase()) + ".";
+    let corto = !top ? (cxDatafono(c.nota) ? "Abono de datáfono: se identifica con el reporte del datáfono" : /^NC/.test(c.doc) ? "Ajuste contable: revisar el soporte de la nota" : "Sin pista: revisar el extracto")
+      : duenos.length > 1 ? `Hay ${duenos.length} posibles: ${cand.get(duenos[0]).corto[0] ?? "mismo valor"}` : (top.corto.slice(0, 2).join(". ") || "Mismo valor");
     let dobles = (mismoDia.get(v + "|" + c.f) ?? []).filter(d => d !== c.doc);
+    dobles.length && (corto += `. Ojo: otra igual el mismo día (${dobles.join(", ")})`);
     dobles.length && (porque += ` Ojo: el mismo día hay otra consignación por el mismo valor (${dobles.join(", ")}); revisar en el extracto si llegaron dos o si quedó registrada dos veces.`);
-    return { ...c, v, duenos, seg, porque, cands: L.slice(0, 4).map(o => ({ ter: o.ter, pts: o.pts, txt: o.txt })), k: `${c.doc}|${c.f}|${v}` };
+    return { ...c, v, duenos, seg, porque, corto, cands: L.slice(0, 4).map(o => ({ ter: o.ter, pts: o.pts, txt: o.txt })), k: `${c.doc}|${c.f}|${v}` };
   });
 }
 var CXI_SEG = { alta: ["Alta", "est-ok", "verde"], media: ["Media", "est-atencion", "ambar"], baja: ["Baja", "est-info", null], sin: ["Sin pista", "est-sin", null] };
@@ -7854,27 +7857,83 @@ var CXI_SEG = { alta: ["Alta", "est-ok", "verde"], media: ["Media", "est-atencio
 var cxAnio = x => String(x.fo && x.fo <= x.f ? x.fo : x.f).slice(0, 4);
 var CXI_ORD = { alta: 0, media: 1, baja: 2, sin: 3 };
 function cxDocPdf(L, X, cfg, hoy) {
-  let pesos = v => "$" + pe(Math.round(v)), tot = L.reduce((s, x) => s + x.v, 0), fuertes = L.filter(x => x.seg === "alta");
-  let cols = [{ titulo: "FECHA Y RECIBO", ancho: 13, alin: "left" }, { titulo: "VALOR", ancho: 11, alin: "right" }, { titulo: "POSIBLE DUEÑO", ancho: 22, alin: "left" }, { titulo: "¿POR QUÉ LO CREEMOS?", ancho: 33, alin: "left" }, { titulo: "SEGURIDAD", ancho: 10, alin: "left" }, { titulo: "¿CORRECTO?", ancho: 11, alin: "center" }];
-  let fila = x => ({ estilo: "detalle", sep: !0, celdas: [Zt(`${cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f))}\n${x.doc}`), Zt(pesos(x.v), { bold: !0 }), Zt(x.duenos.length ? x.duenos.map(t => { let u = cpmUnidad(t); return `${u.unidad.replace(/^Apto /, "")} ${u.prop}`.trim(); }).join(" o ") : "—"), Zt(x.porque), Zt(CXI_SEG[x.seg][0], { fondo: CXI_SEG[x.seg][2] || void 0 }), Zt("[   ]")] });
+  let pesos = v => "$" + pe(Math.round(v)), sum = G => G.reduce((s, x) => s + x.v, 0), fuertes = L.filter(x => x.seg === "alta");
+  let dueno = x => x.duenos.length ? x.duenos.map(t => { let u = cpmUnidad(t); return `${u.unidad.replace(/^Apto /, "Apto ")} – ${u.prop}`.trim(); }).join("\no ") : "—";
+  let cols = [{ titulo: "FECHA", ancho: 11, alin: "left" }, { titulo: "VALOR", ancho: 11, alin: "right" }, { titulo: "POSIBLE DUEÑO", ancho: 25, alin: "left" }, { titulo: "PISTA", ancho: 29, alin: "left" }, { titulo: "SEGURIDAD", ancho: 10, alin: "left" }, { titulo: "¿ES SUYA?", ancho: 14, alin: "left" }];
+  let fila = x => ({ estilo: "detalle", sep: !0, celdas: [Zt(`${cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f))}\n${x.doc}`), Zt(pesos(x.v), { bold: !0 }), Zt(dueno(x)), Zt(x.corto || x.porque), Zt(CXI_SEG[x.seg][0], { fondo: CXI_SEG[x.seg][2] || void 0 }), Zt("Sí [  ]   No [  ]")] });
   let anios = [...new Set(L.map(cxAnio))].sort((a, b) => b.localeCompare(a));
-  let resumen = { tipo: "tabla", cabecera: !0, columnas: [{ titulo: "AÑO", ancho: 20, alin: "left" }, { titulo: "CONSIGNACIONES", ancho: 20, alin: "right" }, { titulo: "VALOR", ancho: 30, alin: "right" }, { titulo: "CON PISTA FUERTE", ancho: 30, alin: "right" }],
-    filas: [...anios.map(a => { let G = L.filter(x => cxAnio(x) === a), F = G.filter(x => x.seg === "alta"); return { estilo: "detalle", celdas: [Zt(a), Zt(String(G.length)), ho(G.reduce((s, x) => s + x.v, 0)), Zt(F.length ? `${F.length} · ${pesos(F.reduce((s, x) => s + x.v, 0))}` : "—")] }; }),
-      { estilo: "totalDoble", celdas: [Zt("TOTAL", { bold: !0 }), Zt(String(L.length), { bold: !0 }), ho(tot, { bold: !0 }), Zt(`${fuertes.length} · ${pesos(fuertes.reduce((s, x) => s + x.v, 0))}`, { bold: !0 })] }] };
   let b = [
-    { tipo: "parrafo", estilo: "normal", texto: `Señores Administración ${cfg.entidad}:` },
-    { tipo: "parrafo", estilo: "normal", texto: "En las cuentas bancarias de la copropiedad hay consignaciones que llegaron sin decir quién las hizo, y por eso no se han podido abonar a ningún inmueble. Revisamos el historial de pagos, las referencias bancarias ya identificadas y las cuotas de cada inmueble para darles una pista de quién puede ser el dueño de cada una. Son posibilidades, no certezas: les pedimos confirmarlas con el extracto bancario o llamando al propietario, pedir el soporte del pago y marcar en la última columna si es correcto." },
-    resumen,
-    ...anios.map(a => { let G = L.filter(x => cxAnio(x) === a).sort((p, q) => CXI_ORD[p.seg] - CXI_ORD[q.seg] || q.f - p.f); return { tipo: "tabla", cabecera: !0, etiqueta: `AÑO ${a} · ${G.length} consignaciones · ${pesos(G.reduce((s, x) => s + x.v, 0))}`, columnas: cols, filas: G.map(fila) }; }),
-    { tipo: "parrafo", estilo: "h3", texto: "Qué les pedimos" },
-    { tipo: "parrafo", estilo: "enumerado", numero: 1, texto: "Empezar por las de seguridad alta: con una llamada al propietario se resuelven casi todas." },
-    { tipo: "parrafo", estilo: "enumerado", numero: 2, texto: "En las que tienen dos posibles dueños, el banco o la sucursal de la consignación suele decir cuál es." },
-    { tipo: "parrafo", estilo: "enumerado", numero: 3, texto: "Pedir al propietario el soporte del pago (comprobante de la transferencia o consignación)." },
-    { tipo: "parrafo", estilo: "enumerado", numero: 4, texto: "Devolvernos este informe con la columna «¿Correcto?» marcada y los soportes, para abonar cada pago al inmueble que corresponde." },
-    ...(X.saldo ? [{ tipo: "parrafo", estilo: "normal", texto: `Saldo de la cuenta ${X.saldo.cta} (consignaciones por identificar) al ${cbFecha(X.saldo.hasta)}: ${pesos(X.saldo.v)}.` }] : []),
+    { tipo: "parrafo", estilo: "normal", texto: "Estas consignaciones llegaron al banco sin decir de quién son. Al lado de cada una está la pista del posible dueño. Por favor: llame al propietario, pídale el soporte del pago y marque Sí o No. Empiece por las más recientes y por las de seguridad alta." },
+    { tipo: "tabla", cabecera: !0, columnas: [{ titulo: "CONSIGNACIONES", ancho: 33, alin: "left" }, { titulo: "VALOR TOTAL", ancho: 33, alin: "left" }, { titulo: "CON PISTA FUERTE", ancho: 34, alin: "left" }], filas: [{ estilo: "detalle", celdas: [Zt(String(L.length), { bold: !0 }), Zt(pesos(sum(L)), { bold: !0 }), Zt(`${fuertes.length} · ${pesos(sum(fuertes))}`, { bold: !0 })] }] },
+    ...anios.map(a => { let G = L.filter(x => cxAnio(x) === a).sort((p, q) => (q.fo && q.fo <= q.f ? q.fo : q.f) - (p.fo && p.fo <= p.f ? p.fo : p.f)); return { tipo: "tabla", cabecera: !0, etiqueta: `${a} · ${G.length} consignaciones · ${pesos(sum(G))}`, columnas: cols, filas: G.map(fila) }; }),
+    { tipo: "parrafo", estilo: "normal", texto: "Devuélvanos este informe marcado, con los soportes, para abonar cada pago al inmueble que corresponde." },
     { tipo: "firmas", sinRevisor: !0 }
   ];
-  return cbDoc(cfg, [{ id: "cxi", nombre: "Consignaciones", titulo: "INFORME DE CONSIGNACIONES POR IDENTIFICAR", subtitulos: [`Santa Marta, ${cbFechaLarga(hoy)}`], orientacion: "portrait", bloques: b }]);
+  return cbDoc(cfg, [{ id: "cxi", nombre: "Consignaciones", titulo: "CONSIGNACIONES POR IDENTIFICAR", subtitulos: [`Santa Marta, ${cbFechaLarga(hoy)}`], orientacion: "portrait", bloques: b }]);
+}
+/* versión interactiva: una página HTML que cartera abre en el navegador, marca y devuelve */
+function cxHtml(L, X, cfg, hoy) {
+  let esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  let datos = L.map(x => ({ k: x.k, fecha: cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f)), orden: x.fo && x.fo <= x.f ? x.fo : x.f, anio: cxAnio(x), doc: x.doc, v: Math.round(x.v), duenos: x.duenos.map(t => { let u = cpmUnidad(t); return { u: u.unidad, p: u.prop }; }), pista: x.corto || x.porque, detalle: x.porque, banco: x.nota, seg: x.seg })).sort((a, b) => b.orden - a.orden);
+  let clave = "cxi-" + (cfg.nit || "") + "-" + hoy;
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Consignaciones por identificar · ${esc(cfg.entidad)}</title>
+<style>
+:root{--ac:#1f6f78;--su:#e8f3f4;--li:#dfe3e6;--tx:#1d2327;--te:#6b747b}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--tx);background:#f5f6f7}
+header{background:#fff;border-bottom:1px solid var(--li);padding:18px 20px}header h1{margin:0;font-size:20px}header p{margin:4px 0 0;color:var(--te)}
+main{max-width:980px;margin:0 auto;padding:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}.kpi{background:#fff;border:1px solid var(--li);border-radius:12px;padding:12px}.kpi span{font-size:12px;color:var(--te);text-transform:uppercase}.kpi b{display:block;font-size:20px}
+.pasos{background:#fff8e6;border:1px solid #f1d58a;border-radius:12px;padding:10px 14px;margin-bottom:14px}.pasos ol{margin:4px 0 0;padding-left:20px}
+.barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}.barra input[type=search]{flex:1;min-width:200px;padding:9px 12px;border:1px solid var(--li);border-radius:10px;font-size:15px}
+.chip{border:1px solid var(--li);background:#fff;border-radius:999px;padding:7px 12px;cursor:pointer;font-size:14px}.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+h2{font-size:17px;margin:20px 0 8px;display:flex;gap:10px;align-items:baseline}h2 small{color:var(--te);font-weight:400}
+.card{background:#fff;border:1px solid var(--li);border-radius:14px;padding:14px;margin-bottom:10px;display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:start}
+.card.si{border-left:6px solid #2e7d32}.card.no{border-left:6px solid #c62828;opacity:.8}
+.valor{font-size:19px;font-weight:700}.te{color:var(--te);font-size:13px}.dueno b{font-size:16px}
+.seg{display:inline-block;font-size:12px;border-radius:999px;padding:2px 9px;margin-top:6px}.alta{background:#e3f4e5;color:#1b5e20}.media{background:#fff1d6;color:#8a5a00}.baja{background:#eef1f4;color:#44515c}.sin{background:#f1f1f1;color:#666}
+.acc{display:flex;flex-direction:column;gap:6px;min-width:150px}.acc button{border:1px solid var(--li);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer;font-size:14px}
+.acc button.on.s{background:#2e7d32;color:#fff;border-color:#2e7d32}.acc button.on.n{background:#c62828;color:#fff;border-color:#c62828}
+.acc input{border:1px solid var(--li);border-radius:8px;padding:6px 8px;font-size:13px}
+details{margin-top:6px}summary{cursor:pointer;color:var(--ac);font-size:13px}
+footer{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--li);padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+footer button{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:15px;cursor:pointer}footer button.sec{background:#fff;color:var(--ac);border:1px solid var(--ac)}
+@media(max-width:640px){.card{grid-template-columns:1fr}.acc{flex-direction:row;flex-wrap:wrap}}
+@media print{footer,.barra,.pasos button{display:none}body{background:#fff}.card{break-inside:avoid}}
+</style></head><body>
+<header><h1>Consignaciones por identificar</h1><p>${esc(cfg.entidad)} · ${esc(cbFechaLarga(hoy))}</p></header>
+<main>
+<div class="pasos"><b>Cómo usarlo</b><ol><li>Empiece por las más recientes (están de primero) y por las de seguridad <b>alta</b>.</li><li>Llame al posible dueño y pídale el soporte del pago.</li><li>Marque <b>Sí es suya</b> o <b>No es suya</b>. Si sabe de quién es, escríbalo.</li><li>Al terminar oprima <b>Copiar respuestas</b> y envíelas a contabilidad con los soportes.</li></ol></div>
+<div class="kpis" id="kpis"></div>
+<div class="barra"><input type="search" id="q" placeholder="Buscar valor, apartamento o nombre…"><span id="anios"></span>
+<button class="chip" id="pend">Solo sin responder</button></div>
+<div id="lista"></div>
+</main>
+<footer><button id="copiar">Copiar respuestas</button><button class="sec" onclick="window.print()">Imprimir</button></footer>
+<script>
+const D=${JSON.stringify(datos)};const K=${JSON.stringify(clave)};
+let R={};try{R=JSON.parse(localStorage.getItem(K)||"{}")}catch(e){}
+const guardar=()=>{try{localStorage.setItem(K,JSON.stringify(R))}catch(e){}};
+const $=s=>document.querySelector(s),pesos=v=>"$"+Math.round(v).toLocaleString("es-CO"),SEG={alta:"Alta",media:"Media",baja:"Baja",sin:"Sin pista"};
+let anio="todos",soloPend=false;
+const anios=[...new Set(D.map(x=>x.anio))].sort().reverse();
+function chips(){$("#anios").innerHTML=["todos",...anios].map(a=>'<button class="chip'+(anio===a?' on':'')+'" data-a="'+a+'">'+(a==="todos"?"Todos":a)+'</button>').join(" ");document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{anio=b.dataset.a;pintar()})}
+function kpis(){let t=D.reduce((s,x)=>s+x.v,0),f=D.filter(x=>x.seg==="alta"),r=D.filter(x=>R[x.k]?.e);$("#kpis").innerHTML='<div class="kpi"><span>Consignaciones</span><b>'+D.length+'</b></div><div class="kpi"><span>Valor total</span><b>'+pesos(t)+'</b></div><div class="kpi"><span>Pista fuerte</span><b>'+f.length+'</b></div><div class="kpi"><span>Respondidas</span><b>'+r.length+' de '+D.length+'</b></div>'}
+function esc(t){return String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c])}
+function pintar(){chips();kpis();$("#pend").classList.toggle("on",soloPend);let q=$("#q").value.toUpperCase().replace(/[$.\\s]/g,"");
+let L=D.filter(x=>(anio==="todos"||x.anio===anio)&&(!soloPend||!R[x.k]?.e)&&(!q||(x.v+" "+x.doc+" "+x.duenos.map(d=>d.u+" "+d.p).join(" ")+" "+x.pista).toUpperCase().replace(/\\s/g,"").includes(q)));
+let h="";for(const a of anios){let G=L.filter(x=>x.anio===a);if(!G.length)continue;h+='<h2>'+a+' <small>'+G.length+' · '+pesos(G.reduce((s,x)=>s+x.v,0))+'</small></h2>';
+for(const x of G){let r=R[x.k]||{};h+='<div class="card '+(r.e||"")+'"><div><div class="valor">'+pesos(x.v)+'</div><div class="te">'+x.fecha+'<br>'+esc(x.doc)+'</div><span class="seg '+x.seg+'">'+SEG[x.seg]+'</span></div>'+
+'<div><div class="dueno">'+(x.duenos.length?x.duenos.map(d=>'<b>'+esc(d.u)+'</b> <span class="te">'+esc(d.p)+'</span>').join('<br>o '):'<span class="te">Sin posible dueño</span>')+'</div><div style="margin-top:6px">'+esc(x.pista)+'</div>'+
+'<details><summary>Ver detalle</summary><div class="te" style="margin-top:4px">'+esc(x.detalle)+'<br><b>Lo que dice el banco:</b> '+esc(x.banco||"—")+'</div></details></div>'+
+'<div class="acc"><button class="s'+(r.e==="si"?" on":"")+'" data-k="'+esc(x.k)+'" data-e="si">✓ Sí es suya</button><button class="n'+(r.e==="no"?" on":"")+'" data-k="'+esc(x.k)+'" data-e="no">✗ No es suya</button><input placeholder="¿De quién es? / nota" data-n="'+esc(x.k)+'" value="'+esc(r.n||"")+'"></div></div>'}}
+$("#lista").innerHTML=h||'<p class="te">No hay consignaciones con ese filtro.</p>';
+document.querySelectorAll("[data-e]").forEach(b=>b.onclick=()=>{let k=b.dataset.k;R[k]={...(R[k]||{}),e:R[k]?.e===b.dataset.e?"":b.dataset.e};guardar();pintar()});
+document.querySelectorAll("[data-n]").forEach(i=>i.onchange=()=>{let k=i.dataset.n;R[k]={...(R[k]||{}),n:i.value};guardar();kpis()})}
+$("#q").oninput=pintar;$("#pend").onclick=()=>{soloPend=!soloPend;pintar()};
+$("#copiar").onclick=async()=>{let t="Consignaciones por identificar - respuestas de cartera\\n\\n"+D.filter(x=>R[x.k]?.e||R[x.k]?.n).map(x=>{let r=R[x.k];return x.fecha+" "+x.doc+" "+pesos(x.v)+": "+(r.e==="si"?"SÍ es de "+(x.duenos[0]?.u||"")+" "+(x.duenos[0]?.p||""):r.e==="no"?"NO es de "+x.duenos.map(d=>d.u).join(" / "):"")+(r.n?" · "+r.n:"")}).join("\\n");
+try{await navigator.clipboard.writeText(t);alert("Respuestas copiadas. Péguelas en el correo o WhatsApp para contabilidad.")}catch(e){prompt("Copie las respuestas:",t)}};
+pintar();
+<\/script></body></html>`;
 }
 
 function CxiPantalla({ ses, config, notificar, soloLectura }) {
@@ -7892,6 +7951,7 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
   let anios = [...new Set(base.map(cxAnio))].sort((a, b) => b.localeCompare(a)), aniosVis = anioSel === "todos" ? anios : [anioSel];
   let fuertes = act.filter(x => x.seg === "alta"), dif = X.saldo ? X.saldo.v - sum(X.L) : null;
   let pagosDe = ter => X.pagos.filter(p => p.ter === ter).sort((a, b) => b.f - a.f).slice(0, 6);
+  let bajarHtml = async () => { setOc("html"); try { let L = act.filter(x => anioSel === "todos" || cxAnio(x) === anioSel); await PO(ses, `Consignaciones_por_identificar_${anioSel === "todos" ? "" : anioSel + "_"}${hoy}.html`, new TextEncoder().encode(cxHtml(L, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
   let bajar = async () => { setOc("pdf"); try { let L = act.filter(x => anioSel === "todos" || cxAnio(x) === anioSel); await PO(ses, `Informe_consignaciones_por_identificar_${anioSel === "todos" ? "" : anioSel + "_"}${hoy}.pdf`, await en(cxDocPdf(L, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
   let chip = (activo, txt, sub, onClick, key) => h("button", { key, type: "button", onClick, style: { textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: activo ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: activo ? "var(--acento-suave, #e8f3f4)" : "var(--hoja, #fff)", minWidth: 120 } }, h("div", { style: { fontWeight: 700 } }, txt), h("div", { className: "tenue", style: { fontSize: 12 } }, sub));
   let detalle = x => h("tr", { key: x.k + "-d" }, h("td", { colSpan: 6, style: { background: "var(--acento-suave, #f3f8f8)", padding: "12px 16px" } },
@@ -7918,9 +7978,10 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
         ...[["todas", "Todas"], ["alta", "Alta"], ["media", "Media"], ["baja", "Baja"], ["sin", "Sin pista"]].map(([k, t]) => h("button", { key: k, type: "button", className: "btn btn-sm" + (fil === k ? " btn-primario" : ""), onClick: () => setFil(k) }, `${t} (${base.filter(x => (k === "todas" || x.seg === k) && (anioSel === "todos" || cxAnio(x) === anioSel)).length})`)),
         ok.length > 0 && h("label", { style: { marginLeft: 8 } }, h("input", { type: "checkbox", checked: verOk, onChange: e => setVerOk(e.target.checked) }), " Ver las ya confirmadas"),
         h("span", { style: { flex: 1 } }),
-        h("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !act.length, onClick: bajar }, oc === "pdf" ? "Generando…" : `Informe para cartera (PDF${anioSel === "todos" ? "" : " · " + anioSel})`),
+        h("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !act.length, onClick: bajarHtml, title: "Página para abrir en el navegador o el celular: cartera marca Sí/No y copia las respuestas" }, oc === "html" ? "Generando…" : `Informe interactivo para cartera${anioSel === "todos" ? "" : " · " + anioSel}`),
+        h("button", { type: "button", className: "btn", disabled: !!oc || !act.length, onClick: bajar }, oc === "pdf" ? "Generando…" : `PDF${anioSel === "todos" ? "" : " · " + anioSel}`),
         h("button", { type: "button", className: "btn", onClick: cargar }, "Volver a calcular")),
-      ...aniosVis.map(a => { let G = vis.filter(x => cxAnio(x) === a).sort((p, r) => CXI_ORD[p.seg] - CXI_ORD[r.seg] || r.f - p.f); if (!G.length) return null; let cerrado = plegados[a];
+      ...aniosVis.map(a => { let G = vis.filter(x => cxAnio(x) === a).sort((p, r) => (r.fo && r.fo <= r.f ? r.fo : r.f) - (p.fo && p.fo <= p.f ? p.fo : p.f)); if (!G.length) return null; let cerrado = plegados[a];
         let cuenta = s => G.filter(x => x.seg === s).length;
         return h("div", { key: a, style: { marginTop: 14, border: "1px solid var(--linea, #ddd)", borderRadius: 10, overflow: "hidden" } },
           h("button", { type: "button", onClick: () => setPlegados({ ...plegados, [a]: !cerrado }), style: { width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "var(--fondo-2, #f6f7f8)", border: 0, cursor: "pointer", textAlign: "left" } },
@@ -7934,7 +7995,7 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
               h("td", null, (abierta === x.k ? "▾ " : "▸ ") + cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f)), h("div", { className: "tenue mono" }, x.doc)),
               h("td", { className: "a-right num" }, h("b", null, pesos(x.v))),
               h("td", null, x.duenos.length ? x.duenos.map((t, i) => { let u = cpmUnidad(t); return h("div", { key: i }, h("b", null, u.unidad), h("div", { className: "tenue" }, u.prop)); }) : "—"),
-              h("td", { style: { maxWidth: 420 } }, x.porque),
+              h("td", { style: { maxWidth: 420 } }, x.corto || x.porque),
               h("td", null, h("span", { className: "est " + CXI_SEG[x.seg][1] }, CXI_SEG[x.seg][0])),
               h("td", { onClick: e => e.stopPropagation() }, soloLectura ? (seg[x.k] ? "Sí" : "") : h("label", { style: { cursor: "pointer" } }, h("input", { type: "checkbox", checked: !!seg[x.k], onChange: e => marcar(x.k, e.target.checked) }), seg[x.k] ? ` ${cbFecha(seg[x.k].fecha)}` : ""))),
               abierta === x.k ? detalle(x) : null]).filter(Boolean)))));
