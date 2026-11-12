@@ -7866,8 +7866,7 @@ function cxDocPdf(L, X, cfg, hoy) {
     { tipo: "parrafo", estilo: "normal", texto: "Estas consignaciones llegaron al banco sin decir de quién son. Al lado de cada una está la pista del posible dueño. Por favor: llame al propietario, pídale el soporte del pago y marque Sí o No. Empiece por las más recientes y por las de seguridad alta." },
     { tipo: "tabla", cabecera: !0, columnas: [{ titulo: "CONSIGNACIONES", ancho: 33, alin: "left" }, { titulo: "VALOR TOTAL", ancho: 33, alin: "left" }, { titulo: "CON PISTA FUERTE", ancho: 34, alin: "left" }], filas: [{ estilo: "detalle", celdas: [Zt(String(L.length), { bold: !0 }), Zt(pesos(sum(L)), { bold: !0 }), Zt(`${fuertes.length} · ${pesos(sum(fuertes))}`, { bold: !0 })] }] },
     ...anios.map(a => { let G = L.filter(x => cxAnio(x) === a).sort((p, q) => (q.fo && q.fo <= q.f ? q.fo : q.f) - (p.fo && p.fo <= p.f ? p.fo : p.f)); return { tipo: "tabla", cabecera: !0, etiqueta: `${a} · ${G.length} consignaciones · ${pesos(sum(G))}`, columnas: cols, filas: G.map(fila) }; }),
-    { tipo: "parrafo", estilo: "normal", texto: "Devuélvanos este informe marcado, con los soportes, para abonar cada pago al inmueble que corresponde." },
-    { tipo: "firmas", sinRevisor: !0 }
+    { tipo: "parrafo", estilo: "normal", texto: "Devuélvanos este informe marcado, con los soportes, para abonar cada pago al inmueble que corresponde." }
   ];
   return cbDoc(cfg, [{ id: "cxi", nombre: "Consignaciones", titulo: "CONSIGNACIONES POR IDENTIFICAR", subtitulos: [`Santa Marta, ${cbFechaLarga(hoy)}`], orientacion: "portrait", bloques: b }]);
 }
