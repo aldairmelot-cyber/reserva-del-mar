@@ -7821,7 +7821,8 @@ function cxPistas(pend, pares, H) {
   let cuotaMes = new Map(); for (const q of H.cuotas) { let k = q.ter + "|" + String(q.f).slice(0, 6); cuotaMes.set(k, (cuotaMes.get(k) ?? 0) + q.v); }
   let pagoMes = new Set(H.pagos.map(p => p.ter + "|" + String(p.f).slice(0, 6)));
   let ym = (f, d) => { let y = f / 1e4 | 0, m = (f / 100 | 0) % 100 + d; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return `${y}${String(m).padStart(2, "0")}`; };
-  let pesos = v => "$" + pe(Math.round(v));
+  let pesos = v => "$" + pe(Math.round(v)), mesesV = new Map(), mismoDia = new Map();
+  for (const c of pend) { let k = Math.round(c.r); mesesV.has(k) || mesesV.set(k, new Set()); mesesV.get(k).add(String(c.fo || c.f).slice(0, 6)); let d = k + "|" + c.f; mismoDia.set(d, [...(mismoDia.get(d) ?? []), c.doc]); }
   return pend.map(c => {
     let v = Math.round(c.r), cand = new Map(), ev = (ter, pts, txt) => { let o = cand.get(ter) ?? { ter, pts: 0, txt: [] }; o.pts += pts; o.txt.push(txt); cand.set(ter, o); };
     for (const h of cxHuellas(c.nota)) { let m = huella.get(h); if (!m) continue; for (const [ter, o] of m) ev(ter, m.size === 1 ? 100 : 55, `${cxRefTxt(h)} ya se le identificó antes (${o.refs[0]}${o.n > 1 ? ` y ${o.n - 1} más` : ""})`); }
@@ -7833,15 +7834,18 @@ function cxPistas(pend, pares, H) {
       for (const [k, q] of cuotaMes) { if (!k.endsWith("|" + mes)) continue; let ter = k.split("|")[0], ok = Math.abs(q - v) <= 2 ? "su cuota" : Math.abs(Math.round(q * .9) - v) <= 2 ? "su cuota con el descuento por pronto pago" : null; if (!ok) continue;
         let sinPago = !pagoMes.has(ter + "|" + mes), pts = (d === 0 ? 50 : 35) + (sinPago ? 20 : 0);
         (mejor.get(ter)?.pts ?? -1) < pts && mejor.set(ter, { pts, txt: `${pesos(v)} es exactamente ${ok} de ${CB_MESES[+mes.slice(4) - 1]} de ${mes.slice(0, 4)}${sinPago ? " y ese mes no aparece otro pago suyo" : ""}` }); } }
-    for (const [ter, o] of mejor) ev(ter, o.pts, o.txt);
+    let nm = mesesV.get(v)?.size ?? 0;
+    for (const [ter, o] of mejor) ev(ter, o.pts + (nm >= 3 ? 40 : 0), o.txt + (nm >= 3 ? `; además, en ${nm} meses distintos llegó una consignación de este mismo valor sin identificar` : ""));
     let L = [...cand.values()].sort((a, b) => b.pts - a.pts), top = L[0], seg = "sin", duenos = [];
     if (top) {
       let empate = L.filter(o => o.pts >= top.pts * .7).slice(0, 3);
       duenos = empate.map(o => o.ter);
       seg = empate.length === 1 ? (top.pts >= 100 ? "alta" : top.pts >= 60 ? "media" : "baja") : (top.pts >= 100 ? "media" : "baja");
     }
-    let porque = !top ? (cxDatafono(c.nota) ? "Abono de datáfono o pasarela (el banco abona el neto de las ventas con tarjeta). Se identifica con el reporte del datáfono o de la pasarela." : /^NC/.test(c.doc) ? "Es un ajuste contable (nota de contabilidad), no una consignación del banco. Revisar el soporte de la nota." : "No encontramos un pago parecido en el historial.")
+    var porque = !top ? (cxDatafono(c.nota) ? "Abono de datáfono o pasarela (el banco abona el neto de las ventas con tarjeta). Se identifica con el reporte del datáfono o de la pasarela." : /^NC/.test(c.doc) ? "Es un ajuste contable (nota de contabilidad), no una consignación del banco. Revisar el soporte de la nota." : "No encontramos un pago parecido en el historial.")
       : duenos.length > 1 ? `Varios propietarios encajan: ${duenos.map(t => cpmUnidad(t).unidad).join(" o ")}. ` + cand.get(duenos[0]).txt[0].replace(/^./, m => m.toUpperCase()) + "." : top.txt.slice(0, 2).join("; ").replace(/^./, m => m.toUpperCase()) + ".";
+    let dobles = (mismoDia.get(v + "|" + c.f) ?? []).filter(d => d !== c.doc);
+    dobles.length && (porque += ` Ojo: el mismo día hay otra consignación por el mismo valor (${dobles.join(", ")}); revisar en el extracto si llegaron dos o si quedó registrada dos veces.`);
     return { ...c, v, duenos, seg, porque, k: `${c.doc}|${c.f}|${v}` };
   });
 }
