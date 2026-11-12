@@ -7780,7 +7780,7 @@ async function cxLeer(ses, ent, avance) {
     for (const x of L.movs) {
       if (x[1] && x[1] < fa) continue;
       let cta = String(C[x[0]][0]), ter = L.strs[x[2]] || "", doc = cxDoc(L.strs[x[4]]), db = +x[5] || 0, cr = +x[6] || 0, nota = L.strs[x[3]] || "";
-      if (x[0] === ci || (/^2805/.test(cta) && esPH(ter))) pool.push({ cta, f: x[1], ter, nota, doc, v: Math.round((cr - db) * 100) / 100 });
+      if (x[0] === ci || (/^280505/.test(cta) && esPH(ter))) pool.push({ cta, f: x[1], ter, nota, doc, v: Math.round((cr - db) * 100) / 100 });
       if (!/^(RC|NC|FV)\b/.test(doc)) continue;
       let k = doc + "|" + x[1];
       if (/^11/.test(cta) && db > 0 && /^RC/.test(doc)) { let b = banco.get(k) ?? { f: x[1], doc, v: 0, notas: [] }; b.v += db; nota && b.notas.push(nota); banco.set(k, b); }
@@ -7828,10 +7828,12 @@ function cxPistas(pend, pares, H) {
     let iguales = [...[-1, 0, 1].flatMap(d => porValor.get(v + d) ?? [])], porTer = new Map();
     for (const p of iguales) { porTer.has(p.ter) || porTer.set(p.ter, []); porTer.get(p.ter).push(p); }
     if (porTer.size && porTer.size <= 4) for (const [ter, L] of porTer) { let ult = L.map(p => p.f).sort().pop(); ev(ter, L.length >= 3 ? 70 : L.length === 2 ? 55 : 35, L.length > 1 ? `ha pagado ${L.length} veces exactamente ${pesos(v)} (la última el ${cbFecha(cxF(ult))})` : `pagó exactamente ${pesos(v)} el ${cbFecha(cxF(ult))}`); }
-    let fc = c.fo || c.f;
+    let fc = c.fo || c.f, mejor = new Map();
     for (const d of [0, -1, 1]) { let mes = ym(fc, d);
       for (const [k, q] of cuotaMes) { if (!k.endsWith("|" + mes)) continue; let ter = k.split("|")[0], ok = Math.abs(q - v) <= 2 ? "su cuota" : Math.abs(Math.round(q * .9) - v) <= 2 ? "su cuota con el descuento por pronto pago" : null; if (!ok) continue;
-        let sinPago = !pagoMes.has(ter + "|" + mes); ev(ter, (d === 0 ? 50 : 35) + (sinPago ? 20 : 0), `${pesos(v)} es exactamente ${ok} de ${CB_MESES[+mes.slice(4) - 1]} de ${mes.slice(0, 4)}${sinPago ? " y ese mes no aparece otro pago suyo" : ""}`); } }
+        let sinPago = !pagoMes.has(ter + "|" + mes), pts = (d === 0 ? 50 : 35) + (sinPago ? 20 : 0);
+        (mejor.get(ter)?.pts ?? -1) < pts && mejor.set(ter, { pts, txt: `${pesos(v)} es exactamente ${ok} de ${CB_MESES[+mes.slice(4) - 1]} de ${mes.slice(0, 4)}${sinPago ? " y ese mes no aparece otro pago suyo" : ""}` }); } }
+    for (const [ter, o] of mejor) ev(ter, o.pts, o.txt);
     let L = [...cand.values()].sort((a, b) => b.pts - a.pts), top = L[0], seg = "sin", duenos = [];
     if (top) {
       let empate = L.filter(o => o.pts >= top.pts * .7).slice(0, 3);
