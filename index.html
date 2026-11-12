@@ -1030,8 +1030,8 @@ function ppCalc(base, cfgIn) {
     let man27 = ppR(manProy * (1 + pmReal) * (1 + cr));
     let neto = G - man27 - O, cuotas = ppR(neto / (1 - descPct)), desc = neto - cuotas;
     let mes = (cuotas + fondo) / 12, inc = cuotaMes26 ? mes / cuotaMes26 - 1 : null;
-    let ing = cuotas + desc + fondo + man27 + O;
-    return { ...o, i, pm: pmReal, precio27, man27, cuotas, desc, fondo, mes, inc, ing, res: ing - G - fondo, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
+    let ing = cuotas + desc + man27 + O; // el fondo de imprevistos no es ingreso ni gasto del presupuesto
+    return { ...o, i, pm: pmReal, precio27, man27, cuotas, desc, fondo, mes, inc, ing, res: ing - G, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
   });
   let porGrupo = {};
   for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; }
@@ -1048,14 +1048,20 @@ function ppPyg(M, base) {
     { t: "Menos: descuento por pronto pago", v: col(de, o => o.desc) },
     { t: "Manillas de acceso (sin IVA)", v: col(ma, o => o.man27) },
     { t: "Otros ingresos (concesiones, intereses, sanciones, reintegros)", v: col(ot, o => M.O) },
-    { t: "Total ingresos de funcionamiento", v: col(ing26, o => o.ing - o.fondo), s: 1 },
+    { t: "Total ingresos de funcionamiento", v: col(ing26, o => o.ing), s: 1 },
     { t: "GASTOS DE FUNCIONAMIENTO", h: 1 },
     ...M.grupos.map(g => ({ t: ppxCap(g.n), v: col(g.p26, o => g.v27) })),
     { t: "Total gastos de funcionamiento", v: col(M.G26, o => M.G), s: 1 },
-    { t: "RESULTADO (INGRESOS − GASTOS)", v: col(ing26 - M.G26, o => Math.abs(o.ing - o.fondo - M.G) < 5e3 ? 0 : o.ing - o.fondo - M.G), r: 1 },
-    { t: "FONDO DE IMPREVISTOS (VA APARTE: SE TRASLADA A LA FIDUCIA)", h: 1 },
-    { t: "Cuota del fondo de imprevistos", v: col(fo, o => o.fondo) },
-    { t: "TOTAL A FACTURAR A LAS UNIDADES (CUOTAS + FONDO)", v: col(cu + fo, o => o.cuotas + o.fondo), r: 1 }];
+    { t: "RESULTADO (INGRESOS − GASTOS)", v: col(ing26 - M.G26, o => Math.abs(o.ing - M.G) < 5e3 ? 0 : o.ing - M.G), r: 1 }];
+}
+/* facturación a las unidades: cuota de administración + fondo de imprevistos. El fondo NO es ingreso ni gasto del
+   presupuesto: se recauda con la cuota y se traslada a la fiducia. Valores anuales [ppto 2026, opción 1, opción 2…] */
+function ppFact(M, base) {
+  let it = c => base.items.find(x => x.c === c) ?? { p26: 0 }, cu = it(PP_CUOTAS).p26, fo = it(PP_FONDO).p26, col = (a, f) => [a, ...M.ops.map(f)];
+  return [
+    { t: "Cuota de administración", v: col(cu, o => o.cuotas) },
+    { t: "Fondo de imprevistos", nota: "No es ingreso ni gasto: se recauda y se traslada a la fiducia", v: col(fo, o => o.fondo) },
+    { t: "TOTAL A FACTURAR A LAS UNIDADES", v: col(cu + fo, o => o.cuotas + o.fondo), r: 1 }];
 }
 /* coeficiente más común entre los apartamentos (para el ejemplo de cuota) */
 function ppCoefTipo(base) { let c = {}; (base.uni ?? []).filter(u => / T\d$/.test(u[0])).forEach(u => c[u[1]] = (c[u[1]] || 0) + 1); return +Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || .141; }
@@ -1068,7 +1074,7 @@ function ppResumen(M, base) {
   return [
     { t: "LO QUE SE FACTURA CADA MES A LAS UNIDADES", h: 1 },
     { t: "Cuota de administración", v: col(fac26 - fo26, o => o.cuotas / 12) },
-    { t: "Fondo de imprevistos", v: col(fo26, o => o.fondo / 12) },
+    { t: "Fondo de imprevistos", nota: "No es ingreso ni gasto: se traslada a la fiducia", v: col(fo26, o => o.fondo / 12) },
     { t: "Total a facturar al mes", v: col(fac26, o => o.mes), r: 1 },
     { t: "Variación frente a 2026", v: col(null, o => o.inc), f: "pct" },
     { t: "Total a facturar en el año", v: col(fac26 * 12, o => o.mes * 12) },
@@ -1103,6 +1109,10 @@ function ppPygTab(h, M, base) {
   let F = ppPyg(M, base);
   return ppTab(h, ppEncAM(h, ["Presupuesto 2026", ...M.ops.map((o, i) => `2027 · Opción ${i + 1}`)]),
     F.map(f => f.h ? f : { ...f, c: f.v.flatMap(v => [v, v / 12]), cc: f.v.flatMap(() => ["a-right", "a-right pp-m"]) }));
+}
+function ppFactTab(h, M, base) {
+  return ppTab(h, ppEncAM(h, ["Presupuesto 2026", ...M.ops.map((o, i) => `2027 · Opción ${i + 1}`)]),
+    ppFact(M, base).map(f => ({ ...f, c: f.v.flatMap(v => [v, v / 12]), cc: f.v.flatMap(() => ["a-right", "a-right pp-m"]) })));
 }
 function ppResumenTab(h, M, base) {
   let F = ppResumen(M, base);
@@ -1227,8 +1237,9 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
       card(ppTab(h, [[["Grupo de gastos"], ["Presupuesto 2026"], ["Presupuesto 2027"], ["2027 al mes", 1, "a-right pp-m"], ["Variación"]]], F)));
   })() });
 
-  S.push({ t: "Presupuesto 2027", nota: "El presupuesto se cierra en cero: la cuota se calcula para cubrir exactamente los gastos después de manillas y otros ingresos. El fondo de imprevistos va aparte, no es un ingreso para gastar.", el: h(Ve.Fragment, null, ...encab("El cuadre", "Presupuesto 2027: ingresos y gastos", "En el año y al mes. Los gastos son los mismos en las dos opciones; cambia cuánto aportan las manillas y cuánto las cuotas."),
-    card(ppPygTab(h, M, base))) });
+  S.push({ t: "Presupuesto 2027", nota: "El presupuesto se cierra en cero: la cuota se calcula para cubrir exactamente los gastos después de manillas y otros ingresos. El fondo de imprevistos no es ingreso ni gasto: se factura con la cuota y se traslada a la fiducia.", el: h(Ve.Fragment, null, ...encab("El cuadre", "Presupuesto 2027: ingresos y gastos", "En el año y al mes. Los gastos son los mismos en las dos opciones; cambia cuánto aportan las manillas y cuánto las cuotas."),
+    card(ppPygTab(h, M, base)),
+    card(h("p", { className: "ppx-k", style: { marginTop: 4 } }, "Facturación a las unidades · el fondo de imprevistos no es ingreso ni gasto"), ppFactTab(h, M, base))) });
 
   S.push({ t: "Lo que se factura cada mes", nota: "Esta es la cifra que le interesa a cada propietario: lo que se factura cada mes y con qué se paga el gasto mensual.", el: h(Ve.Fragment, null, ...encab("Cada mes", "Lo que se factura y se gasta cada mes", "Facturación mensual a las unidades (cuota de administración más fondo de imprevistos) y cómo se cubren los gastos del mes."),
     card(ppResumenTab(h, M, base))) });
@@ -1338,15 +1349,18 @@ function ppDoc(M, base, config) {
     ["Descuento por pronto pago (% de las cuotas)", ppPct(M.descPct, 2)]];
   let wR = Math.floor(60 / (1 + nO));
   let secRes = { id: "pp_res", nombre: "Resumen mensual", titulo: "PRESUPUESTO 2027 · LO QUE SE FACTURA Y SE GASTA CADA MES", subtitulos: s(`${nO} opciones de financiación · valores mensuales`), orientacion: "portrait", bloques: [
-    { tipo: "parrafo", estilo: "normal", texto: `Los gastos de 2027 suman ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Se pagan con las cuotas de administración, la venta de manillas de acceso y otros ingresos. Las opciones tienen los mismos gastos; cambia el precio de la manilla y, con él, cuánto deben aportar las cuotas. El fondo de imprevistos se factura con la cuota y se traslada a la fiducia.` },
+    { tipo: "parrafo", estilo: "normal", texto: `Los gastos de 2027 suman ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Se pagan con las cuotas de administración, la venta de manillas de acceso y otros ingresos. Las opciones tienen los mismos gastos; cambia el precio de la manilla y, con él, cuánto deben aportar las cuotas. El fondo de imprevistos no es ingreso ni gasto: se factura con la cuota y se traslada a la fiducia.` },
     { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO (VALORES MENSUALES)", 100 - wR * (1 + nO), "left"), col("2026 VIGENTE", wR), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, wR))], filas: ppResumen(M, base).map(f => fila(f, f.h ? [0, ...M.ops] : f.v)) },
     { tipo: "parrafo", estilo: "normal", texto: M.ops.map((o, i) => `${o.nombre}: manilla a ${ppP(o.precio27)}, facturación mensual de ${ppP(o.mes)} (${ppSig(o.inc)}).`).join(" ") },
     { tipo: "parrafo", estilo: "h3", texto: "Supuestos" },
     { tipo: "tabla", cabecera: !0, columnas: [col("SUPUESTO", 72, "left"), col("VALOR", 28)], filas: supu.map(([a, b]) => ({ estilo: "detalle", celdas: [or(a), or(b)] })) }] };
   let pyg = ppPyg(M, base), wP = Math.floor(72 / (2 * (1 + nO)));
-  let secPyg = { id: "pp_pyg", nombre: "Presupuesto 2027", titulo: "PRESUPUESTO 2027 · INGRESOS Y GASTOS", subtitulos: s("En el año y al mes · resultado cero · fondo de imprevistos aparte"), orientacion: "landscape", bloques: [
-    { tipo: "parrafo", estilo: "normal", texto: "El presupuesto de funcionamiento se arma para que las cuotas de administración, las manillas y los otros ingresos cubran exactamente los gastos: su resultado es cero. El fondo de imprevistos se presenta aparte: se factura junto con la cuota de cada unidad y se traslada a la inversión del fondo, donde queda con uso restringido. Los valores mensuales son el valor anual dividido entre doce." },
-    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wP * 2 * (1 + nO), "left"), ...["PPTO 2026", ...M.ops.map((o, i) => `OPCIÓN ${i + 1}`)].flatMap(t => [col(`${t} · AÑO`, wP), col(`${t} · MES`, wP)])], filas: pyg.map(f => fila(f, f.h ? Array(2 * (1 + nO)).fill(0) : f.v.flatMap(v => [v, v / 12]))) }] };
+  let secPyg = { id: "pp_pyg", nombre: "Presupuesto 2027", titulo: "PRESUPUESTO 2027 · INGRESOS Y GASTOS", subtitulos: s("En el año y al mes · resultado cero · el fondo de imprevistos no es ingreso ni gasto"), orientacion: "landscape", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: "El presupuesto de funcionamiento se arma para que las cuotas de administración, las manillas y los otros ingresos cubran exactamente los gastos: su resultado es cero. El fondo de imprevistos no es ingreso ni gasto del presupuesto: se factura junto con la cuota de cada unidad y se traslada a la inversión del fondo, donde queda con uso restringido. Los valores mensuales son el valor anual dividido entre doce." },
+    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wP * 2 * (1 + nO), "left"), ...["PPTO 2026", ...M.ops.map((o, i) => `OPCIÓN ${i + 1}`)].flatMap(t => [col(`${t} · AÑO`, wP), col(`${t} · MES`, wP)])], filas: pyg.map(f => fila(f, f.h ? Array(2 * (1 + nO)).fill(0) : f.v.flatMap(v => [v, v / 12]))) },
+    { tipo: "parrafo", estilo: "h3", texto: "Facturación a las unidades" },
+    { tipo: "parrafo", estilo: "normal", texto: "Lo que se factura es la cuota de administración más el fondo de imprevistos. El fondo no es ingreso ni gasto del presupuesto: se recauda con la cuota y se traslada a la fiducia." },
+    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wP * 2 * (1 + nO), "left"), ...["PPTO 2026", ...M.ops.map((o, i) => `OPCIÓN ${i + 1}`)].flatMap(t => [col(`${t} · AÑO`, wP), col(`${t} · MES`, wP)])], filas: ppFact(M, base).map(f => fila(f, f.v.flatMap(v => [v, v / 12]))) }] };
   let filasG = [];
   for (const g of M.grupos) {
     filasG.push({ estilo: "grupo", celdas: [or(`${g.g} ${g.n}`), ...Array(7).fill(or(""))] });
@@ -1408,8 +1422,11 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
 
   /* 2. presupuesto (estado de resultados) */
   let vPyg = h("section", { className: "panel" }, h("h2", null, "Presupuesto 2027: ingresos y gastos"),
-    h("p", { className: "sub" }, "Presupuesto de funcionamiento en el año y al mes: cuotas, manillas y otros ingresos frente a los gastos; la cuota se calcula para que el resultado sea cero. El fondo de imprevistos va aparte: se factura con la cuota y se traslada a la fiducia del fondo."),
-    ppPygTab(h, M, base));
+    h("p", { className: "sub" }, "Presupuesto de funcionamiento en el año y al mes: cuotas, manillas y otros ingresos frente a los gastos; la cuota se calcula para que el resultado sea cero. El fondo de imprevistos no es ingreso ni gasto del presupuesto: no aparece en esta tabla."),
+    ppPygTab(h, M, base),
+    h("h3", { style: { marginTop: 22 } }, "Facturación a las unidades"),
+    h("p", { className: "sub" }, "Lo que se factura es la cuota de administración más el fondo de imprevistos. El fondo se recauda con la cuota y se traslada a la fiducia; no financia gastos."),
+    ppFactTab(h, M, base));
 
   /* tabla de rubros (gastos y otros ingresos) */
   let celdasRubro = x => {
