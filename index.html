@@ -7859,8 +7859,8 @@ var CXI_ORD = { alta: 0, media: 1, baja: 2, sin: 3 };
 function cxDocPdf(L, X, cfg, hoy) {
   let pesos = v => "$" + pe(Math.round(v)), sum = G => G.reduce((s, x) => s + x.v, 0), fuertes = L.filter(x => x.seg === "alta");
   let dueno = x => x.duenos.length ? x.duenos.map(t => { let u = cpmUnidad(t); return `${u.unidad.replace(/^Apto /, "Apto ")} – ${u.prop}`.trim(); }).join("\no ") : "—";
-  let cols = [{ titulo: "FECHA", ancho: 11, alin: "left" }, { titulo: "VALOR", ancho: 11, alin: "right" }, { titulo: "POSIBLE DUEÑO", ancho: 25, alin: "left" }, { titulo: "PISTA", ancho: 29, alin: "left" }, { titulo: "SEGURIDAD", ancho: 10, alin: "left" }, { titulo: "¿ES SUYA?", ancho: 14, alin: "left" }];
-  let fila = x => ({ estilo: "detalle", sep: !0, celdas: [Zt(`${cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f))}\n${x.doc}`), Zt(pesos(x.v), { bold: !0 }), Zt(dueno(x)), Zt(x.corto || x.porque), Zt(CXI_SEG[x.seg][0], { fondo: CXI_SEG[x.seg][2] || void 0 }), Zt("Sí [  ]   No [  ]")] });
+  let cols = [{ titulo: "FECHA", ancho: 10, alin: "left" }, { titulo: "VALOR", ancho: 10, alin: "right" }, { titulo: "LO QUE DICE EL BANCO", ancho: 22, alin: "left" }, { titulo: "POSIBLE DUEÑO", ancho: 20, alin: "left" }, { titulo: "PISTA", ancho: 18, alin: "left" }, { titulo: "SEGURIDAD", ancho: 10, alin: "left" }, { titulo: "¿ES SUYA?", ancho: 10, alin: "left" }];
+  let fila = x => ({ estilo: "detalle", sep: !0, celdas: [Zt(`${cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f))}\n${x.doc}`), Zt(pesos(x.v), { bold: !0 }), Zt(String(x.nota || "—").replace(/[\t\r\n]+/g, " ").trim()), Zt(dueno(x)), Zt(x.corto || x.porque), Zt(CXI_SEG[x.seg][0], { fondo: CXI_SEG[x.seg][2] || void 0 }), Zt("Sí [  ]\nNo [  ]")] });
   let anios = [...new Set(L.map(cxAnio))].sort((a, b) => b.localeCompare(a));
   let b = [
     { tipo: "parrafo", estilo: "normal", texto: "Estas consignaciones llegaron al banco sin decir de quién son. Al lado de cada una está la pista del posible dueño. Por favor: llame al propietario, pídale el soporte del pago y marque Sí o No. Empiece por las más recientes y por las de seguridad alta." },
@@ -7922,7 +7922,7 @@ function pintar(){chips();kpis();$("#pend").classList.toggle("on",soloPend);let 
 let L=D.filter(x=>(anio==="todos"||x.anio===anio)&&(!soloPend||!R[x.k]?.e)&&(!q||(x.v+" "+x.doc+" "+x.duenos.map(d=>d.u+" "+d.p).join(" ")+" "+x.pista).toUpperCase().replace(/\\s/g,"").includes(q)));
 let h="";for(const a of anios){let G=L.filter(x=>x.anio===a);if(!G.length)continue;h+='<h2>'+a+' <small>'+G.length+' · '+pesos(G.reduce((s,x)=>s+x.v,0))+'</small></h2>';
 for(const x of G){let r=R[x.k]||{};h+='<div class="card '+(r.e||"")+'"><div><div class="valor">'+pesos(x.v)+'</div><div class="te">'+x.fecha+'<br>'+esc(x.doc)+'</div><span class="seg '+x.seg+'">'+SEG[x.seg]+'</span></div>'+
-'<div><div class="dueno">'+(x.duenos.length?x.duenos.map(d=>'<b>'+esc(d.u)+'</b> <span class="te">'+esc(d.p)+'</span>').join('<br>o '):'<span class="te">Sin posible dueño</span>')+'</div><div style="margin-top:6px">'+esc(x.pista)+'</div>'+
+'<div><div class="dueno">'+(x.duenos.length?x.duenos.map(d=>'<b>'+esc(d.u)+'</b> <span class="te">'+esc(d.p)+'</span>').join('<br>o '):'<span class="te">Sin posible dueño</span>')+'</div><div style="margin-top:6px">'+esc(x.pista)+'</div><div class="te" style="margin-top:4px"><b>Banco:</b> '+esc(x.banco||"—")+'</div>'+
 '<details><summary>Ver detalle</summary><div class="te" style="margin-top:4px">'+esc(x.detalle)+'<br><b>Lo que dice el banco:</b> '+esc(x.banco||"—")+'</div></details></div>'+
 '<div class="acc"><button class="s'+(r.e==="si"?" on":"")+'" data-k="'+esc(x.k)+'" data-e="si">✓ Sí es suya</button><button class="n'+(r.e==="no"?" on":"")+'" data-k="'+esc(x.k)+'" data-e="no">✗ No es suya</button><input placeholder="¿De quién es? / nota" data-n="'+esc(x.k)+'" value="'+esc(r.n||"")+'"></div></div>'}}
 $("#lista").innerHTML=h||'<p class="te">No hay consignaciones con ese filtro.</p>';
