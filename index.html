@@ -6004,15 +6004,25 @@ function rtClaseIng(cod, nom) {
   if (c.startsWith("4225") || c.startsWith("42950501") || /COMISION|APROVECHAMIENTO/.test(n)) return "otr";
   return "no";
 }
-/* % deducible de cada gasto (antes del prorrateo) */
+/* criterio de cada gasto según el E.T.: [% deducible, motivo, tipo] — tipo "mov": se decide movimiento por movimiento; "aten": tope del art. 107-1 */
+var RT_MOV_RX = /EJER.*ANTERIOR|PERIODOS? ANTERIORES|NO PRESUPUEST|IMPREVIST|IMPROVIS|EXTRAORDINARI/;
+var RT_ATEN_RX = /ATENCION|FIESTA|FESTEJO|REGALO|OBSEQUIO|CORTESIA|CELEBRA|FECHAS ESPECIALES|EVENTO/;
 function rtDeducDef(cod, nom) {
   let c = String(cod), n = prNorm(nom);
-  if (c.startsWith("54")) return [0, "Impuesto de renta: no es deducible"];
-  if (/EJER.*ANTERIOR|PERIODOS? ANTERIORES/.test(n)) return [0, "Gasto de ejercicios anteriores: no es deducible en este año"];
-  if (/4\s*X\s*1000|GMF|GRAVAMEN/.test(n)) return [50, "GMF: deducible el 50 % (art. 115 E.T.)"];
-  if (/MULTA|SANCION|INTERES(ES)? DE MORA/.test(n)) return [0, "Multas, sanciones e intereses de mora: no deducibles"];
-  return [100, ""];
+  if (c.startsWith("54") || /IMPUESTO DE RENTA|IMPTO DE RENTA/.test(n)) return [0, "Impuesto de renta: no es deducible (art. 105 y 115 E.T.)", ""];
+  if (/4\s*X\s*1000|GMF|GRAVAMEN/.test(n)) return [50, "GMF: deducible el 50 % efectivamente pagado y certificado por el banco (art. 115 E.T.)", ""];
+  if (/MULTA|SANCION|INTERES(ES)? (DE )?MORA|MORATORIO/.test(n)) return [0, "Multas, sanciones e intereses moratorios: no deducibles (art. 105 E.T.)", ""];
+  if (/DONACION/.test(n)) return [0, "Donaciones: no son deducción, dan descuento tributario (art. 257 E.T.)", ""];
+  if (c.startsWith("5315") || RT_MOV_RX.test(n)) return [100, "Se elige movimiento por movimiento", "mov"];
+  if (RT_ATEN_RX.test(n)) return [100, "Atenciones, fiestas y festejos: deducibles hasta el 1 % de los ingresos fiscales netos (art. 107-1 E.T.)", "aten"];
+  if (/INDUSTRIA Y COMERCIO|AVISOS|PREDIAL|BOMBERIL/.test(n)) return [100, "Impuesto deducible si está efectivamente pagado en el año (art. 115 E.T.)", ""];
+  if (/IVA DESCONTABLE|IVA PROPORCIONAL/.test(n)) return [100, "IVA no descontable llevado al gasto: hace parte del gasto", ""];
+  if (/DETERIORO|PROVISION/.test(n)) return [100, "Deterioro de cartera: deducible solo con los requisitos del art. 145 E.T.", ""];
+  return [100, "", ""];
 }
+/* movimientos de ejercicios anteriores / no presupuestados: deducible por defecto salvo los de ejercicios anteriores */
+var rtMovKey = m => `${m.cta}|${m.f}|${m.doc}|${Math.round(m.v)}`;
+var rtMovDef = m => !/EJER.*ANTERIOR|PERIODOS? ANTERIORES/.test(prNorm(m.ctaNom));
 function rtCasillaGasto(cod) { let c = String(cod); return c.startsWith("51") ? 63 : c.startsWith("52") ? 64 : c.startsWith("5305") ? 65 : 66; }
 var RT_R = {
   36: "Efectivo y equivalentes al efectivo", 37: "Inversiones e instrumentos financieros", 38: "Cuentas por cobrar", 39: "Inventarios", 40: "Activos intangibles", 42: "Propiedades, planta y equipo", 43: "Otros activos",
@@ -6027,7 +6037,7 @@ var RT_R = {
 var RT_FILAS = [["Patrimonio", [36, 37, 38, 39, 40, 42, 43, 44, 45, 46]], ["Ingresos", [47, 48, 57, 58, 59, 60, 61]], ["Costos y deducciones", [63, 64, 65, 66, 67]], ["Renta", [72, 73, 75, 76, 79]], ["Liquidación", [84, 94, 99, 103, 104, 106, 107, 108, 111, 113, 114]]];
 var RT_TOT = new Set([44, 46, 58, 61, 67, 72, 75, 79, 94, 99, 107, 113, 114]);
 
-function rtCalcular(B, cfg, ant, nMes) {
+function rtCalcular(B, cfg, ant, nMes, MV) {
   let L = Object.values(B.cuentas ?? {}).filter(c => c && c.codigo);
   let cods = L.map(c => c.codigo), hoja = L.filter(c => !cods.some(o => o !== c.codigo && o.startsWith(c.codigo)));
   let f = 12 / nMes, sf = c => c.sf || 0, sum = (p, ex) => hoja.filter(c => p.some(x => c.codigo.startsWith(x)) && !(ex ?? []).some(x => c.codigo.startsWith(x))).reduce((a, c) => a + sf(c), 0);
@@ -6036,19 +6046,24 @@ function rtCalcular(B, cfg, ant, nMes) {
   let S = { op: 0, fin: 0, otr: 0, no: 0 }; for (const x of ing) S[x.cl] += x.v;
   let total = S.op + S.fin + S.otr + S.no, renta = S.op + S.fin + S.otr, pct = total ? renta / total : 0;
   /* gastos */
-  let gas = hoja.filter(c => /^[567]/.test(c.codigo) && Math.abs(sf(c)) >= 1).map(c => { let [d, m] = rtDeducDef(c.codigo, c.nombre), o = cfg.rentaDeduc?.[c.codigo]; if (o != null) { d = o; m = "Definido por el usuario"; }
-    let base = sf(c) * d / 100; return { cod: c.codigo, nom: c.nombre, v: sf(c), d, motivo: m, manual: o != null, base, deduc: base * pct, cas: rtCasillaGasto(c.codigo) }; }).sort((a, b) => a.cod.localeCompare(b.cod));
+  let gas = hoja.filter(c => /^[567]/.test(c.codigo) && Math.abs(sf(c)) >= 1).map(c => { let [d, m, tipo] = rtDeducDef(c.codigo, c.nombre), o = cfg.rentaDeduc?.[c.codigo]; if (o != null) { d = o; m = "Definido por el usuario"; tipo = tipo === "aten" ? "aten" : ""; }
+    let base = sf(c) * d / 100, mv = null;
+    if (tipo === "mov") { mv = MV?.[c.codigo] ?? null; if (mv) { base = mv.ded; d = sf(c) ? Math.round(mv.ded / sf(c) * 1000) / 10 : 0; m = `Elegido movimiento por movimiento: se deducen ${Jr(mv.ded)} de ${Jr(sf(c))}`; } else { base = 0; d = 0; m = "Pendiente: cargue el libro auxiliar para elegir los movimientos (mientras tanto no se deduce)"; } }
+    return { cod: c.codigo, nom: c.nombre, v: sf(c), d, motivo: m, tipo, manual: o != null, base, deduc: base * pct, cas: rtCasillaGasto(c.codigo) }; }).sort((a, b) => a.cod.localeCompare(b.cod));
   let gTot = gas.reduce((a, g) => a + g.v, 0), gBase = gas.reduce((a, g) => a + g.base, 0);
   /* retenciones que le practicaron (débitos del año en 135515) */
   let ret = hoja.filter(c => c.codigo.startsWith("135515")).map(c => ({ cod: c.codigo, nom: c.nombre, v: c.db || 0 })).filter(x => x.v);
   let retT = ret.reduce((a, x) => a + x.v, 0);
   /* formulario: real a la fecha (r) y proyectado a diciembre (p) */
   let arma = k => {
-    let R = {}, y = v => Math.round(v * k / 1e3) * 1e3 || 0, z = v => Math.round(v / 1e3) * 1e3 || 0;
+    let R = {}, aten = null, y = v => Math.round(v * k / 1e3) * 1e3 || 0, z = v => Math.round(v / 1e3) * 1e3 || 0;
     R[36] = z(sum(["11"])); R[37] = z(sum(["12"])); R[38] = z(sum(["13"])); R[39] = z(sum(["14"])); R[40] = z(sum(["16"])); R[42] = z(sum(["15"])); R[43] = z(sum(["17", "18", "19"], ["1999"]));
     R[44] = R[36] + R[37] + R[38] + R[39] + R[40] + R[42] + R[43]; R[45] = z(sum(["2"])); R[46] = Math.max(0, R[44] - R[45]);
     R[47] = y(S.op); R[48] = y(S.fin); R[57] = y(S.otr); R[58] = R[47] + R[48] + R[57]; R[59] = 0; R[60] = 0; R[61] = R[58] - R[59] - R[60];
-    for (const c of [63, 64, 65, 66]) R[c] = y(gas.filter(g => g.cas === c).reduce((a, g) => a + g.deduc, 0));
+    /* los movimientos elegidos uno a uno no se proyectan (son de una sola vez); las atenciones tienen el tope del 1 % de los ingresos netos (art. 107-1) */
+    let at = gas.filter(g => g.tipo === "aten"), atD = at.reduce((a, g) => a + g.deduc, 0) * k, tope = .01 * R[61], fAt = atD > tope && atD > 0 ? tope / atD : 1;
+    for (const c of [63, 64, 65, 66]) R[c] = z(gas.filter(g => g.cas === c).reduce((a, g) => a + g.deduc * (g.tipo === "mov" ? 1 : k) * (g.tipo === "aten" ? fAt : 1), 0));
+    aten = { total: atD, tope, rechazo: Math.max(0, atD - tope) };
     R[67] = R[63] + R[64] + R[65] + R[66];
     R[72] = Math.max(0, R[61] - R[67]); R[73] = Math.max(0, R[67] - R[61]); R[75] = R[72]; R[76] = 0; R[79] = Math.max(R[75], R[76]);
     R[84] = z(R[79] * RT_TARIFA); R[94] = R[84]; R[99] = R[94];
@@ -6058,21 +6073,60 @@ function rtCalcular(B, cfg, ant, nMes) {
     let a1 = Math.max(0, base1 * .75 - R[107]), a2 = base2 == null ? null : Math.max(0, base2 * .75 - R[107]);
     R[108] = z(a2 == null ? a1 : Math.min(a1, a2));
     let x = R[99] + R[108] - R[103] - R[104] - R[107]; R[111] = Math.max(0, x); R[113] = R[111]; R[114] = Math.max(0, -x);
-    return { R, a1, a2, base2 };
+    return { R, a1, a2, base2, aten };
   };
   return { ing, S, total, renta, pct, gas, gTot, gBase, ret, retT, real: arma(1), proy: arma(f), f, nMes };
 }
 
+/* movimientos del año de las cuentas indicadas, con los libros auxiliares cargados en Verificación contable */
+async function rtMovimientos(store, anio, mes, ctas) {
+  let desde = `${anio}-01-01`, hasta = `${anio}-${String(mes).padStart(2, "0")}-${new Date(anio, mes, 0).getDate()}`;
+  let todos = (await store.list("verif_idx")).map(x => x.data).filter(x => x && x.desde && x.hasta && x.desde <= hasta && x.hasta >= desde);
+  let sig = d => { let t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
+  let tramos = [], cur = desde;
+  while (cur <= hasta) { let c = todos.filter(x => x.desde <= cur && x.hasta >= cur).sort((p, q) => q.hasta.localeCompare(p.hasta) || (q.cargadoEn || "").localeCompare(p.cargadoEn || ""))[0]; if (!c) break; let hh = c.hasta > hasta ? hasta : c.hasta; tramos.push({ meta: c, a: cur, b: hh }); cur = sig(hh); }
+  if (!tramos.length) throw new Error(`No hay libro auxiliar de ${anio}. Cárguelo en Verificación contable › Cargar libros auxiliares para elegir los movimientos.`);
+  let codes = new Map(ctas.map(c => [c.codigo, c.nombre])), L = [];
+  for (const [ti, t] of tramos.entries()) {
+    let X = await vxCargar(store, t.meta), C = typeof X.meta.cuentas === "string" ? JSON.parse(X.meta.cuentas) : X.meta.cuentas, fa = +t.a.replace(/-/g, ""), fb = +t.b.replace(/-/g, "");
+    for (const x of X.movs) { let cta = String(C[x[0]][0]); if (!codes.has(cta)) continue; if (x[1] ? (x[1] < fa || x[1] > fb) : ti > 0) continue; let v = (+x[5] || 0) - (+x[6] || 0); if (Math.abs(v) < .5) continue;
+      L.push({ cta, ctaNom: codes.get(cta), f: x[1], ter: X.strs[x[2]] || "", nota: X.strs[x[3]] || "", doc: X.strs[x[4]] || "", v }); }
+  }
+  L.sort((a, b) => a.cta.localeCompare(b.cta) || a.f - b.f);
+  return { L, hasta: tramos[tramos.length - 1].b };
+}
 function RtSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener, guardarConfig }) {
   let h = rtH, anios = [...new Set(mesesBalance.filter(m => m.A).map(m => m.anio))].sort((a, b) => b - a);
   let [anio, setAnio] = Ve.useState(anios[0] ?? new Date().getFullYear()), [B, setB] = Ve.useState(null), [ant, setAnt] = Ve.useState(void 0), [ed, setEd] = Ve.useState(null), [ver, setVer] = Ve.useState("");
   let ult = mesesBalance.filter(m => m.anio === anio && m.A).sort((a, b) => b.mes - a.mes)[0];
   Ve.useEffect(() => { let vivo = !0; setB(null); ult && obtener(anio, ult.mes, "A").then(b => vivo && setB(b ?? !1)).catch(() => vivo && setB(!1)); return () => { vivo = !1; }; }, [anio, ult?.mes]);
   Ve.useEffect(() => { setAnt(void 0); ses.store.get("renta/decl-" + (anio - 1)).then(d => setAnt(d ?? null)).catch(() => setAnt(null)); }, [anio]);
+  let [movs, setMovs] = Ve.useState(null);
+  Ve.useEffect(() => { let vivo = !0; setMovs(null); if (!B || !ult) return;
+    let ctas = Object.values(B.cuentas ?? {}).filter(c => /^[567]/.test(c.codigo) && rtDeducDef(c.codigo, c.nombre)[2] === "mov" && Math.abs(c.sf || 0) >= 1);
+    if (!ctas.length) { setMovs({ L: [], hasta: "" }); return; }
+    rtMovimientos(ses.store, anio, ult.mes, ctas).then(r => vivo && setMovs(r)).catch(e => vivo && setMovs({ error: e?.message ?? String(e) }));
+    return () => { vivo = !1; }; }, [B, anio, ult?.mes]);
   if (!ult) return h("section", { className: "panel vacio" }, h("h2", null, "Declaración de renta"), h("p", { className: "sub" }, "Cargue los balances acumulados del año para proyectar la renta."));
   if (B === null || ant === void 0) return h("p", { className: "tenue" }, "Calculando con el balance acumulado…");
   if (!B) return h("p", { className: "tenue" }, "No se pudo leer el balance acumulado.");
-  let X = rtCalcular(B, config, ant, ult.mes), R = X.proy.R, mesTxt = h0(Be[ult.mes - 1]);
+  let selMov = m => config.rentaMov?.[rtMovKey(m)] ?? rtMovDef(m);
+  let MV = movs?.L ? Object.fromEntries([...new Set(movs.L.map(m => m.cta))].map(c => [c, { ded: movs.L.filter(m => m.cta === c && selMov(m)).reduce((a, m) => a + m.v, 0) }])) : null;
+  let X = rtCalcular(B, config, ant, ult.mes, MV), R = X.proy.R, mesTxt = h0(Be[ult.mes - 1]);
+  let togMov = (m, v) => guardarConfig({ rentaMov: { ...(config.rentaMov ?? {}), [rtMovKey(m)]: v } });
+  let todosMov = v => guardarConfig({ rentaMov: { ...(config.rentaMov ?? {}), ...Object.fromEntries(movs.L.map(m => [rtMovKey(m), v])) } });
+  let gMov = X.gas.filter(g => g.tipo === "mov");
+  let vMov = gMov.length > 0 && h("section", { className: "panel" }, h("h2", null, "Gastos de ejercicios anteriores y no presupuestados"),
+    h("p", { className: "sub" }, "Marque los gastos que se deducen. Por regla general un gasto de un año anterior no es deducible en este año, porque se debió deducir en el año en que se causó (art. 59 E.T.); sí lo es si corresponde a un hecho de este año, se facturó en este año o no se había podido determinar antes. Estos valores no se proyectan: se toman tal como están y luego se prorratean."),
+    !movs ? h("p", { className: "tenue" }, "Cargando el libro auxiliar…") : movs.error ? h("div", { className: "aviso aviso-adv" }, h("p", { style: { margin: 0 } }, movs.error)) : h(Ve.Fragment, null,
+      !soloLectura && h("div", { className: "herramientas" }, h("button", { type: "button", className: "btn btn-sm", onClick: () => todosMov(!0) }, "Deducir todos"), h("button", { type: "button", className: "btn btn-sm", onClick: () => todosMov(!1) }, "No deducir ninguno"), h("span", { className: "tenue" }, `Libro auxiliar hasta ${movs.hasta.split("-").reverse().join("/")}`)),
+      h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
+        h("thead", null, h("tr", null, ["¿Se deduce?", "Fecha", "Cuenta", "Tercero", "Detalle", "Documento", "Valor"].map((x, i) => h("th", { key: i, className: i === 6 ? "a-right" : "" }, x)))),
+        h("tbody", null, movs.L.map((m, i) => { let on = selMov(m); return h("tr", { key: i, style: on ? null : { opacity: .6 } },
+          h("td", null, soloLectura ? (on ? "Sí" : "No") : h("label", { style: { display: "flex", gap: 6, alignItems: "center", cursor: "pointer" } }, h("input", { type: "checkbox", checked: on, onChange: e => togMov(m, e.target.checked) }), on ? "Sí" : "No")),
+          h("td", { className: "num" }, String(m.f).replace(/(\d{4})(\d{2})(\d{2})/, "$3/$2/$1")), h("td", { className: "mono" }, m.cta), h("td", null, m.ter), h("td", null, m.nota), h("td", { className: "mono" }, m.doc), h("td", { className: "a-right num" }, pe(m.v))); })),
+        h("tfoot", null, ...gMov.map(g => { let tm = movs.L.filter(m => m.cta === g.cod).reduce((a, m) => a + m.v, 0), dif = g.v - tm;
+          return h("tr", { key: g.cod, className: "vx-tot" }, h("td", { colSpan: 6 }, h("b", null, `${g.cod} ${g.nom}: se deducen ${Jr(MV?.[g.cod]?.ded ?? 0)} de ${Jr(g.v)}`), Math.abs(dif) >= 1 ? h("span", { className: "tenue" }, ` · ${Jr(dif)} del balance no están en el libro auxiliar y no se deducen`) : null), h("td", { className: "a-right num" }, pe(tm))); }))))));
   let pc = (v, d = 2) => (v * 100).toLocaleString("es-CO", { minimumFractionDigits: d, maximumFractionDigits: d }) + " %";
   let setIng = (cod, v) => guardarConfig({ rentaIng: { ...(config.rentaIng ?? {}), [cod]: v } });
   let setDed = (cod, v) => { let o = { ...(config.rentaDeduc ?? {}) }; v == null ? delete o[cod] : o[cod] = v; guardarConfig({ rentaDeduc: o }); };
@@ -6109,6 +6163,17 @@ function RtSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener,
     h("h3", null, "Todos los gastos"), h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, h("thead", null, h("tr", null, ["Cuenta", "Nombre", "Valor", "Casilla", "% deducible", "Deducible (prorrateado)"].map((x, i) => h("th", { key: i, className: i === 2 || i === 5 ? "a-right" : "" }, x)))),
       h("tbody", null, X.gas.map(g => h("tr", { key: g.cod }, h("td", { className: "mono" }, g.cod), h("td", null, g.nom), h("td", { className: "a-right num" }, pe(g.v)), h("td", null, g.cas),
         h("td", null, soloLectura ? g.d + " %" : h("select", { value: g.d, onChange: e => setDed(g.cod, +e.target.value) }, [100, 50, 0].map(v => h("option", { key: v, value: v }, v + " %")))), h("td", { className: "a-right num" }, pe(Math.round(g.deduc)))))))));
+  let vNorma = h("details", { className: "panel" }, h("summary", { style: { cursor: "pointer", fontWeight: 600, fontSize: 15 } }, "Normas que aplica la proyección"),
+    h("ul", { style: { lineHeight: 1.6 } },
+      h("li", null, "Ingresos: solo los de explotación de zonas comunes, financieros y otros; las expensas comunes (cuotas, fondo de imprevistos, intereses de mora y sanciones a copropietarios, reintegros) no se declaran."),
+      h("li", null, "Gastos: solo es deducible la parte relacionada con los ingresos de renta (art. 107 y 177-1 E.T.); por eso se prorratean con el mismo porcentaje que el IVA."),
+      h("li", null, "Impuesto de renta: no es deducible (art. 105 y 115). ICA, avisos, bomberil y predial: deducibles al 100 % si están pagados en el año (art. 115)."),
+      h("li", null, "GMF (4 × 1.000): deducible el 50 % pagado en el año y certificado por el banco (art. 115)."),
+      h("li", null, "Multas, sanciones e intereses moratorios: no deducibles (art. 105). Donaciones: no son deducción, dan descuento (art. 257)."),
+      h("li", null, "Atenciones, fiestas, regalos y festejos: hasta el 1 % de los ingresos fiscales netos (art. 107-1)."),
+      h("li", null, "Gastos de ejercicios anteriores: se eligen uno por uno (art. 59, realización en el año)."),
+      h("li", null, "Requisitos de soporte: factura electrónica o documento soporte (art. 771-2), pagos en efectivo dentro de los límites del art. 771-5 y retención practicada cuando corresponde (art. 177-2)."),
+      h("li", null, "Renta presuntiva 0 %; tarifa 35 % (art. 240); anticipo con el 75 % y el menor de los dos procedimientos (art. 807).")));
   /* año anterior */
   let campos = [["formulario", "Número de formulario"], ["impuestoNeto", "Impuesto neto de renta (casilla 94)"], ["anticipo", "Anticipo liquidado para este año (casilla 108 del año anterior)"], ["saldoFavor", "Saldo a favor sin solicitud de devolución (casilla 114)"], ["rentaLiquida", "Renta líquida gravable (casilla 79)"]];
   let vAnt = h("section", { className: "panel" }, h("h2", null, `Declaración de renta ${anio - 1}`),
@@ -6123,8 +6188,8 @@ function RtSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener,
     h("div", { className: "kpis" }, kpi("Ingresos de renta (proyectado)", Jr(R[61])), kpi("% deducible de los gastos", pc(X.pct, 2), "ingresos de renta ÷ total"), kpi("Gastos deducibles (proyectado)", Jr(R[67])), kpi("Renta líquida gravable", Jr(R[79])), kpi("Impuesto (35 %)", Jr(R[94])),
       kpi(R[114] ? "Saldo a favor" : "Saldo a pagar", Jr(R[114] || R[113]), `retenciones ${Jr(R[107])} · anticipo ${anio + 1} ${Jr(R[108])}`)),
     h("section", { className: "panel" }, h("h2", null, "Formulario 110 proyectado"), tabla,
-      h("p", { className: "pie" }, `Anticipo ${anio + 1} (art. 807 E.T., 75 %): el menor entre ${Jr(X.proy.a1)} (impuesto de ${anio}) y ${X.proy.a2 == null ? "— (registre el impuesto neto de " + (anio - 1) + ")" : Jr(X.proy.a2) + ` (promedio de ${anio - 1} y ${anio})`}, menos las retenciones. Renta presuntiva: 0 %. Tarifa 35 % (art. 240 E.T.). Las retenciones son los débitos del año en las cuentas 135515.`)),
-    vPr, vAnt, vDet);
+      h("p", { className: "pie" }, `Anticipo ${anio + 1} (art. 807 E.T., 75 %): el menor entre ${Jr(X.proy.a1)} (impuesto de ${anio}) y ${X.proy.a2 == null ? "— (registre el impuesto neto de " + (anio - 1) + ")" : Jr(X.proy.a2) + ` (promedio de ${anio - 1} y ${anio})`}, menos las retenciones. Renta presuntiva: 0 %. Tarifa 35 % (art. 240 E.T.). Las retenciones son los débitos del año en las cuentas 135515.` + (X.proy.aten && X.proy.aten.total ? ` Atenciones y festejos (art. 107-1): ${Jr(X.proy.aten.total)} prorrateados frente a un tope de ${Jr(X.proy.aten.tope)} (1 % de los ingresos netos)${X.proy.aten.rechazo ? `; se rechazan ${Jr(X.proy.aten.rechazo)}` : ", dentro del tope"}.` : ""))),
+    vPr, vMov, vAnt, vDet, vNorma);
 }
 
 var PR_VISTAS = ["prorrateo"];
