@@ -1753,6 +1753,7 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
         editando && h(Ve.Fragment, null, h("input", { placeholder: "N.º de formulario", value: edit.formulario, onChange: e => setEdit({ ...edit, formulario: e.target.value }), style: { width: 170 } }),
           h("button", { type: "button", className: "btn btn-sm btn-primario", onClick: async () => { let r = Object.fromEntries(Object.entries(edit.r).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, +v])); await guardar({ ...(D ?? { tipo: t, anio: +a, per: +p, origen: "manual", actividades: [] }), formulario: edit.formulario, renglones: r, editadoAMano: !0 }); setEdit(null); notificar("ok", "Declaración guardada."); } }, "Guardar"),
           h("button", { type: "button", className: "btn btn-sm", onClick: () => setEdit(null) }, "Cancelar")),
+        D && !editando && S && !S.faltan && !S.error && C.malas > 0 && !(t === "iva" && [42, 56].some(k => (D.renglones[k] || 0) - (S.renglones[k] || 0) > DCM_TOL)) && h("button", { type: "button", className: "btn btn-sm", onClick: () => marcarCorr(sel, !D.seCorrige) }, D.seCorrige ? "No corregir (cruzar en el siguiente periodo)" : "Esta declaración se corrige"),
         D && !editando && h("button", { type: "button", className: "btn btn-sm", onClick: () => quitar(sel) }, "Quitar declaración")),
       h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, h("thead", null, h("tr", null, ["Renglón", "Concepto", "Declarado", "Sistema", "Diferencia", ""].map((x, i) => h("th", { key: i, className: i >= 2 && i <= 4 ? "a-right" : "" }, x)))),
         h("tbody", null, filas.map(f => h("tr", { key: f.k, style: !editando && !f.ok ? { background: "color-mix(in srgb, #b42318 8%, transparent)" } : null },
@@ -1777,10 +1778,15 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
   };
   let AJ = tipos.map(ajTipo).filter(Boolean);
   let docSig = (t, a, p) => t === "ica" ? icaDocs[fO(a, p)] : t === "reteica" ? icaDocs[pO(a, p)] : t === "iva" ? ivaDocs[d0(a, p, dcmIvaPer(config))] : (retPeriodos ?? []).find(r => r.anio === a && r.mes === p);
+  /* declaraciones que hay que corregir: marcadas por el usuario, o IVA con devoluciones declaradas que no existen (no se pueden cruzar porque el renglón no admite negativos) */
+  let dcmCorrigeAuto = (t, f) => t === "iva" && [42, 56].some(k => (f.D.renglones[k] || 0) - (f.S.renglones[k] || 0) > DCM_TOL);
+  var dcmCorrige = (t, f) => !!(f.D && f.S && !f.S.faltan && !f.S.error && (f.D.seCorrige || dcmCorrigeAuto(t, f)));
+  let marcarCorr = async (id, v) => { let x = { ...decl[id], seCorrige: v }; try { await ses.store.set("ica/" + id, JSON.parse(JSON.stringify(x))); setDecl(o => ({ ...o, [id]: x })); notificar("ok", v ? "Declaración marcada para corregir." : "Se quitó la marca de corrección."); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } };
   let sugTipo = t => {
     if (!DCM_COMP[t]) return null;
     let F = filasTipo(t), dec = F.filter(f => f.D && f.S && !f.S.faltan && !f.S.error); if (!dec.length) return null;
-    let difs = {}; for (const k of DCM_COMP[t]) { let d = dec.reduce((a, f) => a + (f.D.renglones[k] || 0) - (DCM_T[t].ajSanc?.[k] ?? []).reduce((x, j) => x + (f.D.renglones[j] || 0), 0), 0), sv = dec.reduce((a, f) => a + (f.S.renglones[k] || 0), 0), x = Yl(sv - d); if (x) difs[k] = x; }
+    let RD = f => dcmCorrige(t, f) ? f.S.renglones : f.D.renglones;
+    let difs = {}; for (const k of DCM_COMP[t]) { let d = dec.reduce((a, f) => a + (RD(f)[k] || 0) - (dcmCorrige(t, f) ? 0 : 1) * (DCM_T[t].ajSanc?.[k] ?? []).reduce((x, j) => x + (f.D.renglones[j] || 0), 0), 0), sv = dec.reduce((a, f) => a + (f.S.renglones[k] || 0), 0), x = Yl(sv - d); if (x) difs[k] = x; }
     let r = dcmSugerencia(t, difs), ul = dec[dec.length - 1], ps = dcmPeriodos(t, config), nx = ps.find(P => P.per > ul.P.per), sig = nx ? { anio, P: nx } : { anio: anio + 1, P: ps[0] };
     let doc = docSig(t, sig.anio, sig.P.per), a = AJ.find(x => x.t === t), fi = a?.filas.find(f => f.k === IMP[t]) ?? null;
     return { t, r, n: Object.keys(r).length, desde: `${dec[0].P.txt} a ${ul.P.txt} de ${anio}`, sig, doc, cargado: !!doc?.cruce?.renglones, fi };
@@ -1821,6 +1827,16 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
     let n = DCM_T[r.t].n;
     for (const f of r.pen) { let ok = f.S && !f.S.faltan && !f.S.error;
       acciones.push({ nivel: f.vence && f.vence < hoy ? "err" : "aviso", txt: `Presentar ${n} de ${f.P.txt}` + (ok ? `: total a pagar ${Jr(totS(r.t, f.S) ?? 0)}` : " (faltan balances para calcularla)") + (f.vence ? (f.vence < hoy ? `. Venció el ${fecha(f.vence)}.` : `. Vence el ${fecha(f.vence)}.`) : "."), id: f.id }); }
+    for (const f of r.F.filter(f => dcmCorrige(r.t, f))) {
+      let C = dcmComparar(r.t, f.D, f.S), cam = C.filas.filter(x => !x.ok && !x.inf && x.d != null && x.s != null), auto = dcmCorrigeAuto(r.t, f);
+      let ti = IMP[r.t], dImp = (f.D.renglones[ti] || 0) - (DCM_T[r.t].ajSanc?.[ti] ?? []).reduce((a, j) => a + (f.D.renglones[j] || 0), 0), sImp = f.S.renglones[ti] || 0, dd = sImp - dImp;
+      acciones.push({ nivel: "err", id: f.id, txt: `Corregir ${n} de ${f.P.txt}${f.D.formulario ? ` (formulario ${f.D.formulario})` : ""}` + (auto ? ": se declararon devoluciones que no existen y el formulario no admite restarlas en el periodo siguiente." : ":") + " En la corrección las casillas deben quedar así:",
+        extra: h("div", { style: { marginTop: 4 } },
+          h("ul", { style: { margin: "2px 0 6px", paddingLeft: 18, fontSize: 14 } }, cam.map(x => h("li", { key: x.k }, `Renglón ${x.k} · ${x.t}: declarado ${pe(x.d)} → `, h("b", { className: "num" }, pe(x.s))))),
+          h("div", { style: { fontSize: 14 } }, Math.abs(dd) <= DCM_TOL ? `El valor a pagar no cambia (${Jr(sImp)}), así que la corrección no genera sanción: la sanción por corrección se calcula sobre el mayor valor a pagar (art. 644 E.T.).`
+            : dd > 0 ? `El valor a pagar aumenta en ${Jr(dd)}: liquide la sanción por corrección (art. 644 E.T.) e intereses de mora.` : `El valor a pagar baja en ${Jr(-dd)}: la corrección a favor se tramita por el art. 589 E.T.`),
+          !soloLectura && f.D.seCorrige && !auto && h("button", { type: "button", className: "btn btn-sm", style: { marginTop: 4 }, onClick: () => marcarCorr(f.id, !1) }, "No corregir (cruzar en el siguiente periodo)")) });
+    }
     let g = SUG[r.t];
     if (g && g.n) {
       let imp = r.fi && !r.fi.ok ? (r.fi.dif > 0 ? `se pagó ${Jr(r.fi.dif)} de menos` : `se pagó ${Jr(-r.fi.dif)} de más`) : "", ing = r.ingMal.length ? "los ingresos no cuadran con la contabilidad" : "";
@@ -1833,8 +1849,8 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
             : h("button", { type: "button", className: "btn btn-sm btn-primario", onClick: () => cargarCruce(g) }, `Cargar ajuste en la declaración de ${g.sig.P.txt}${otroAnio}`)) });
     }
   }
-  let nivelR = r => r.pen.some(f => f.vence && f.vence < hoy) ? "err" : r.pen.length || (SUG[r.t]?.n && !SUG[r.t].cargado) ? "aviso" : SUG[r.t]?.n ? "cz" : r.dec ? "ok" : "sin";
-  let chipR = r => ({ err: dcmChip("est-alerta", "Atrasada"), aviso: dcmChip("est-atencion", "Pendiente"), cz: dcmChip("est-info", "Ajuste cargado"), ok: dcmChip("est-ok", "Al día"), sin: dcmChip("est-sin", "Sin declaraciones") })[nivelR(r)];
+  let nivelR = r => r.pen.some(f => f.vence && f.vence < hoy) ? "err" : r.F.some(f => dcmCorrige(r.t, f)) ? "corr" : r.pen.length || (SUG[r.t]?.n && !SUG[r.t].cargado) ? "aviso" : SUG[r.t]?.n ? "cz" : r.dec ? "ok" : "sin";
+  let chipR = r => ({ err: dcmChip("est-alerta", "Atrasada"), aviso: dcmChip("est-atencion", "Pendiente"), cz: dcmChip("est-info", "Ajuste cargado"), corr: dcmChip("est-alerta", "Hay que corregir"), ok: dcmChip("est-ok", "Al día"), sin: dcmChip("est-sin", "Sin declaraciones") })[nivelR(r)];
   let vResumen = h("section", { className: "panel" }, h("h2", null, `Resumen ${anio}`),
     h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
       h("thead", null, h("tr", null, ["Impuesto", "Presentadas", "Por presentar", "Impuesto pagado", "Impuesto según contabilidad", "Diferencia", "Ingresos vs contabilidad", "Estado"].map((x, i) => h("th", { key: i, className: i >= 3 && i <= 5 ? "a-right" : "" }, x)))),
