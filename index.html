@@ -1562,15 +1562,18 @@ var DCM_T = {
     R: { 11: "Ingresos brutos (autorretención)", 13: "Ingresos en el distrito (autorretención)", 16: "Ingresos netos gravables (autorretención)", 17: "Autorretención ICA", 22: "Total autorretenciones", 23: "Pagos o abonos sujetos a retención", 24: "Retenciones practicadas en el periodo", 25: "Retenciones en exceso, indebidas o anuladas", 26: "Sanciones", 27: "Total saldo a cargo", 28: "Valor a pagar por impuesto", 29: "Valor a pagar por sanciones", 30: "Intereses de mora", 31: "Total a pagar", 32: "Valor a pagar en bancos" },
     sanc: [26, 29, 30], ajSanc: { 27: [26], 31: [29, 30], 32: [29, 30] } },
   iva: { n: "IVA · formulario 300", corto: "IVA", tot: 88, ingBr: 41,
-    R: { 27: "Ingresos gravados al 5 %", 28: "Ingresos gravados a la tarifa general", 29: "A.I.U. (base gravable especial)", 30: "Exportación de bienes", 31: "Exportación de servicios", 32: "Ventas a sociedades de comercialización", 33: "Ventas a zonas francas", 34: "Juegos de suerte y azar", 35: "Operaciones exentas", 36: "Venta de cerveza", 37: "Venta de gaseosas", 38: "Venta de licores", 39: "Operaciones excluidas", 40: "Operaciones no gravadas", 41: "Total ingresos brutos", 42: "Devoluciones en ventas", 43: "Total ingresos netos", 58: "IVA generado al 5 %", 59: "IVA generado tarifa general", 67: "Total impuesto generado", 79: "IVA devoluciones", 81: "Total impuestos descontables", 82: "Saldo a pagar por el periodo", 83: "Saldo a favor del periodo", 84: "Saldo a favor del periodo anterior", 85: "Retenciones de IVA que le practicaron", 86: "Saldo a pagar por impuesto", 87: "Sanciones", 88: "Total saldo a pagar", 89: "Total saldo a favor" },
+    R: { 27: "Ingresos gravados al 5 %", 28: "Ingresos gravados a la tarifa general", 29: "A.I.U. (base gravable especial)", 30: "Exportación de bienes", 31: "Exportación de servicios", 32: "Ventas a sociedades de comercialización", 33: "Ventas a zonas francas", 34: "Juegos de suerte y azar", 35: "Operaciones exentas", 36: "Venta de cerveza", 37: "Venta de gaseosas", 38: "Venta de licores", 39: "Operaciones excluidas", 40: "Operaciones no gravadas", 41: "Total ingresos brutos", 42: "Devoluciones en ventas", 43: "Total ingresos netos", 44: "Importación de bienes gravados al 5 %", 45: "Importación de bienes gravados tarifa general", 46: "Bienes y servicios gravados de zonas francas", 47: "Importación de bienes no gravados", 48: "Excluidos, exentos y no gravados de zonas francas", 49: "Importación de servicios", 50: "Compras de bienes gravados al 5 %", 51: "Compras de bienes gravados tarifa general", 52: "Compras de servicios gravados al 5 %", 53: "Compras de servicios gravados tarifa general", 54: "Compras excluidas, exentas y no gravadas", 55: "Total compras e importaciones brutas", 56: "Devoluciones en compras", 57: "Total compras netas", 58: "IVA generado al 5 %", 59: "IVA generado tarifa general", 67: "Total impuesto generado", 79: "IVA devoluciones", 81: "Total impuestos descontables", 82: "Saldo a pagar por el periodo", 83: "Saldo a favor del periodo", 84: "Saldo a favor del periodo anterior", 85: "Retenciones de IVA que le practicaron", 86: "Saldo a pagar por impuesto", 87: "Sanciones", 88: "Total saldo a pagar", 89: "Total saldo a favor" },
     sanc: [87], ajSanc: { 88: [87] } },
   autoret: { n: "Autorretención ICA (bimestral)", corto: "Autorret.", tot: 31, ingBr: 11,
     R: { 11: "Total ingresos del periodo", 12: "Ingresos fuera del distrito", 14: "Devoluciones, rebajas, descuentos", 15: "Excluidos o no sujetos", 16: "Ingresos netos gravables", 17: "Autorretención ICA", 18: "Exención", 19: "Retenciones que le practicaron", 20: "Avisos y tableros", 21: "Sobretasa bomberil", 22: "Total autorretenciones", 23: "Sanciones", 24: "Total saldo a cargo", 27: "Valor a pagar por impuesto", 29: "Intereses de mora", 30: "Total a pagar", 31: "Valor a pagar en bancos" }, sanc: [23, 29] }
 };
+DCM_T.ret = { n: "Retención en la fuente · formulario 350", corto: "Retefuente", tot: 138, sanc: [137], ajSanc: { 138: [137] },
+  R: Object.assign({}, ...ls.flatMap(o => [o.pj && { [o.pj[0]]: `Base · ${o.nombre} · personas jurídicas`, [o.pj[1]]: `Retención · ${o.nombre} · personas jurídicas` }, o.pn && { [o.pn[0]]: `Base · ${o.nombre} · personas naturales`, [o.pn[1]]: `Retención · ${o.nombre} · personas naturales` }].filter(Boolean)),
+    { 129: "Menos retenciones de renta en exceso o indebidas", 130: "Total retenciones renta y complementario", 131: "Retenciones de IVA a responsables", 132: "Retenciones de IVA por servicios a no residentes", 133: "Menos retenciones de IVA en exceso o indebidas", 134: "Total retenciones de IVA", 135: "Retención del impuesto de timbre", 136: "Total retenciones", 137: "Sanciones", 138: "Total retenciones más sanciones" }) };
 var dcmIvaPer = cfg => cfg?.ivaPeriodicidad ?? "cuatrimestral";
 function dcmPeriodos(tipo, cfg) {
   if (tipo === "ica" || tipo === "autoret") return Array.from({ length: 6 }, (_, i) => ({ per: i + 1, meses: [2 * i + 1, 2 * i + 2], txt: h0(qs(i + 1)) }));
-  if (tipo === "reteica") return Array.from({ length: 12 }, (_, i) => ({ per: i + 1, meses: [i + 1, i + 1], txt: h0(Be[i]) }));
+  if (tipo === "reteica" || tipo === "ret") return Array.from({ length: 12 }, (_, i) => ({ per: i + 1, meses: [i + 1, i + 1], txt: h0(Be[i]) }));
   let u = dcmIvaPer(cfg), n = u === "bimestral" ? 6 : 3;
   return Array.from({ length: n }, (_, i) => { let [d, h] = $u(u, i + 1); return { per: i + 1, meses: [d, h], txt: `${h0(Be[d - 1].slice(0, 3))}–${Be[h - 1].slice(0, 3)}` }; });
 }
@@ -1583,8 +1586,32 @@ async function dcmLineasPdf(pdfjs, bytes) {
   let L = [];
   for (const it of its) { let l = L.find(l => Math.abs(l.y - it.y) <= 2.5); l ? l.it.push(it) : L.push({ y: it.y, it: [it] }); }
   L.sort((a, b) => b.y - a.y);
-  return L.map(l => { l.it.sort((a, b) => a.x - b.x); let t = "", fin = null; for (const i of l.it) { t += fin == null ? i.s : (i.x - fin > 6 ? "   " : i.x - fin > 0.8 ? " " : "") + i.s; fin = i.x + i.w; } return t.replace(/\s+$/, ""); });
+  let out = L.map(l => { l.it.sort((a, b) => a.x - b.x); let t = "", fin = null; for (const i of l.it) { t += fin == null ? i.s : (i.x - fin > 6 ? "   " : i.x - fin > 0.8 ? " " : "") + i.s; fin = i.x + i.w; } return t.replace(/\s+$/, ""); });
+  out.items = its; return out;
 }
+/* formularios DIAN (300 IVA, 350 retención en la fuente): pares casilla → valor por posición */
+function dcmParseDian(its) {
+  let U = its.map(i => i.s).join(" ").toUpperCase(), T = s => String(s).trim();
+  let esNum = s => /^\(?-?[\d,]+\)?$/.test(T(s)), esCas = s => /^\d{2,3}$/.test(T(s)) && +T(s) >= 24 && +T(s) <= 999;
+  let cand = its.filter(i => esCas(i.s)), lab = new Set(cand.filter(i => cand.filter(j => j !== i && Math.abs(j.x - i.x) <= 2.5).length >= 3));
+  let fila = re => { let i = its.find(x => re.test(T(x.s))); return i ? its.filter(x => Math.abs(x.y - i.y) <= 4 && x.x > i.x).sort((a, b) => a.x - b.x) : []; };
+  let nForm = U.match(/\b\d{13}\b/g) ?? [];
+  let formulario = T(fila(/^4\.\s*N[úu]mero de formulario/i).find(x => /^\d{13}$/.test(T(x.s)))?.s ?? nForm[0] ?? "");
+  let tipo = /^300/.test(formulario) ? "iva" : /^35/.test(formulario) ? "ret" : /RETENCI/.test(U) ? "ret" : /VENTAS/.test(U) ? "iva" : null;
+  let dig = fila(/^1\.\s*A[ñn]o/i).filter(x => /^\d$/.test(T(x.s))).slice(0, 4).map(x => T(x.s)).join("");
+  if (!/^20\d\d$/.test(dig)) { let top = its.filter(x => /^\d$/.test(T(x.s))).sort((a, b) => b.y - a.y); let y0 = top[0]?.y; dig = top.filter(x => Math.abs(x.y - y0) <= 3).sort((a, b) => a.x - b.x).slice(0, 4).map(x => T(x.s)).join(""); }
+  let anio = /^20\d\d$/.test(dig) ? +dig : null;
+  let per = +(fila(/^3\.\s*Per[íi]odo/i).find(x => /^\d{1,2}$/.test(T(x.s)))?.s ?? 0) || null;
+  let otros = nForm.filter(n => n !== formulario);
+  let R = {};
+  for (const L of lab) {
+    let fil = its.filter(x => Math.abs(x.y - L.y) <= 4 && x.x > L.x + 15), sig = fil.filter(x => lab.has(x)).sort((a, b) => a.x - b.x)[0];
+    let v = fil.filter(x => !lab.has(x) && esNum(x.s) && (!sig || x.x < sig.x)).sort((a, b) => a.x - b.x)[0];
+    if (v) R[+T(L.s)] = +T(v.s).replace(/[(),]/g, "") * (/^\(/.test(T(v.s)) ? -1 : 1);
+  }
+  return { tipo, anio, per, formulario, vence: "", correccion: otros.length > 0, formularioAnterior: otros[0] ?? "", renglones: R, actividades: [] };
+}
+
 var dcmNum = s => { s = String(s).trim(); let neg = /^\(.*\)$|^-/.test(s); s = s.replace(/[()\-\s$]/g, ""); if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", "."); else s = s.replace(/[.,]/g, ""); let v = Number(s); return isFinite(v) ? (neg ? -v : v) : null; };
 function dcmParse(lineas) {
   let T = lineas.join("\n"), U = T.toUpperCase();
@@ -1613,6 +1640,7 @@ async function dcmDatos(anio, desde, hasta, meses, obtener, cache) {
 }
 async function dcmSistema(tipo, anio, P, ctx) {
   if (tipo === "autoret") return null;
+  if (tipo === "ret") { let rp = (ctx.retPeriodos ?? []).find(r => r.anio === anio && r.mes === P.per); if (!rp) return { faltan: ["auxiliar 2365/2367 y reporte de bases en Retención en la fuente"] }; let w = Wm(rp, { config: ctx.config, nit: ctx.config.nit }); return { ...w, datos: { descripcion: "formulario 350 que arma la app con el auxiliar y el reporte de bases" } }; }
   let x = await dcmDatos(anio, P.meses[0], P.meses[1], ctx.meses, ctx.obtener, ctx.cache);
   if (!x || "faltan" in x) return { faltan: x?.faltan ?? ["balances"] };
   let c = ctx.config, R = { ivaClases: c.ivaClases, icaClases: c.icaClases, icaActividad: c.icaActividad, icaAvisos: c.icaAvisos, icaSobretasa: c.icaSobretasa, reteicaActividades: c.reteicaActividades };
@@ -1627,6 +1655,7 @@ function dcmComparar(tipo, D, S) {
   for (const k of ks) {
     let d = dr[k], s = sr[k]; if (!(d || s) && def.R[k] == null) continue;
     if (tipo === "reteica" && k < 23 && !d && !s) continue;
+    if ((tipo === "iva" || tipo === "ret") && !d && !s) continue;
     let inf = (def.sanc ?? []).includes(k), aj = tipo === "reteica" && (k === 31 || k === 32) ? Math.max(0, (dr[31] || 0) - (dr[28] || 0)) : (def.ajSanc?.[k] ?? []).reduce((a, j) => a + (dr[j] || 0), 0);
     let dif = d == null || s == null ? null : (d - aj) - s;
     filas.push({ k, t: def.R[k] ?? `Renglón ${k}`, d, s, aj, dif, inf, ok: inf || dif == null || Math.abs(dif) <= DCM_TOL });
@@ -1644,11 +1673,11 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
   let h = dcmH, hoy = new Date().toISOString().slice(0, 10), mesHoy = new Date().getFullYear() * 12 + new Date().getMonth();
   let [decl, setDecl] = Ve.useState(null), [anio, setAnio] = Ve.useState(new Date().getFullYear()), [sis, setSis] = Ve.useState({}), [cargando, setCargando] = Ve.useState(!1), [sel, setSel] = Ve.useState(null), [edit, setEdit] = Ve.useState(null), [ocup, setOcup] = Ve.useState(""), ref = Ve.useRef(null), cache = Ve.useRef(new Map()), refDet = Ve.useRef(null);
   Ve.useEffect(() => { sel && refDet.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [sel]);
-  let tipos = ["ica", "reteica", "iva"].concat(Object.values(decl ?? {}).some(d => d.tipo === "autoret" && d.anio === anio) ? ["autoret"] : []);
+  let tipos = ["ica", "reteica", "iva", "ret"].concat(Object.values(decl ?? {}).some(d => d.tipo === "autoret" && d.anio === anio) ? ["autoret"] : []);
   Ve.useEffect(() => { ses.store.list("ica").then(L => setDecl(Object.fromEntries(L.filter(x => x.id.startsWith("decl-")).map(x => [x.id, x.data])))).catch(() => setDecl({})); }, [ses]);
   Ve.useEffect(() => { let vivo = !0; (async () => {
     setCargando(!0); let ctx = { meses: mesesBalance, obtener, cache: cache.current, config, icaDocs, ivaDocs, retPeriodos }, out = {};
-    for (const t of ["ica", "reteica", "iva"]) for (const P of dcmPeriodos(t, config)) { if (anio * 12 + P.meses[1] - 1 > mesHoy) continue; try { out[dcmId(t, anio, P.per)] = await dcmSistema(t, anio, P, ctx); } catch (e) { out[dcmId(t, anio, P.per)] = { error: e?.message ?? String(e) }; } }
+    for (const t of ["ica", "reteica", "iva", "ret"]) for (const P of dcmPeriodos(t, config)) { if (anio * 12 + P.meses[1] - 1 > mesHoy) continue; try { out[dcmId(t, anio, P.per)] = await dcmSistema(t, anio, P, ctx); } catch (e) { out[dcmId(t, anio, P.per)] = { error: e?.message ?? String(e) }; } }
     vivo && (setSis(out), setCargando(!1));
   })(); return () => { vivo = !1; }; }, [anio, mesesBalance, config, icaDocs, ivaDocs, retPeriodos]);
   let anios = [...new Set([...mesesBalance.map(m => m.anio), ...Object.values(decl ?? {}).map(d => d.anio), new Date().getFullYear()])].sort((a, b) => b - a);
@@ -1656,7 +1685,7 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
   let subir = async files => {
     let ok = 0, malos = []; setOcup("Leyendo las declaraciones…");
     try { let pdfjs = await cmPdfJs();
-      for (const f of Array.from(files)) { try { let r = dcmParse(await dcmLineasPdf(pdfjs, new Uint8Array(await f.arrayBuffer())));
+      for (const f of Array.from(files)) { try { let L = await dcmLineasPdf(pdfjs, new Uint8Array(await f.arrayBuffer())), r = /4\.\s*N[úu]mero de formulario/i.test(L.join("\n")) ? dcmParseDian(L.items) : dcmParse(L);
         if (!r.tipo || !r.anio || !r.per || !Object.keys(r.renglones).length) { malos.push(f.name); continue; }
         await guardar({ ...r, archivo: f.name, origen: "pdf" }); ok++; } catch (e) { console.warn("declaración", f.name, e); malos.push(f.name); } }
     } catch (e) { notificar("error", "No se pudo abrir el lector de PDF: " + (e?.message ?? e)); }
@@ -1688,25 +1717,26 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
   let cortes = icaPer.map(P => P.meses[1]).filter(m => anio * 12 + m - 1 < mesHoy);
   let acum = (t, campo, hasta, src) => { let v = 0, n = 0, faltan = []; for (const P of dcmPeriodos(t, config).filter(P => P.meses[1] <= hasta)) { let o = src === "d" ? decl[dcmId(t, anio, P.per)] : sis[dcmId(t, anio, P.per)], x = o?.renglones?.[campo]; if (x == null || o?.faltan) { faltan.push(`${DCM_T[t].corto} ${P.txt}`); continue; } v += x; n++; } return { v: n ? v : null, faltan }; };
   let filasIng = cortes.map(m => { let esIva = ivaPer.some(P => P.meses[1] === m), A = (t, c, src) => esIva || t !== "iva" ? acum(t, c, m, src) : { v: void 0, faltan: [] };
-    let sB = A("ica", 8, "s"), iB = A("ica", 8, "d"), vB = A("iva", 41, "d"), s10 = A("ica", 10, "s"), s11 = A("ica", 11, "s"), d10 = A("ica", 10, "d"), d11 = A("ica", 11, "d"), vN = A("iva", 43, "d");
+    let sB = A("ica", 8, "s"), iB = A("ica", 8, "d"), s10 = A("ica", 10, "s"), s11 = A("ica", 11, "s"), d10 = A("ica", 10, "d"), d11 = A("ica", 11, "d"), vN = A("iva", 43, "d");
     let sN = { v: s10.v == null ? null : s10.v - (s11.v ?? 0), faltan: s10.faltan }, iN = { v: d10.v == null ? null : d10.v - (d11.v ?? 0), faltan: d10.faltan };
-    let dif = (a, b) => a.v == null || b.v == null ? null : a.v - b.v, ok = v => v == null || Math.abs(v) <= DCM_TOL;
-    let difs = [dif(iB, sB), esIva ? dif(vB, sB) : null, dif(iN, sN), esIva ? dif(vN, sN) : null];
-    let faltan = [...new Set([...sB.faltan.map(x => "balances " + x.replace(/^ICA /, "")), ...iB.faltan, ...(esIva ? vB.faltan : [])])];
-    return { m, esIva, sB: sB.v, iB: iB.v, vB: esIva ? vB.v : void 0, sN: sN.v, iN: iN.v, vN: esIva ? vN.v : void 0, difs, faltan, completo: !faltan.length, ok: difs.every(ok) };
+    let nIca = dcmPeriodos("ica", config).filter(P => P.meses[1] <= m).length, nIva = ivaPer.filter(P => P.meses[1] <= m).length;
+    let dif = (a, b) => a.v == null || b.v == null ? null : a.v - b.v, ok = (v, n) => v == null || Math.abs(v) <= DCM_TOL * 4 * Math.max(1, n);
+    let difs = [dif(iB, sB), dif(iN, sN), esIva ? dif(vN, sN) : null], oks = [ok(difs[0], nIca), ok(difs[1], nIca), ok(difs[2], nIva)];
+    let faltan = [...new Set([...sB.faltan.map(x => "balances " + x.replace(/^ICA /, "")), ...iB.faltan, ...(esIva ? vN.faltan : [])])];
+    return { m, esIva, sB: sB.v, iB: iB.v, sN: sN.v, iN: iN.v, vN: esIva ? vN.v : void 0, difs, oks, faltan, completo: !faltan.length, ok: oks.every(Boolean) };
   });
-  let ult = [...filasIng].reverse().find(f => f.iB != null || f.vB != null);
-  let celda = (v, d) => h("td", { className: "a-right num", style: d != null && Math.abs(d) >= DCM_TOL ? { color: "var(--alerta, #b42318)", fontWeight: 700 } : null }, v === void 0 ? "" : v == null ? "—" : pe(v));
+  let ult = [...filasIng].reverse().find(f => f.iB != null || f.vN != null);
+  let celda = (v, d, okd) => h("td", { className: "a-right num", style: d != null && (okd === !1 || okd == null && Math.abs(d) > DCM_TOL) ? { color: "var(--alerta, #b42318)", fontWeight: 700 } : null }, v === void 0 ? "" : v == null ? "—" : pe(v));
   let vIng = h("section", { className: "panel" }, h("h2", null, "Ingresos declarados vs. contabilidad (acumulado del año)"),
-    h("p", { className: "sub" }, "Al corte de la última declaración, los ingresos declarados en ICA y en IVA deben ser los mismos de la contabilidad (cuentas 4). Brutos: ICA renglón 8, IVA renglón 41. Netos: ICA renglones 10 − 11, IVA renglón 43. Sistema = los mismos renglones calculados con los balances."),
+    h("p", { className: "sub" }, "Al corte de la última declaración, los ingresos declarados deben ser los mismos de la contabilidad (cuentas 4). Brutos (antes del descuento por pronto pago): ICA renglón 8. Netos (después del descuento): ICA renglones 10 − 11 e IVA renglón 43, porque en el IVA el descuento se resta de las operaciones excluidas."),
     ult && h("div", { className: "aviso " + (ult.completo && ult.ok ? "aviso-ok" : "aviso-error") }, h("p", { style: { margin: 0 } }, h("b", null, `Corte de la última declaración (${Be[ult.m - 1]} ${anio}): `),
       !ult.completo ? `falta declarar o cargar: ${ult.faltan.join(", ")}. Mientras falten, el acumulado no puede cuadrar.` : ult.ok ? "los ingresos coinciden en ICA, IVA y contabilidad." : "los ingresos NO coinciden; revise las diferencias en rojo.")),
     h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
-      h("thead", null, h("tr", null, h("th", { rowSpan: 2 }, "Acumulado a"), h("th", { colSpan: 3, style: { textAlign: "center" } }, "Ingresos brutos"), h("th", { colSpan: 3, style: { textAlign: "center" } }, "Ingresos netos"), h("th", { rowSpan: 2 }, "Estado")),
-        h("tr", null, ["Contabilidad", "ICA declarado", "IVA declarado", "Contabilidad", "ICA declarado", "IVA declarado"].map((x, i) => h("th", { key: i, className: "a-right" }, x)))),
-      h("tbody", null, filasIng.map(f => h("tr", { key: f.m }, h("td", null, `${h0(Be[f.m - 1])}`), celda(f.sB), celda(f.iB, f.difs[0]), celda(f.esIva ? f.vB : void 0, f.difs[1]), celda(f.sN), celda(f.iN, f.difs[2]), celda(f.esIva ? f.vN : void 0, f.difs[3]),
+      h("thead", null, h("tr", null, h("th", { rowSpan: 2 }, "Acumulado a"), h("th", { colSpan: 2, style: { textAlign: "center" } }, "Ingresos brutos"), h("th", { colSpan: 3, style: { textAlign: "center" } }, "Ingresos netos de descuentos"), h("th", { rowSpan: 2 }, "Estado")),
+        h("tr", null, ["Contabilidad", "ICA (8)", "Contabilidad", "ICA (10 − 11)", "IVA (43)"].map((x, i) => h("th", { key: i, className: "a-right" }, x)))),
+      h("tbody", null, filasIng.map(f => h("tr", { key: f.m }, h("td", null, `${h0(Be[f.m - 1])}`), celda(f.sB), celda(f.iB, f.difs[0], f.oks[0]), celda(f.sN), celda(f.iN, f.difs[1], f.oks[1]), celda(f.esIva ? f.vN : void 0, f.difs[2], f.oks[2]),
         h("td", null, !f.completo ? h(Ve.Fragment, null, dcmChip("est-sin", "Incompleto"), h("div", { className: "tenue", style: { fontSize: 12 } }, "falta " + f.faltan.join(", "))) : f.ok ? dcmChip("est-ok", "Coincide") : dcmChip("est-alerta", "No coincide"))))))),
-    h("p", { className: "pie" }, `IVA solo tiene corte al cierre de su periodo (${dcmIvaPer(config)}). Diferencias de hasta ${pe(DCM_TOL)} se toman como redondeo.`));
+    h("p", { className: "pie" }, `IVA solo tiene corte al cierre de su periodo (${dcmIvaPer(config)}). Como cada casilla se declara redondeada al mil, en los acumulados se admite hasta ${pe(DCM_TOL * 4)} por declaración.`));
 
   /* detalle del periodo seleccionado */
   let det = null;
@@ -1734,6 +1764,27 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
         h("tbody", null, C.act.map(x => h("tr", { key: x.codigo }, h("td", null, x.codigo), celda(x.dBase, x.dBase != null && x.sBase != null ? x.dBase - x.sBase : null), h("td", { className: "a-right num" }, x.sBase == null ? "—" : pe(Math.round(x.sBase))), celda(x.dImp, x.dImp != null && x.sImp != null ? x.dImp - x.sImp : null), h("td", { className: "a-right num" }, x.sImp == null ? "—" : pe(x.sImp)), h("td", null, x.ok ? "✓" : "✗"))))))));
   }
 
+  /* ajustes para cerrar el año sin diferencias: acumulado declarado vs lo que debió declararse, y cuánto llevar al próximo periodo */
+  let DCM_AJ = { ica: { k: [8, 11, 14, 16, 18, 22], imp: [18, 22] }, reteica: { k: [23, 24], imp: [24] }, iva: { k: [28, 39, 40, 41, 43, 67, 81, 86], imp: [67, 81, 86] }, ret: { k: [130, 134, 135, 136], imp: [130, 134, 135, 136] } };
+  let ajTipo = t => {
+    let F = filasTipo(t), dec = F.filter(f => f.D && f.S && !f.S.faltan && !f.S.error); if (!dec.length || !DCM_AJ[t]) return null;
+    let ul = dec[dec.length - 1], prox = F.find(f => !f.D && f.P.per > ul.P.per && f.S && !f.S.faltan && !f.S.error) ?? null;
+    let filas = DCM_AJ[t].k.map(k => { let d = dec.reduce((a, f) => a + (f.D.renglones[k] || 0), 0), sv = dec.reduce((a, f) => a + (f.S.renglones[k] || 0), 0), dif = sv - d, p = prox ? prox.S.renglones[k] || 0 : null;
+      return { k, t: DCM_T[t].R[k] ?? `Renglón ${k}`, d, s: sv, dif, p, a: p == null ? null : p + dif, imp: DCM_AJ[t].imp.includes(k), ok: Math.abs(dif) <= DCM_TOL * 2 * dec.length }; });
+    return { t, desde: dec[0].P.txt, hasta: ul.P.txt, n: dec.length, prox, filas, hay: filas.some(f => !f.ok) };
+  };
+  let AJ = tipos.map(ajTipo).filter(Boolean);
+  let vAj = AJ.length > 0 && h("section", { className: "panel" }, h("h2", null, "Ajustes para que a diciembre no quede ninguna diferencia"),
+    h("p", { className: "sub" }, "Suma de lo declarado en el año frente a lo que debió declararse según la contabilidad, casilla por casilla. «A declarar» es el valor del próximo periodo según los balances más la diferencia acumulada: así el total del año queda igual a la contabilidad."),
+    h("div", { className: "aviso aviso-adv" }, h("p", { style: { margin: 0 } }, h("b", null, "Ojo: "), "las diferencias de ingresos (renglones informativos) se pueden emparejar en la próxima declaración. Si lo que quedó corto es el impuesto a cargo o las retenciones, lo procedente es corregir la declaración del periodo donde se originó (con la sanción por corrección e intereses que correspondan), no trasladarlo; si quedó de más, se puede corregir o pedir el saldo a favor. Confírmelo con el revisor fiscal antes de presentar.")),
+    ...AJ.map(a => h("div", { key: a.t, style: { marginTop: 14 } }, h("h3", null, `${DCM_T[a.t].n} · declarado de ${a.desde} a ${a.hasta}`, " ", a.hay ? dcmChip("est-alerta", "Hay que ajustar") : dcmChip("est-ok", "Sin diferencias")),
+      h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
+        h("thead", null, h("tr", null, ["Casilla", "Concepto", "Declarado (acumulado)", "Debió declararse", "Diferencia", a.prox ? `${a.prox.P.txt}: según balances` : "Próximo periodo", a.prox ? `A declarar en ${a.prox.P.txt}` : "A declarar"].map((x, i) => h("th", { key: i, className: i >= 2 ? "a-right" : "" }, x)))),
+        h("tbody", null, a.filas.map(f => h("tr", { key: f.k, style: !f.ok ? { background: "color-mix(in srgb, #b42318 7%, transparent)" } : null },
+          h("td", { className: "mono" }, f.k), h("td", null, f.t, f.imp && !f.ok ? h("div", { className: "tenue" }, f.dif > 0 ? "impuesto declarado de menos: corrija la declaración de origen" : "impuesto declarado de más: corrija o solicite el saldo a favor") : null),
+          h("td", { className: "a-right num" }, pe(f.d)), h("td", { className: "a-right num" }, pe(f.s)),
+          h("td", { className: "a-right num", style: !f.ok ? { color: "var(--alerta, #b42318)", fontWeight: 700 } : null }, f.ok ? "✓" : pe(f.dif)),
+          h("td", { className: "a-right num" }, f.p == null ? "—" : pe(f.p)), h("td", { className: "a-right num", style: !f.ok && f.a != null ? { fontWeight: 700 } : null }, f.a == null ? "—" : f.ok ? pe(f.p) : pe(f.a))))))))));
   let pend = tipos.flatMap(t => filasTipo(t).filter(f => !f.D && f.cerrado));
   return h("div", { className: "pantalla" },
     h("div", { className: "pantalla-enc" }, h("div", null, h("h2", { className: "h-sec" }, "Declarado vs. sistema"),
@@ -1747,7 +1798,7 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
       h("div", { className: "kpi" }, h("span", null, "Declaraciones cargadas"), h("b", null, Object.values(decl).filter(d => d.anio === anio).length), h("small", null, `año ${anio}`)),
       h("div", { className: "kpi" + (pend.length ? " destacado" : "") }, h("span", null, "Pendientes por declarar"), h("b", null, pend.length), h("small", null, pend.map(f => `${DCM_T[f.t].corto} ${f.P.txt}`).join(" · ") || "ninguno")),
       h("div", { className: "kpi" }, h("span", null, "Con diferencias"), h("b", null, tipos.flatMap(t => filasTipo(t)).filter(f => f.C?.malas).length), h("small", null, "frente a los balances"))),
-    det, vIng, ...tipos.map(tablaTipo),
+    det, vIng, vAj, ...tipos.map(tablaTipo),
     h("p", { className: "pie" }, "El sistema usa las mismas reglas y clasificaciones de las pantallas IVA · formulario 300 e ICA y ReteICA; si cambia una clasificación allá, el comparativo se recalcula. Sanciones e intereses de mora se muestran aparte porque no están en los balances."));
 }
 
