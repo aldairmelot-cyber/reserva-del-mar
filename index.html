@@ -7841,7 +7841,7 @@ function cxPistas(pend, pares, H) {
       seg = empate.length === 1 ? (top.pts >= 100 ? "alta" : top.pts >= 60 ? "media" : "baja") : (top.pts >= 100 ? "media" : "baja");
     }
     let porque = !top ? (cxDatafono(c.nota) ? "Abono de datáfono o pasarela (el banco abona el neto de las ventas con tarjeta). Se identifica con el reporte del datáfono o de la pasarela." : /^NC/.test(c.doc) ? "Es un ajuste contable (nota de contabilidad), no una consignación del banco. Revisar el soporte de la nota." : "No encontramos un pago parecido en el historial.")
-      : duenos.length > 1 ? `Varios propietarios encajan: ${duenos.map(t => cpmUnidad(t).unidad).join(" o ")}. ` + cand.get(duenos[0]).txt[0] + "." : top.txt.slice(0, 2).join("; ").replace(/^./, m => m.toUpperCase()) + ".";
+      : duenos.length > 1 ? `Varios propietarios encajan: ${duenos.map(t => cpmUnidad(t).unidad).join(" o ")}. ` + cand.get(duenos[0]).txt[0].replace(/^./, m => m.toUpperCase()) + "." : top.txt.slice(0, 2).join("; ").replace(/^./, m => m.toUpperCase()) + ".";
     return { ...c, v, duenos, seg, porque, k: `${c.doc}|${c.f}|${v}` };
   });
 }
@@ -7849,7 +7849,7 @@ var CXI_SEG = { alta: ["Alta", "est-ok", "verde"], media: ["Media", "est-atencio
 
 function cxDocPdf(L, X, cfg, hoy) {
   let pesos = v => "$" + pe(Math.round(v)), tot = L.reduce((s, x) => s + x.v, 0), fuertes = L.filter(x => x.seg === "alta");
-  let cols = [{ titulo: "FECHA Y RECIBO", ancho: 13, alin: "left" }, { titulo: "VALOR", ancho: 11, alin: "right" }, { titulo: "POSIBLE DUEÑO", ancho: 22, alin: "left" }, { titulo: "¿POR QUÉ LO CREEMOS?", ancho: 36, alin: "left" }, { titulo: "SEGURIDAD", ancho: 9, alin: "left" }, { titulo: "¿CORRECTO?", ancho: 9, alin: "center" }];
+  let cols = [{ titulo: "FECHA Y RECIBO", ancho: 13, alin: "left" }, { titulo: "VALOR", ancho: 11, alin: "right" }, { titulo: "POSIBLE DUEÑO", ancho: 22, alin: "left" }, { titulo: "¿POR QUÉ LO CREEMOS?", ancho: 33, alin: "left" }, { titulo: "SEGURIDAD", ancho: 10, alin: "left" }, { titulo: "¿CORRECTO?", ancho: 11, alin: "center" }];
   let fila = x => ({ estilo: "detalle", sep: !0, celdas: [Zt(`${cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f))}\n${x.doc}`), Zt(pesos(x.v), { bold: !0 }), Zt(x.duenos.length ? x.duenos.map(t => { let u = cpmUnidad(t); return `${u.unidad.replace(/^Apto /, "")} ${u.prop}`.trim(); }).join(" o ") : "—"), Zt(x.porque), Zt(CXI_SEG[x.seg][0], { fondo: CXI_SEG[x.seg][2] || void 0 }), Zt("[   ]")] });
   let grupos = [["alta", "Con pista fuerte"], ["media", "Con pista media"], ["baja", "Con pista débil"], ["sin", "Sin pista"]].map(([s, t]) => [t, L.filter(x => x.seg === s)]).filter(g => g[1].length);
   let b = [
