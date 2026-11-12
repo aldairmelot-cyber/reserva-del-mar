@@ -1629,12 +1629,12 @@ function dcmComparar(tipo, D, S) {
     if (tipo === "reteica" && k < 23 && !d && !s) continue;
     let inf = (def.sanc ?? []).includes(k), aj = (def.ajSanc?.[k] ?? []).reduce((a, j) => a + (dr[j] || 0), 0);
     let dif = d == null || s == null ? null : (d - aj) - s;
-    filas.push({ k, t: def.R[k] ?? `Renglón ${k}`, d, s, aj, dif, inf, ok: inf || dif == null || Math.abs(dif) < DCM_TOL });
+    filas.push({ k, t: def.R[k] ?? `Renglón ${k}`, d, s, aj, dif, inf, ok: inf || dif == null || Math.abs(dif) <= DCM_TOL });
   }
   let act = [];
   if (tipo === "reteica" && S?.lineas) {
     let sa = new Map(); for (const l of S.lineas) { let k = l.actividad?.codigo || String(l.tarifa); let a = sa.get(k) ?? { codigo: k, base: 0, impuesto: 0 }; a.base += l.base; a.impuesto += l.impuesto; sa.set(k, a); }
-    for (const k of new Set([...(D?.actividades ?? []).map(a => a.codigo), ...sa.keys()])) { let a = (D?.actividades ?? []).find(x => x.codigo === k), b = sa.get(k); act.push({ codigo: k, dBase: a?.base, sBase: b?.base, dImp: a?.impuesto, sImp: b?.impuesto, ok: a && b && Math.abs(a.base - b.base) < DCM_TOL && Math.abs(a.impuesto - b.impuesto) < DCM_TOL }); }
+    for (const k of new Set([...(D?.actividades ?? []).map(a => a.codigo), ...sa.keys()])) { let a = (D?.actividades ?? []).find(x => x.codigo === k), b = sa.get(k); act.push({ codigo: k, dBase: a?.base, sBase: b?.base, dImp: a?.impuesto, sImp: b?.impuesto, ok: a && b && Math.abs(a.base - b.base) <= DCM_TOL && Math.abs(a.impuesto - b.impuesto) <= DCM_TOL }); }
   }
   let sanciones = tipo === "reteica" ? (dr[26] || dr[29] || 0) + (dr[30] || 0) : (def.sanc ?? []).reduce((a, j) => a + (dr[j] || 0), 0);
   return { filas, act, malas: filas.filter(f => !f.ok).length + act.filter(a => !a.ok).length, sanciones };
@@ -1690,7 +1690,7 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
   let filasIng = cortes.map(m => { let esIva = ivaPer.some(P => P.meses[1] === m), A = (t, c, src) => esIva || t !== "iva" ? acum(t, c, m, src) : { v: void 0, faltan: [] };
     let sB = A("ica", 8, "s"), iB = A("ica", 8, "d"), vB = A("iva", 41, "d"), s10 = A("ica", 10, "s"), s11 = A("ica", 11, "s"), d10 = A("ica", 10, "d"), d11 = A("ica", 11, "d"), vN = A("iva", 43, "d");
     let sN = { v: s10.v == null ? null : s10.v - (s11.v ?? 0), faltan: s10.faltan }, iN = { v: d10.v == null ? null : d10.v - (d11.v ?? 0), faltan: d10.faltan };
-    let dif = (a, b) => a.v == null || b.v == null ? null : a.v - b.v, ok = v => v == null || Math.abs(v) < DCM_TOL;
+    let dif = (a, b) => a.v == null || b.v == null ? null : a.v - b.v, ok = v => v == null || Math.abs(v) <= DCM_TOL;
     let difs = [dif(iB, sB), esIva ? dif(vB, sB) : null, dif(iN, sN), esIva ? dif(vN, sN) : null];
     let faltan = [...new Set([...sB.faltan.map(x => "balances " + x.replace(/^ICA /, "")), ...iB.faltan, ...(esIva ? vB.faltan : [])])];
     return { m, esIva, sB: sB.v, iB: iB.v, vB: esIva ? vB.v : void 0, sN: sN.v, iN: iN.v, vN: esIva ? vN.v : void 0, difs, faltan, completo: !faltan.length, ok: difs.every(ok) };
@@ -1706,7 +1706,7 @@ function DcmSeccion({ ses, config, notificar, soloLectura, mesesBalance, obtener
         h("tr", null, ["Contabilidad", "ICA declarado", "IVA declarado", "Contabilidad", "ICA declarado", "IVA declarado"].map((x, i) => h("th", { key: i, className: "a-right" }, x)))),
       h("tbody", null, filasIng.map(f => h("tr", { key: f.m }, h("td", null, `${h0(Be[f.m - 1])}`), celda(f.sB), celda(f.iB, f.difs[0]), celda(f.esIva ? f.vB : void 0, f.difs[1]), celda(f.sN), celda(f.iN, f.difs[2]), celda(f.esIva ? f.vN : void 0, f.difs[3]),
         h("td", null, !f.completo ? h(Ve.Fragment, null, dcmChip("est-sin", "Incompleto"), h("div", { className: "tenue", style: { fontSize: 12 } }, "falta " + f.faltan.join(", "))) : f.ok ? dcmChip("est-ok", "Coincide") : dcmChip("est-alerta", "No coincide"))))))),
-    h("p", { className: "pie" }, `IVA solo tiene corte al cierre de su periodo (${dcmIvaPer(config)}). Diferencias menores a ${pe(DCM_TOL)} se toman como redondeo.`));
+    h("p", { className: "pie" }, `IVA solo tiene corte al cierre de su periodo (${dcmIvaPer(config)}). Diferencias de hasta ${pe(DCM_TOL)} se toman como redondeo.`));
 
   /* detalle del periodo seleccionado */
   let det = null;
