@@ -872,7 +872,7 @@ function bdComparar(adm, wo, lista) {
 }
 var BD_TIPOS = { cambio: ["Cambio de propietario", "est-alerta"], agregar: ["Agregar copropietarios", "est-atencion"], nombre: ["Corregir o completar nombre", "est-info"], quitar: ["Sobra en World Office", "est-atencion"], leasing: ["Leasing: revisar", "est-info"], crear: ["Crear en World Office", "est-alerta"], noadm: ["No está en la base", "est-info"], revisar: ["Revisar tenedor o nota", "est-info"], igual: ["Coincide", "est-ok"] };
 function BdPantalla({ ses, notificar, soloLectura }) {
-  let [doc, setDoc] = Ve.useState(null), [chk, setChk] = Ve.useState({}), [carg, setCarg] = Ve.useState(!1), [f, setF] = Ve.useState("pend"), [tipo, setTipo] = Ve.useState(""), [q, setQ] = Ve.useState(""), ref = Ve.useRef(null), [abierto, setAb] = Ve.useState(null);
+  let [doc, setDoc] = Ve.useState(null), [chk, setChk] = Ve.useState({}), [carg, setCarg] = Ve.useState(!1), [f, setF] = Ve.useState("pend"), [tipo, setTipo] = Ve.useState(""), [q, setQ] = Ve.useState(""), ref = Ve.useRef(null), [abierto, setAb] = Ve.useState(null), [recien, setRecien] = Ve.useState(() => new Set());
   Ve.useEffect(() => { Promise.all([ses.store.get(BD_DOC).catch(() => null), ses.store.get(BD_CHK).catch(() => null)]).then(([d, c]) => { setDoc(d ? (typeof d.j === "string" ? JSON.parse(d.j) : d) : !1); setChk(c?.m ? (typeof c.m === "string" ? JSON.parse(c.m) : c.m) : {}); }); }, [ses]);
   let subir = async files => {
     setCarg(!0);
@@ -887,10 +887,10 @@ function BdPantalla({ ses, notificar, soloLectura }) {
     } catch (e) { notificar("error", e?.message ?? String(e)); }
     setCarg(!1);
   };
-  let marcar = async (k, v) => { let m = { ...chk }; if (v) m[k] = { fecha: new Date().toISOString().slice(0, 10) }; else delete m[k]; setChk(m); try { await ses.store.set(BD_CHK, { m: JSON.stringify(m) }); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } };
+  let marcar = async (k, v) => { setRecien(r => new Set(r).add(k)); let m = { ...chk }; if (v) m[k] = { fecha: new Date().toISOString().slice(0, 10) }; else delete m[k]; setChk(m); try { await ses.store.set(BD_CHK, { m: JSON.stringify(m) }); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } };
   let U = Ve.useMemo(() => doc && doc.adm && doc.wo ? bdComparar(doc.adm, doc.wo, doc.lista) : [], [doc]);
   let porHacer = U.filter(u => u.tipo !== "igual"), hechos = porHacer.filter(u => chk[u.k]);
-  let nq = bdN(q), L = (f === "todas" ? U : porHacer).filter(u => (f === "pend" ? !chk[u.k] : f === "hechas" ? chk[u.k] : !0) && (!tipo || u.tipo === tipo) && (!nq || bdN([u.k, bdEtq(u.k), u.titular, u.tenedor, u.wo?.nombre, u.idTit.join(" "), u.correos.join(" ")].join(" ")).includes(nq)));
+  let nq = bdN(q), L = (f === "todas" ? U : porHacer).filter(u => (f === "pend" ? !chk[u.k] || recien.has(u.k) : f === "hechas" ? chk[u.k] : !0) && (!tipo || u.tipo === tipo) && (!nq || bdN([u.k, bdEtq(u.k), u.titular, u.tenedor, u.wo?.nombre, u.idTit.join(" "), u.correos.join(" ")].join(" ")).includes(nq)));
   let cuenta = t => porHacer.filter(u => u.tipo === t).length;
   let excel = async () => {
     let filas = porHacer.map(u => ({ estilo: "detalle", celdas: [or(bdEtq(u.k)), or(u.wo?.nombre ?? "—"), or(u.titular.replace(/\s*\n\s*/g, " / ")), or(u.idTit.join(" / ")), or(u.tenedor && !/^N\/A$/i.test(u.tenedor) ? u.tenedor.replace(/\s*\n\s*/g, " / ") : ""), or(u.correos.join("; ")), or(u.acc.map(a => a.d).join(" ")), or(chk[u.k] ? "Actualizado " + chk[u.k].fecha.split("-").reverse().join("/") : "Pendiente")] }));
@@ -916,17 +916,19 @@ function BdPantalla({ ses, notificar, soloLectura }) {
         bdH("div", { className: "kpi" }, bdH("span", null, "Cambio de propietario"), bdH("b", null, cuenta("cambio")), bdH("small", null, `${cuenta("agregar")} con copropietarios por agregar`))),
       bdH("section", { className: "panel" },
         bdH("div", { className: "barra-filtros" },
-          bdH("div", { className: "seg", role: "group" }, [["pend", "Pendientes"], ["hechas", "Actualizadas"], ["dif", "Todas con diferencia"], ["todas", "Todas"]].map(([v, t]) => bdH("button", { key: v, type: "button", "aria-pressed": f === v, onClick: () => setF(v) }, t))),
+          bdH("div", { className: "seg", role: "group" }, [["pend", "Pendientes"], ["hechas", "Actualizadas"], ["dif", "Todas con diferencia"], ["todas", "Todas"]].map(([v, t]) => bdH("button", { key: v, type: "button", "aria-pressed": f === v, onClick: () => { setF(v); setRecien(new Set()); } }, t))),
           bdH("select", { value: tipo, onChange: e => setTipo(e.target.value), "aria-label": "Tipo" }, bdH("option", { value: "" }, "Todos los tipos"), Object.entries(BD_TIPOS).filter(([t]) => t !== "igual" || f === "todas").map(([t, [n]]) => bdH("option", { key: t, value: t }, `${n} (${U.filter(u => u.tipo === t).length})`))),
           bdH("input", { type: "search", placeholder: "Buscar apto, nombre, cédula, correo…", value: q, onChange: e => setQ(e.target.value) }),
           bdH("button", { type: "button", className: "btn btn-sm", onClick: excel }, "Excel")),
         bdH("p", { className: "tenue" }, `${L.length} unidad(es). La cédula/NIT y los correos no vienen en la exportación de World Office: se muestran para que los verifique en el tercero al actualizar.`),
         bdH("div", { className: "tabla-scroll" }, bdH("table", { className: "t-datos" },
-          bdH("thead", null, bdH("tr", null, ["", "Unidad", "En World Office", "Según la administración", "Qué actualizar", ""].map((h, i) => bdH("th", { key: i }, h)))),
+          bdH("thead", null, bdH("tr", null, ["Actualizado", "Unidad", "En World Office", "Según la administración", "Qué actualizar", ""].map((h, i) => bdH("th", { key: i }, h)))),
           bdH("tbody", null, L.map(u => { let [tn, cl] = BD_TIPOS[u.tipo] ?? ["", ""], ok = !!chk[u.k], ab = abierto === u.k;
             return bdH(Ve.Fragment, { key: u.k },
-              bdH("tr", { style: ok ? { opacity: .55 } : null },
-                bdH("td", null, bdH("input", { type: "checkbox", checked: ok, disabled: soloLectura || u.tipo === "igual", title: "Marcar como actualizado en World Office", onChange: e => marcar(u.k, e.target.checked) })),
+              bdH("tr", { style: ok ? { background: "var(--ok-suave)" } : null },
+                bdH("td", { style: { whiteSpace: "nowrap" } }, u.tipo === "igual" ? bdH("span", { className: "tenue" }, "Coincide") : soloLectura ? (ok ? bdH("b", { style: { color: "var(--ok)" } }, "✓ Sí") : bdH("span", { className: "tenue" }, "Pendiente")) :
+                  bdH("button", { type: "button", className: "btn btn-sm", title: ok ? "Quitar la marca de actualizado" : "Marcar como actualizado en World Office", onClick: () => marcar(u.k, !ok),
+                    style: ok ? { background: "var(--ok)", borderColor: "var(--ok)", color: "#fff", fontWeight: 700 } : { fontWeight: 600 } }, ok ? "✓ Actualizado" : "☐ Marcar")),
                 bdH("td", { style: { whiteSpace: "nowrap" } }, bdH("b", null, bdEtq(u.k)), u.marcada && bdH("div", null, bdH("span", { className: "chip chip-warn", title: "Está en la lista (Hoja1) que envió la administración" }, "En lista admin."))),
                 bdH("td", null, u.wo?.nombre ?? bdH("span", { className: "tenue" }, "—")),
                 bdH("td", null, u.tit.map((p, i) => bdH("div", { key: i }, p, u.idTit[i] ? bdH("span", { className: "tenue" }, " · " + u.idTit[i]) : null)), u.ten.length > 0 && bdH("div", { className: "tenue" }, "Tenedor: " + u.ten.join(" / "))),
