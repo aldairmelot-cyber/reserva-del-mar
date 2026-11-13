@@ -1514,14 +1514,15 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
 
   /* tabla de rubros (gastos y otros ingresos) */
   let celdasRubro = x => {
-    let c = [x.r25, x.p26, h("span", { style: x.p26 && x.e26p > x.p26 * 1.1 ? { color: "var(--alerta, #b42318)" } : null }, pe(x.e26p)), x.v27, x.v27 / 12, x.p26 ? ppSig(x.v27 / x.p26 - 1) : "nuevo"];
-    if (!edit) return [...c, x.b === "val" ? "Valor fijo" : `${PP_CRIT[x.crit] ?? x.crit} ${ppPct(x.pct, 2)}`];
+    let mb = (k, v, st) => h("span", { title: x.b === k ? "Base del cálculo 2027" : null, style: { ...(st ?? {}), ...(x.b === k ? { fontWeight: 800, borderBottom: "3px solid var(--acento, #1f6f78)", paddingBottom: 1 } : {}) } }, pe(v));
+    let c = [mb("r25", x.r25), mb("p26", x.p26), mb("e26", x.e26p, x.p26 && x.e26p > x.p26 * 1.1 ? { color: "var(--alerta, #b42318)" } : null), x.v27, x.v27 / 12, x.p26 ? ppSig(x.v27 / x.p26 - 1) : "nuevo"];
+    if (!edit) return [...c, x.b === "val" ? "Valor fijo" : `${PP_BASES[x.b]} + ${PP_CRIT[x.crit] ?? x.crit} ${ppPct(x.pct, 2)}`];
     return [...c,
       h("span", null, h("select", { value: x.b, onChange: e => setF(x.c, "b", e.target.value) }, Object.entries(PP_BASES).map(([k, t]) => h("option", { key: k, value: k }, t))), x.b === "val" && num(x.v, v => setF(x.c, "v", v), 110, 1000)),
       x.b !== "val" ? h("span", null, h("select", { value: x.crit, onChange: e => setF(x.c, "c", e.target.value) }, Object.entries(PP_CRIT).map(([k, t]) => h("option", { key: k, value: k }, t))), x.crit === "otro" && num(x.p, v => setF(x.c, "p", v), 70)) : ""];
   };
   let ccR = () => ["a-right", "a-right", "a-right", "a-right", "a-right pp-m", "a-right", "", ""];
-  let encR = t => [[[t], ["Real 2025"], ["Ppto 2026"], ["Proyección 2026"], ["Ppto 2027"], ["2027 al mes", 1, "a-right pp-m"], ["Var."], ...(edit ? [["Base", 1, ""], ["Criterio", 1, ""]] : [["Sube con", 1, ""]])]];
+  let encR = t => [[[t], ["Real 2025"], ["Ppto 2026"], ["Proyección 2026"], ["Ppto 2027"], ["2027 al mes", 1, "a-right pp-m"], ["Var."], ...(edit ? [["Base", 1, ""], ["Criterio", 1, ""]] : [["Cómo se calcula", 1, ""]])]];
   let fRubro = (x, sub) => ({ t: ppxCap(x.n), nota: x.nota || null, sub, c: celdasRubro(x), cc: ccR() });
   let blanco = edit ? ["", ""] : [""];
   let botonesEd = !soloLectura && h("div", { className: "pp-barra" },
@@ -1539,7 +1540,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   }
   filasG.push({ t: "TOTAL GASTOS DE FUNCIONAMIENTO", r: 1, c: [M.G25, M.G26, M.G26p, M.G, M.G / 12, ppSig(M.G / M.G26 - 1), ...blanco], cc: ccR() });
   let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
-    h("p", { className: "sub" }, `${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes. Toque un grupo para ver sus rubros. La proyección 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses; en rojo, rubros que la proyección pasa en más de 10 % del presupuesto 2026.`),
+    h("p", { className: "sub" }, `${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes. Toque un grupo para ver sus rubros. En cada rubro, la cifra subrayada es la base del 2027 y la última columna dice cómo se calcula (base + incremento). La proyección 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses; cuando cierre diciembre se puede cambiar por el real. En rojo, rubros que la proyección pasa en más de 10 % del presupuesto 2026. Para cambiar la base de un rubro use «Editar bases y criterios».`),
     h("div", { className: "pp-barra" }, h("button", { type: "button", className: "btn btn-sm", onClick: () => setAbG(todosAb ? new Set() : new Set(M.grupos.map(g => g.g))) }, todosAb ? "Ver solo los grupos" : "Ver todos los rubros"), botonesEd),
     ppTab(h, encR("Grupo / rubro"), filasG));
 
