@@ -1133,7 +1133,7 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
   let fila = (t, ayuda, cells, st) => h("tr", { style: st }, h("td", null, t, ayuda && h("div", { className: "tenue", style: { fontSize: 12 } }, ayuda)), ...cells);
   let grupo = t => h("tr", { className: "pp-g" }, h("td", { colSpan: 1 + M.ops.length }, t));
   let fuerte = { fontWeight: 700, background: "var(--acento-suave, #e8f3f4)" };
-  let mill = v => "$ " + (Math.round((v || 0) / 1e5) / 10).toLocaleString("es-CO", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " millones";
+  let mill = v => ppP(v);
   return h("section", { className: "panel" },
     h("h2", null, "Las tres opciones para el Consejo"),
     h("p", { className: "sub" }, "La idea es simple: los gastos se pagan con las manillas y los otros ingresos; lo que falta lo pagan los propietarios con la cuota. Escriba cuánto sube cada cosa en cada opción y todo se recalcula solo."),
