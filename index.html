@@ -1503,7 +1503,8 @@ function ejDoc(M, base, config) {
   let ING = L.filter(x => x.c[0] === "4"), GAS = L.filter(x => x.c[0] === "5"), by = (...c) => L.filter(x => c.includes(x.c));
   let cuo = T(by(PP_CUOTAS, PP_FONDO)), des = T(by(PP_DESC)), man = T(by(PP_MAN)), otr = T(ING.filter(x => ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c))), FO = T(by(PP_FONDO)), TI = T(ING), TG = T(GAS);
   let resO = k => TI[k] - TG[k], RES = { p26: resO("p26"), pp: resO("pp"), e26: resO("e26"), pr: resO("pr") };
-  let pc = (e, p) => p ? e / Math.abs(p) : null, pcT = v => v == null ? "—" : ppPct(v, 1), $ = ppP;
+  let pc = (e, p) => p ? e / p : null, pcT = v => v == null || v < 0 || v > 50 ? "—" : ppPct(v, 1), $ = ppP;
+  let yJ = a => a.length > 1 ? a.slice(0, -1).join(", ") + " y " + a[a.length - 1] : a.join("");
   let grupoN = g => ejNom(base.grupos?.[g] ?? g);
   /* fila con 6 cifras: ppto año, ppto del periodo, ejecutado, %, diferencia, proyección */
   let fila6 = (t, o, est = "detalle", b = est !== "detalle") => ({ estilo: est, indent: est === "detalle", celdas: [or(t, { bold: b }), er(o.p26, { bold: b }), er(o.pp, { bold: b }), er(o.e26, { bold: b }), or(pcT(pc(o.e26, o.pp)), { bold: b }), er(o.e26 - o.pp, { bold: b }), er(o.pr, { bold: b })] });
@@ -1523,7 +1524,7 @@ function ejDoc(M, base, config) {
     fila6("Resultado después del fondo de imprevistos", { p26: RES.p26 - FO.p26, pp: RES.pp - FO.pp, e26: RES.e26 - FO.e26, pr: RES.pr - FO.pr }, "totalDoble")];
   let dif = (o, mas, menos) => { let d = o.e26 - o.pp; return Math.abs(d) < 1 ? "igual a lo presupuestado" : `${d > 0 ? mas : menos} ${$(Math.abs(d))}`; };
   let desvG = GAS.map(x => ({ ...x, d: x.e26 - x.pp })), sobre = desvG.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3), ahorro = desvG.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 3);
-  let lst = a => a.map(x => `${x.nom} (${x.d > 0 ? "+" : "−"}${$(Math.abs(x.d))})`).join("; ");
+  let lst = a => yJ(a.map(x => `${x.nom} (${$(Math.abs(x.d))} ${x.d > 0 ? "más" : "menos"})`));
   let clave = [
     `Ingresos: de ${per} entraron ${$(TI.e26)}, el ${pcT(pc(TI.e26, TI.pp))} de lo presupuestado para esos meses (${$(TI.pp)}); ${dif(TI, "entraron", "faltaron")}.`,
     `Cuotas de administración: se facturaron ${$(cuo.e26)} frente a ${$(cuo.pp)} presupuestados (${pcT(pc(cuo.e26, cuo.pp))}). El descuento por pronto pago fue de ${$(Math.abs(des.e26))}.`,
@@ -1566,20 +1567,20 @@ function ejDoc(M, base, config) {
   let fMes = [], acE = 0, acP = 0, mPI = TI.p26 / 12, mPG = TG.p26 / 12;
   for (let m = 0; m < uM; m++) {
     let eI = ING.reduce((a, x) => a + (x.em?.[m] || 0), 0), eG = GAS.reduce((a, x) => a + (x.em?.[m] || 0), 0); acE += eI - eG; acP += mPI - mPG;
-    fMes.push({ estilo: "detalle", celdas: [or(Be[m]), er(mPI), er(eI), or(pcT(pc(eI, mPI))), er(mPG), er(eG), or(pcT(pc(eG, mPG))), er(eI - eG), er(acE)] });
+    fMes.push({ estilo: "detalle", celdas: [or(ppxCap(Be[m])), er(mPI), er(eI), or(pcT(pc(eI, mPI))), er(mPG), er(eG), or(pcT(pc(eG, mPG))), er(eI - eG), er(acE)] });
   }
   fMes.push({ estilo: "totalDoble", celdas: [or("ACUMULADO", { bold: !0 }), er(TI.pp, { bold: !0 }), er(TI.e26, { bold: !0 }), or(pcT(pc(TI.e26, TI.pp)), { bold: !0 }), er(TG.pp, { bold: !0 }), er(TG.e26, { bold: !0 }), or(pcT(pc(TG.e26, TG.pp)), { bold: !0 }), er(RES.e26, { bold: !0 }), er(acE, { bold: !0 })] });
   let mesesNeg = fMes.slice(0, -1).filter(f => f.celdas[7].v < 0).map(f => f.celdas[0].t.toLowerCase());
   let secMes = { id: "ej_mes", nombre: "Mes a mes", titulo: "EJECUCIÓN 2026 · MES A MES", subtitulos: s("Ingresos y gastos de cada mes frente al presupuesto mensual"), orientacion: "landscape", bloques: [
-    { tipo: "parrafo", estilo: "normal", texto: `El presupuesto mensual es el presupuesto del año dividido entre doce: ingresos de ${$(mPI)} y gastos de ${$(mPG)} cada mes. Los ingresos varían por la temporada (las manillas suben en vacaciones). ${mesesNeg.length ? `Los gastos superaron los ingresos en ${mesesNeg.join(", ")}.` : "Todos los meses los ingresos cubrieron los gastos."} El resultado acumulado a ${ult} es ${$(acE)}.` },
+    { tipo: "parrafo", estilo: "normal", texto: `El presupuesto mensual es el presupuesto del año dividido entre doce: ingresos de ${$(mPI)} y gastos de ${$(mPG)} cada mes. Los ingresos varían por la temporada (las manillas suben en vacaciones). ${mesesNeg.length ? `Los gastos superaron los ingresos en ${yJ(mesesNeg)}.` : "Todos los meses los ingresos cubrieron los gastos."} El resultado acumulado a ${ult} es ${$(acE)}.` },
     { tipo: "tabla", cabecera: !0, columnas: [col("MES", 12, "left"), col("INGRESOS\nPRESUPUESTO", 11.5), col("INGRESOS\nEJECUTADO", 11.5), col("%\nEJEC.", 7), col("GASTOS\nPRESUPUESTO", 11.5), col("GASTOS\nEJECUTADO", 11.5), col("%\nEJEC.", 7), col("RESULTADO\nDEL MES", 13.5), col("RESULTADO\nACUMULADO", 14.5)], filas: fMes }] };
 
   /* ---------- 5. desviaciones a explicar ---------- */
   let desv = L.filter(x => ![PP_FONDO].includes(x.c)).map(x => ({ ...x, d: x.e26 - x.pp })).filter(x => Math.abs(x.d) >= Math.max(5e6, Math.abs(x.pp) * .1)).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 30);
   let efecto = x => x.c[0] === "4" ? (x.c === PP_DESC ? (x.d < 0 ? "Más descuento" : "Menos descuento") : x.d > 0 ? "Más ingreso" : "Menos ingreso") : !x.p26 ? "No presupuestado" : x.d > 0 ? "Mayor gasto" : "Menor gasto";
-  let secDesv = { id: "ej_desv", nombre: "Diferencias principales", titulo: "EJECUCIÓN 2026 · DIFERENCIAS PRINCIPALES", subtitulos: s("Rubros con diferencia de más del 10 % y más de $ 5.000.000"), orientacion: "portrait", bloques: [
+  let secDesv = { id: "ej_desv", nombre: "Diferencias principales", titulo: "EJECUCIÓN 2026 · DIFERENCIAS PRINCIPALES", subtitulos: s("Rubros con diferencia de más del 10 % y más de $ 5.000.000"), orientacion: "landscape", bloques: [
     { tipo: "parrafo", estilo: "normal", texto: "Estos son los rubros que más se apartaron del presupuesto, ordenados de mayor a menor diferencia. Son los que la administración explica en la Asamblea." },
-    { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 34, "left"), col(`PPTO\n${PER}`, 14), col(`EJECUTADO\n${PER}`, 14), col("DIFERENCIA", 14), col("%\nEJEC.", 8), col("EFECTO", 16, "center")], filas: desv.map(x => ({ estilo: "detalle", celdas: [or(x.nom + (x.c[0] === "4" ? " (ingreso)" : "")), er(x.pp), er(x.e26), er(x.d), or(pcT(pc(x.e26, x.pp))), or(efecto(x))] })) }] };
+    { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 40, "left"), col(`PPTO\n${PER}`, 14), col(`EJECUTADO\n${PER}`, 14), col("DIFERENCIA\n(EJEC. − PPTO.)", 14), col("%\nEJEC.", 7), col("EFECTO", 11, "center")], filas: desv.map(x => ({ estilo: "detalle", celdas: [or(x.nom + (x.c[0] === "4" ? " (ingreso)" : "")), er(x.pp), er(x.e26), er(x.d), or(pcT(pc(x.e26, x.pp))), or(efecto(x))] })) }] };
 
   return { continuo: !0, entidad: C.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: C.nit ? "NIT. " + C.nit : "", logo: C.logo || void 0, firmantes: C.firmantes, secciones: [secRes, secIng, secGas, secMes, secDesv], leyendas: ["Entidad sometida al régimen de propiedad horizontal – Ley 675 de 2001", "Cifras expresadas en pesos colombianos (COP$)"] };
 }
