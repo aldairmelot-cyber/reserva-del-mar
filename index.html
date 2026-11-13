@@ -956,7 +956,7 @@ var PP_SML = /VIGILANCIA|OPERARIOS|LIMPIEZA|RECEPCI|STAF|CONSERJ|SERVICIO ADMON|
 var ppR = (v, m = 1000) => Math.round((v || 0) / m) * m;
 var ppP = v => "$ " + pe(Math.round(v || 0));
 var ppPct = (v, d = 1) => (v == null || !isFinite(v) ? "—" : (v * 100).toFixed(d).replace(".", ",") + " %");
-var PP_DEF = { ipc: 5.51, sml: 9, crec: 0, fondoPct: 1, precio26: 0, descPct: null, filas: {}, op: [{ nombre: "Opción 1 · Ajuste por IPC", idx: "ipc", pct: null }, { nombre: "Opción 2 · Ajuste por salario mínimo", idx: "sml", pct: null }], ventas: {} };
+var PP_DEF = { ipc: 5.51, sml: 9, crec: 0, fondoPct: 1, precio26: 0, descPct: null, filas: {}, op: [{ nombre: "Opción 1", idx: "ipc", pct: null, per: null, gas: null }, { nombre: "Opción 2", idx: "sml", pct: null, per: null, gas: null }, { nombre: "Opción 3", idx: "otro", pct: 12, per: null, gas: null }], ventas: {} };
 
 async function ppPrepararBase(ses, prog) {
   prog("Leyendo el presupuesto y la ejecución de 2026…");
@@ -1030,17 +1030,22 @@ function ppCalc(base, cfgIn) {
   let vent = cfg.ventas ?? {}, vm26 = ppVentasMan(vent["2026"]), vm25 = ppVentasMan(vent["2025"]);
   let precio26 = +cfg.precio26 || (vm26 ? ppR(vm26.precio, 100) : 0);
   let unid26 = vm26 && vm26.sub ? Math.round(vm26.u * manProy / vm26.sub) : null;
+  cfg.op = PP_DEF.op.map((d, i) => ({ ...d, ...(cfgIn.op?.[i] ?? {}), nombre: d.nombre }));
   let ops = cfg.op.map((o, i) => {
     let pm = o.pct != null && o.pct !== "" ? +o.pct / 100 : o.idx === "sml" ? sml : ipc, cr = (+cfg.crec || 0) / 100;
+    let pPer = o.per != null && o.per !== "" ? +o.per / 100 : sml, pGas = o.gas != null && o.gas !== "" ? +o.gas / 100 : ipc;
+    let pctO = x => x.b === "val" ? 0 : x.crit === "sml" ? pPer : x.crit === "ipc" ? pGas : x.pct;
+    for (const x of gastos) (x.v27o ??= [])[i] = ppR(x.bv * (1 + pctO(x)));
+    let Go = gastos.reduce((a, x) => a + x.v27o[i], 0), fondoO = ppR(Go * (+cfg.fondoPct || 0) / 100);
     let precio27 = precio26 ? ppR(precio26 * (1 + pm), 100) : 0, pmReal = precio26 ? precio27 / precio26 - 1 : pm;
     let man27 = ppR(manProy * (1 + pmReal) * (1 + cr));
-    let neto = G - man27 - (O - ET), cuotas = ppR(neto / (1 - descPct)), desc = neto - cuotas;
-    let mes = (cuotas + fondo) / 12, inc = cuotaMes26 ? mes / cuotaMes26 - 1 : null;
-    let ing = cuotas + fondo + desc + man27 + O; // la cuota incluye la parte del fondo: ingresos − gastos = excedente = fondo de imprevistos
-    return { ...o, i, pm: pmReal, precio27, man27, cuotas, desc, fondo, mes, inc, ing, res: ing - G, fondoT: fondo + ET, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
+    let neto = Go - man27 - (O - ET), cuotas = ppR(neto / (1 - descPct)), desc = neto - cuotas;
+    let mes = (cuotas + fondoO) / 12, inc = cuotaMes26 ? mes / cuotaMes26 - 1 : null;
+    let ing = cuotas + fondoO + desc + man27 + O; // la cuota incluye la parte del fondo: ingresos − gastos = excedente = fondo de imprevistos
+    return { ...o, i, pm: pmReal, pPer, pGas, G: Go, neto, precio27, man27, cuotas, desc, fondo: fondoO, mes, inc, ing, res: ing - Go, fondoT: fondoO + ET, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
   });
   let porGrupo = {};
-  for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; }
+  for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; o.v27o = ops.map((op, i) => (o.v27o?.[i] ?? 0) + (x.v27o?.[i] ?? 0)); }
   let tot = k => gastos.reduce((a, x) => a + (x[k] || 0), 0);
   return { cfg, EX, ET, trasPct, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, precio26, unid26, vm26, vm25, ops, ipc, sml };
 }
@@ -1057,13 +1062,13 @@ function ppPyg(M, base) {
     { t: "Otros ingresos (concesiones, intereses, sanciones, reintegros)", v: col(ot, o => M.O) },
     { t: "Total ingresos", v: col(ing26, o => o.ing), s: 1 },
     { t: "GASTOS", h: 1 },
-    ...M.grupos.map(g => ({ t: ppxCap(g.n), v: col(g.p26, o => g.v27) })),
-    { t: "Total gastos", v: col(M.G26, o => M.G), s: 1 },
-    { t: "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(ing26 - M.G26, o => o.ing - M.G), r: 1 },
+    ...M.grupos.map(g => ({ t: ppxCap(g.n), v: col(g.p26, o => g.v27o?.[o.i] ?? g.v27) })),
+    { t: "Total gastos", v: col(M.G26, o => o.G), s: 1 },
+    { t: "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(ing26 - M.G26, o => o.ing - o.G), r: 1 },
     ...(M.ET > 0 ? [
       { t: `De este: ${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos`, sub: 1, v: col(fo, o => o.fondo) },
       { t: "De este: ingresos por explotación de zonas comunes trasladados al fondo", sub: 1, v: col(null, o => M.ET) }] : []),
-    { t: "Resultado después del traslado al fondo", v: col(cero(ing26 - M.G26 - fo), o => cero(o.ing - M.G - o.fondoT)) }];
+    { t: "Resultado después del traslado al fondo", v: col(cero(ing26 - M.G26 - fo), o => cero(o.ing - o.G - o.fondoT)) }];
 }
 /* proposición para la Asamblea: ingresos por explotación de zonas comunes a gastos comunes (sin traslado) o al fondo (con traslado) */
 var PP_LEY_EXP = "Ley 675 de 2001, art. 19, parágrafo 2, y reglamento de propiedad horizontal (E.P. 753 de 2023), art. 24, parágrafo 2 (pág. 150): lo que se recibe por la explotación económica de los bienes comunes es para beneficio de la copropiedad y se destina al pago de las expensas comunes o a gastos de inversión, según lo decida la Asamblea General. A su vez, el art. 79 literal f) del reglamento (pág. 318) incluye entre los recursos del fondo de imprevistos el producto de la explotación económica de los bienes comunes no esenciales o de los destinados a ese fin por la Asamblea, y la Ley 675, art. 35, permite sumar al fondo los demás ingresos que la Asamblea considere pertinentes. Por eso el destino de estos ingresos lo define la Asamblea, no el Consejo ni la Administración.";
@@ -1105,14 +1110,51 @@ function ppResumen(M, base) {
     { t: "Manillas de acceso (sin IVA)", v: col(ma / 12, o => o.man27 / 12) },
     { t: "Otros ingresos", v: col(ot / 12, o => M.O / 12) },
     { t: "Total ingresos del mes", v: col((cu + fo + de + ma + ot) / 12, o => o.ing / 12), s: 1 },
-    { t: "Gastos de funcionamiento del mes", v: col(M.G26 / 12, o => M.G / 12), s: 1 },
-    { t: "Excedente del mes = fondo de imprevistos", nota: "Se traslada al patrimonio", v: col(res26, o => (o.ing - M.G) / 12), r: 1 },
+    { t: "Gastos de funcionamiento del mes", v: col(M.G26 / 12, o => o.G / 12), s: 1 },
+    { t: "Excedente del mes = fondo de imprevistos", nota: "Se traslada al patrimonio", v: col(res26, o => (o.ing - o.G) / 12), r: 1 },
     { t: "MANILLA DE ACCESO", h: 1 },
     { t: "Precio de la manilla (IVA incluido)", v: col(M.precio26 || null, o => o.precio27 || null) },
     M.unid26 ? { t: "Manillas a vender al mes (promedio)", v: col(M.unid26 / 12, o => o.unid27 ? o.unid27 / 12 : null), f: "n" } : null,
     { t: `EJEMPLO: APARTAMENTO CON COEFICIENTE ${String(c).replace(".", ",")} %`, h: 1 },
     { t: "Cuota mensual de la unidad (incluye fondo)", v: col(a26, o => ppR(o.mes * c / 100, 1)), s: 1 },
     { t: "Diferencia al mes frente a 2026", v: col(null, o => ppR(o.mes * c / 100, 1) - a26) }].filter(Boolean);
+}
+/* explicación en palabras de una opción */
+function ppOpTexto(M, o) {
+  let p = v => ppPct(v, 2);
+  return `${o.nombre}: los gastos de personal suben ${p(o.pPer)}, los demás gastos ${p(o.pGas)} y la manilla ${p(o.pm)}${M.precio26 ? ` (de ${ppP(M.precio26)} a ${ppP(o.precio27)})` : ""}. Los gastos quedan en ${ppP(o.G / 12)} al mes y las unidades deben pagar ${ppP(o.mes)} al mes entre todas: ${ppSig(o.inc)} frente a 2026.`;
+}
+/* panel de las opciones: lo que se decide (%) y lo que resulta */
+function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
+  let c = ppCoefTipo(base), a26 = ppCuota26De(M, base, c), sml = +(M.sml * 100).toFixed(2), ipc = +(M.ipc * 100).toFixed(2);
+  let setOp = (i, k, v) => guardar({ ...cfg, op: PP_DEF.op.map((d, j) => ({ ...d, ...(cfg.op?.[j] ?? {}), ...(j === i ? { [k]: v } : {}) })) });
+  let inp = (o, k, val) => soloLectura ? ppPct(val / 100, 2) : h("span", { style: { whiteSpace: "nowrap" } }, h("input", { type: "number", step: 0.1, className: "num a-right", style: { width: 80, fontWeight: 700 }, value: val, onChange: e => setOp(o.i, k, e.target.value === "" ? null : +e.target.value) }), " %");
+  let th = t => h("th", { className: "a-right" }, t), td = (v, st) => h("td", { className: "a-right num", style: st }, v);
+  let fila = (t, ayuda, cells, st) => h("tr", { style: st }, h("td", null, t, ayuda && h("div", { className: "tenue", style: { fontSize: 12 } }, ayuda)), ...cells);
+  let grupo = t => h("tr", { className: "pp-g" }, h("td", { colSpan: 1 + M.ops.length }, t));
+  let fuerte = { fontWeight: 700, background: "var(--acento-suave, #e8f3f4)" };
+  return h("section", { className: "panel" },
+    h("h2", null, "Las tres opciones para el Consejo"),
+    h("p", { className: "sub" }, "Arriba, en negrilla, lo que usted decide: cuánto sube cada cosa en cada opción. Abajo, lo que resulta. Al cambiar un porcentaje se recalcula todo: la cuota, el apartamento tipo, el presupuesto, las diapositivas y el PDF."),
+    h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos pp-t" },
+      h("thead", null, h("tr", null, h("th", null, ""), ...M.ops.map(o => th(o.nombre)))),
+      h("tbody", null,
+        grupo("1. Lo que usted decide: cuánto sube cada cosa"),
+        fila("Gastos de personal", `Vigilancia, aseo, recepción y demás contratos atados al salario. Referencia: salario mínimo ${String(sml).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "per", o.per ?? sml)))),
+        fila("Demás gastos", `Servicios, mantenimiento, seguros y otros. Referencia: IPC ${String(ipc).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "gas", o.gas ?? ipc)))),
+        fila("Precio de la manilla de acceso", M.precio26 ? `Precio vigente ${ppP(M.precio26)} (IVA incluido).` : "", M.ops.map(o => td(inp(o, "pct", o.pct ?? +(o.pm * 100).toFixed(2))))),
+        grupo("2. Lo que resulta (al mes)"),
+        fila("Gastos de funcionamiento", `2026: ${ppP(M.G26 / 12)} al mes`, M.ops.map(o => td(h(Ve.Fragment, null, ppP(o.G / 12), h("div", { className: "tenue", style: { fontSize: 12 } }, ppSig(o.G / M.G26 - 1)))))),
+        fila("Más: fondo de imprevistos", `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos`, M.ops.map(o => td(ppP(o.fondo / 12)))),
+        fila("Menos: lo que dejan las manillas", "Sin IVA", M.ops.map(o => td(h(Ve.Fragment, null, "(" + ppP(o.man27 / 12) + ")", o.precio27 ? h("div", { className: "tenue", style: { fontSize: 12 } }, `manilla a ${ppP(o.precio27)}`) : null)))),
+        fila("Menos: otros ingresos", "Concesiones, intereses, reintegros", M.ops.map(o => td("(" + ppP((M.O - M.ET) / 12) + ")"))),
+        fila("Más: descuento por pronto pago", `${ppPct(M.descPct, 2)} de las cuotas`, M.ops.map(o => td(ppP(-o.desc / 12)))),
+        fila("= Lo que se factura a todas las unidades al mes", `2026: ${ppP(M.cuotaMes26)}`, M.ops.map(o => td(ppP(o.mes))), fuerte),
+        fila("Cuánto sube la cuota frente a 2026", null, M.ops.map(o => td(ppSig(o.inc), { fontSize: 18, fontWeight: 800 })), fuerte),
+        grupo(`3. Ejemplo: apartamento con coeficiente ${String(c).replace(".", ",")} %`),
+        fila("Cuota al mes", `Hoy paga ${ppP(a26)}`, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1))))),
+        fila("Paga de más al mes", null, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1) - a26))))))),
+    h("div", { style: { marginTop: 10 } }, M.ops.map(o => h("p", { key: o.i, style: { margin: "6px 0" } }, h("b", null, o.nombre + ": "), ppOpTexto(M, o).replace(o.nombre + ": ", "")))));
 }
 var ppSig = v => v == null || !isFinite(v) ? "—" : (v > 0.0005 ? "+" : "") + ppPct(v);
 var ppFmt = (v, f) => typeof v === "string" ? v : v == null || (typeof v === "number" && !isFinite(v)) ? "—" : f === "pct" ? ppSig(v) : f === "n" ? Math.round(v).toLocaleString("es-CO") : f === "txt" ? v : pe(v);
@@ -1290,7 +1332,7 @@ function PpPresentacion({ base, cfg0, entidad, guardar, soloLectura, onCerrar })
 
   S.push({ t: "Para decidir", nota: "Cierre con lo que se lleva a la Asamblea: el presupuesto de gastos, la opción de financiación (precio de la manilla y cuota) y el fondo de imprevistos.", el: h(Ve.Fragment, null, ...encab("Propuesta", "Lo que se pone a consideración", "El presupuesto de gastos es el mismo en las dos opciones; la decisión es cómo se reparte entre turismo (manillas) y propietarios (cuotas)."),
     card(ppTab(h, [[["Concepto"], ...opsT.map(t => [t])]], [
-      { t: "Gastos de funcionamiento al mes", c: M.ops.map(() => M.G / 12) },
+      { t: "Gastos de funcionamiento al mes", c: M.ops.map(o => o.G / 12) },
       { t: "Fondo de imprevistos al mes", c: M.ops.map(o => o.fondo / 12) },
       { t: "Precio de la manilla (IVA incluido)", c: M.ops.map(o => o.precio27) },
       { t: "Ingreso por manillas al mes (sin IVA)", c: M.ops.map(o => o.man27 / 12) },
@@ -1366,15 +1408,15 @@ function ppDoc(M, base, config) {
     ["IPC (inflación anual a octubre de 2026, DANE)", ppPct(M.ipc, 2)],
     ["Incremento del salario mínimo 2027 (estimado; se decreta en diciembre)", ppPct(M.sml, 2)],
     ["Precio vigente de la manilla (IVA incluido)", ppP(M.precio26)],
-    ...M.ops.map((o, i) => [`Incremento del precio de la manilla · opción ${i + 1}`, ppPct(o.pm, 2)]),
+    ...M.ops.flatMap((o, i) => [[`Opción ${i + 1} · gastos de personal`, ppPct(o.pPer, 2)], [`Opción ${i + 1} · demás gastos`, ppPct(o.pGas, 2)], [`Opción ${i + 1} · precio de la manilla`, ppPct(o.pm, 2)]]),
     ["Crecimiento esperado de visitantes 2027", ppPct((+M.cfg.crec || 0) / 100)],
     ["Fondo de imprevistos (% de los gastos, art. 35 Ley 675)", ppPct((+M.cfg.fondoPct || 0) / 100)],
     ["Descuento por pronto pago (% de las cuotas)", ppPct(M.descPct, 2)]];
   let wR = Math.floor(60 / (1 + nO));
   let secRes = { id: "pp_res", nombre: "Resumen mensual", titulo: "PRESUPUESTO 2027 · LO QUE SE FACTURA Y SE GASTA CADA MES", subtitulos: s(`${nO} opciones de financiación · valores mensuales`), orientacion: "portrait", bloques: [
-    { tipo: "parrafo", estilo: "normal", texto: `Los gastos de 2027 suman ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Se pagan con las cuotas de administración, la venta de manillas de acceso y otros ingresos. Las opciones tienen los mismos gastos; cambia el precio de la manilla y, con él, cuánto deben aportar las cuotas. El fondo de imprevistos no es ingreso ni gasto: es el excedente del ejercicio, que se traslada al patrimonio.` },
+    { tipo: "parrafo", estilo: "normal", texto: `Los gastos de 2027 suman ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Se pagan con las cuotas de administración, la venta de manillas de acceso y otros ingresos. Cada opción define cuánto suben los gastos de personal, los demás gastos y el precio de la manilla; con eso se calcula cuánto deben aportar las cuotas. El fondo de imprevistos no es ingreso ni gasto: es el excedente del ejercicio, que se traslada al patrimonio.` },
     { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO (VALORES MENSUALES)", 100 - wR * (1 + nO), "left"), col("2026 VIGENTE", wR), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, wR))], filas: ppResumen(M, base).map(f => fila(f, f.h ? [0, ...M.ops] : f.v)) },
-    { tipo: "parrafo", estilo: "normal", texto: M.ops.map((o, i) => `${o.nombre}: manilla a ${ppP(o.precio27)}, facturación mensual de ${ppP(o.mes)} (${ppSig(o.inc)}).`).join(" ") },
+    ...M.ops.map(o => ({ tipo: "parrafo", estilo: "normal", texto: ppOpTexto(M, o) })),
     { tipo: "parrafo", estilo: "h3", texto: "Supuestos" },
     { tipo: "tabla", cabecera: !0, columnas: [col("SUPUESTO", 72, "left"), col("VALOR", 28)], filas: supu.map(([a, b]) => ({ estilo: "detalle", celdas: [or(a), or(b)] })) }] };
   let pyg = ppPyg(M, base), wP = Math.floor(72 / (2 * (1 + nO)));
@@ -1452,9 +1494,9 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
       .concat([{ t: "Total explotación de zonas comunes", r: 1, c: ["", M.EX, M.EX / 12], cc: ["", "a-right", "a-right pp-m"] }])));
 
   /* 1. resumen mensual */
-  let vRes = h(Ve.Fragment, null, alerta,
+  let vRes = h(Ve.Fragment, null, ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura), alerta,
     h("section", { className: "panel" }, h("h2", null, "Lo que se factura y se gasta cada mes"),
-      h("p", { className: "sub" }, `Gastos 2027: ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Las opciones tienen los mismos gastos; cambia el precio de la manilla y, con él, cuánto deben aportar las cuotas.`),
+      h("p", { className: "sub" }, `Gastos 2027: ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Gastos y cuota de cada opción según los porcentajes de arriba.`),
       ppResumenTab(h, M, base),
       h("p", { className: "pp-nota" }, "Valores mensuales = valor anual ÷ 12. La columna 2026 muestra la facturación vigente (coeficientes de World Office) y el presupuesto 2026 dividido entre doce.")),
     vExp);
@@ -1532,7 +1574,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
       fS("IPC para 2027 (%)", "Inflación anual a octubre de 2026: 5,51 % (DANE). Cierre de 2025: 5,10 %.", num(cfg.ipc, v => guardar({ ...cfg, ipc: v }))),
       fS("Incremento del salario mínimo 2027 (%)", "Se decreta en diciembre. Salario 2026: $1.750.905. Propuestas conocidas: 7 % a 10 % (Fenalco 9 %). Actualícelo cuando salga el decreto.", num(cfg.sml, v => guardar({ ...cfg, sml: v }))),
       fS("Precio vigente de la manilla, IVA incluido", M.vm26 ? `Promedio 2026 según ventas de World Office: ${ppP(M.vm26.precio)} (${M.vm26.u.toLocaleString("es-CO")} manillas, ${M.cfg.ventas["2026"].periodo}). Escriba la tarifa vigente.` : "Suba el informe de ventas por producto para calcularlo.", num(cfg.precio26 || M.precio26, v => guardar({ ...cfg, precio26: v }), 110, 100)),
-      ...M.ops.map((o, i) => fS(`Incremento del precio de la manilla · ${o.nombre} (%)`, `Sugerido: ${o.idx === "sml" ? "salario mínimo" : "IPC"}. Precio 2027: ${ppP(o.precio27)}.`, num(o.pct ?? +((o.idx === "sml" ? M.sml : M.ipc) * 100).toFixed(2), v => { let op = cfg.op.map((x, j) => j === i ? { ...x, pct: v } : x); guardar({ ...cfg, op }); }, 90))),
+      fS("Porcentajes de cada opción", "Se ajustan en la pestaña 1. Resumen mensual (gastos de personal, demás gastos y precio de la manilla). El IPC y el salario mínimo de arriba son la referencia por defecto.", ""),
       fS("Crecimiento de visitantes 2027 (%)", M.vm25 && M.vm26 ? `Manillas vendidas: 2025 ${M.vm25.u.toLocaleString("es-CO")} · 2026 ${M.vm26.u.toLocaleString("es-CO")} (a la fecha del informe).` : "", num(cfg.crec, v => guardar({ ...cfg, crec: v }))),
       fS("Fondo de imprevistos (% de los gastos)", "Mínimo legal 1 % (art. 35, Ley 675 de 2001).", num(cfg.fondoPct, v => guardar({ ...cfg, fondoPct: v }))),
       fS("Ingresos por explotación de zonas comunes que se trasladan al fondo (%)", `0 = financian gastos comunes (como en 2026); 100 = van todos al fondo. Lo decide la Asamblea (Ley 675, arts. 19 par. 2 y 35). Explotación 2027: ${ppP(M.EX)}.`, num(cfg.trasladoExp ?? 0, v => guardar({ ...cfg, trasladoExp: v }), 90, 1)),
