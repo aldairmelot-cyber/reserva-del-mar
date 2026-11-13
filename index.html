@@ -1024,7 +1024,9 @@ function ppCalc(base, cfgIn) {
   for (const x of otros) x.exp = cfg.explot?.[x.c] != null ? !!cfg.explot[x.c] : ppEsExplot(x);
   let EX = otros.filter(x => x.exp).reduce((a, x) => a + x.v27, 0), trasPct = Math.min(100, Math.max(0, +cfg.trasladoExp || 0)) / 100, ET = ppR(EX * trasPct);
   let cu = base.items.find(x => x.c === PP_CUOTAS) ?? { p26: 0 }, de = base.items.find(x => x.c === PP_DESC) ?? { p26: 0 }, fo = base.items.find(x => x.c === PP_FONDO) ?? { p26: 0 };
-  let descPct = cfg.descPct != null && cfg.descPct !== "" ? +cfg.descPct / 100 : cu.p26 ? Math.abs(de.p26) / cu.p26 : 0;
+  // descuento por pronto pago: la tasa (10 %, Asamblea 2022) solo la recibe quien paga en los primeros 15 días
+  let descTasa = cfg.descPct != null && cfg.descPct !== "" ? +cfg.descPct / 100 : .1, desc26 = cu.p26 ? Math.abs(de.p26) / cu.p26 : 0;
+  let descUso = cfg.descUso != null && cfg.descUso !== "" ? +cfg.descUso / 100 : descTasa ? Math.min(1, desc26 / descTasa) : 0, descPct = descTasa * descUso;
   let fondo = ppR(G * (+cfg.fondoPct || 0) / 100);
   let cuotaMes26 = base.uni?.length ? base.uni.reduce((a, u) => a + u[2], 0) : Math.round((cu.p26 + fo.p26) / 12);
   let vent = cfg.ventas ?? {}, vm26 = ppVentasMan(vent["2026"]), vm25 = ppVentasMan(vent["2025"]);
@@ -1047,7 +1049,7 @@ function ppCalc(base, cfgIn) {
   let porGrupo = {};
   for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; o.v27o = ops.map((op, i) => (o.v27o?.[i] ?? 0) + (x.v27o?.[i] ?? 0)); }
   let tot = k => gastos.reduce((a, x) => a + (x[k] || 0), 0);
-  return { cfg, EX, ET, trasPct, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, precio26, unid26, vm26, vm25, ops, ipc, sml };
+  return { cfg, descTasa, descUso, desc26, EX, ET, trasPct, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, precio26, unid26, vm26, vm25, ops, ipc, sml };
 }
 /* estado de resultados presupuestado: valores ANUALES [ppto 2026, opción 1, opción 2…]; la vista mensual divide por 12.
    El fondo de imprevistos no es una línea de ingreso ni de gasto: es el EXCEDENTE (ingresos − gastos) que se traslada al patrimonio. */
@@ -1148,7 +1150,7 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
         fila("Gastos del mes", "Incluye el fondo de imprevistos", M.ops.map(o => td(mill(o.G / 12 + o.fondo / 12)))),
         fila("Los pagan los turistas y otros ingresos", "Manillas, concesiones y demás", M.ops.map(o => td(mill((o.man27 + M.O - M.ET) / 12)))),
         fila("Lo que falta lo pagan los propietarios", null, M.ops.map(o => td(mill(o.G / 12 + o.fondo / 12 - (o.man27 + M.O - M.ET) / 12)))),
-        fila("Cuota a facturar", `Es un poco más porque quien paga en los primeros 15 días tiene descuento. Hoy se facturan ${mill(M.cuotaMes26)} al mes.`, M.ops.map(o => td(mill(o.mes))), fuerte),
+        fila("Cuota a facturar", `Es un poco más porque quien paga en los primeros 15 días tiene ${ppPct(M.descTasa, 0)} de descuento (se estima que paga a tiempo el ${ppPct(M.descUso, 1)}). Hoy se facturan ${mill(M.cuotaMes26)} al mes.`, M.ops.map(o => td(mill(o.mes))), fuerte),
         fila("La cuota sube", null, M.ops.map(o => td(ppSig(o.inc), { fontSize: 20, fontWeight: 800 })), fuerte),
         grupo(`3. Ejemplo: apartamento con coeficiente ${String(c).replace(".", ",")} %`),
         fila("Cuota al mes", `Hoy paga ${ppP(a26)}`, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1))))),
@@ -1159,7 +1161,7 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
         fila("+ Fondo de imprevistos", `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos`, M.ops.map(o => td(ppP(o.fondo / 12)))),
         fila("− Manillas (sin IVA)", null, M.ops.map(o => td(ppP(o.man27 / 12)))),
         fila("− Otros ingresos", null, M.ops.map(o => td(ppP((M.O - M.ET) / 12)))),
-        fila("+ Descuento por pronto pago", "Se suma porque quien paga a tiempo paga menos", M.ops.map(o => td(ppP(-o.desc / 12)))),
+        fila("+ Descuento por pronto pago", `${ppPct(M.descTasa, 0)} para el ${ppPct(M.descUso, 1)} de las cuotas, que se pagan a tiempo`, M.ops.map(o => td(ppP(-o.desc / 12)))),
         fila("= Cuota a facturar", null, M.ops.map(o => td(ppP(o.mes))), fuerte))))));
 }
 var ppSig = v => v == null || !isFinite(v) ? "—" : (v > 0.0005 ? "+" : "") + ppPct(v);
@@ -1417,7 +1419,7 @@ function ppDoc(M, base, config) {
     ...M.ops.flatMap((o, i) => [[`Opción ${i + 1} · gastos de personal`, ppPct(o.pPer, 2)], [`Opción ${i + 1} · demás gastos`, ppPct(o.pGas, 2)], [`Opción ${i + 1} · precio de la manilla`, ppPct(o.pm, 2)]]),
     ["Crecimiento esperado de visitantes 2027", ppPct((+M.cfg.crec || 0) / 100)],
     ["Fondo de imprevistos (% de los gastos, art. 35 Ley 675)", ppPct((+M.cfg.fondoPct || 0) / 100)],
-    ["Descuento por pronto pago (% de las cuotas)", ppPct(M.descPct, 2)]];
+    ["Descuento por pronto pago", ppPct(M.descTasa, 0)], ["Unidades que pagan a tiempo (reciben el descuento)", ppPct(M.descUso, 1)], ["Descuento efectivo (% de las cuotas)", ppPct(M.descPct, 2)]];
   let wR = Math.floor(60 / (1 + nO));
   let secRes = { id: "pp_res", nombre: "Resumen mensual", titulo: "PRESUPUESTO 2027 · LO QUE SE FACTURA Y SE GASTA CADA MES", subtitulos: s(`${nO} opciones de financiación · valores mensuales`), orientacion: "portrait", bloques: [
     { tipo: "parrafo", estilo: "normal", texto: `Los gastos de 2027 suman ${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes (${ppSig(M.G / M.G26 - 1)} frente al presupuesto 2026). Se pagan con las cuotas de administración, la venta de manillas de acceso y otros ingresos. Cada opción define cuánto suben los gastos de personal, los demás gastos y el precio de la manilla; con eso se calcula cuánto deben aportar las cuotas. El fondo de imprevistos no es ingreso ni gasto: es el excedente del ejercicio, que se traslada al patrimonio.` },
@@ -1585,7 +1587,8 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
       fS("Crecimiento de visitantes 2027 (%)", M.vm25 && M.vm26 ? `Manillas vendidas: 2025 ${M.vm25.u.toLocaleString("es-CO")} · 2026 ${M.vm26.u.toLocaleString("es-CO")} (a la fecha del informe).` : "", num(cfg.crec, v => guardar({ ...cfg, crec: v }))),
       fS("Fondo de imprevistos (% de los gastos)", "Mínimo legal 1 % (art. 35, Ley 675 de 2001).", num(cfg.fondoPct, v => guardar({ ...cfg, fondoPct: v }))),
       fS("Ingresos por explotación de zonas comunes que se trasladan al fondo (%)", `0 = financian gastos comunes (como en 2026); 100 = van todos al fondo. Lo decide la Asamblea (Ley 675, arts. 19 par. 2 y 35). Explotación 2027: ${ppP(M.EX)}.`, num(cfg.trasladoExp ?? 0, v => guardar({ ...cfg, trasladoExp: v }), 90, 1)),
-      fS("Descuento por pronto pago (% de las cuotas)", `En 2026: ${ppPct(M.cu26 ? Math.abs(base.items.find(x => x.c === PP_DESC)?.p26 ?? 0) / M.cu26 : 0, 2)}.`, num(cfg.descPct ?? +(M.descPct * 100).toFixed(2), v => guardar({ ...cfg, descPct: v }))))),
+      fS("Descuento por pronto pago (%)", "Lo aprobó la Asamblea (10 %). Lo recibe solo quien paga en los primeros 15 días del mes.", num(cfg.descPct ?? 10, v => guardar({ ...cfg, descPct: v }))),
+      fS("Unidades que pagan a tiempo (% de las cuotas)", `En el presupuesto 2026 el descuento fue el ${ppPct(M.desc26, 2)} de las cuotas: equivale a que ${ppPct(M.desc26 / .1, 1)} paga a tiempo. Con estos datos el descuento de 2027 es ${ppPct(M.descPct, 2)} de las cuotas.`, num(cfg.descUso ?? +(M.descUso * 100).toFixed(1), v => guardar({ ...cfg, descUso: v }))))),
     h("h3", null, "Ventas de manillas (World Office)"),
     h("p", { className: "sub" }, "Informe “Ventas por producto” de World Office, uno por año. Sirve para conocer el precio promedio y el número de manillas vendidas."),
     h("ul", null, Object.values(cfg.ventas ?? {}).sort((a, b) => a.anio - b.anio).map(v => { let m = ppVentasMan(v); return h("li", { key: v.anio }, h("b", null, v.anio), ` · ${v.periodo} · ${m ? `${m.u.toLocaleString("es-CO")} manillas, precio promedio ${ppP(m.precio)}` : "sin manillas"}`); })),
