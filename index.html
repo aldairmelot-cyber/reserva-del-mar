@@ -1133,9 +1133,10 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
   let fila = (t, ayuda, cells, st) => h("tr", { style: st }, h("td", null, t, ayuda && h("div", { className: "tenue", style: { fontSize: 12 } }, ayuda)), ...cells);
   let grupo = t => h("tr", { className: "pp-g" }, h("td", { colSpan: 1 + M.ops.length }, t));
   let fuerte = { fontWeight: 700, background: "var(--acento-suave, #e8f3f4)" };
+  let mill = v => "$ " + (Math.round((v || 0) / 1e5) / 10).toLocaleString("es-CO", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " millones";
   return h("section", { className: "panel" },
     h("h2", null, "Las tres opciones para el Consejo"),
-    h("p", { className: "sub" }, "Arriba, en negrilla, lo que usted decide: cuánto sube cada cosa en cada opción. Abajo, lo que resulta. Al cambiar un porcentaje se recalcula todo: la cuota, el apartamento tipo, el presupuesto, las diapositivas y el PDF."),
+    h("p", { className: "sub" }, "La idea es simple: los gastos se pagan con las manillas y los otros ingresos; lo que falta lo pagan los propietarios con la cuota. Escriba cuánto sube cada cosa en cada opción y todo se recalcula solo."),
     h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos pp-t" },
       h("thead", null, h("tr", null, h("th", null, ""), ...M.ops.map(o => th(o.nombre)))),
       h("tbody", null,
@@ -1143,18 +1144,22 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
         fila("Gastos de personal", `Vigilancia, aseo, recepción y demás contratos atados al salario. Referencia: salario mínimo ${String(sml).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "per", o.per ?? sml)))),
         fila("Demás gastos", `Servicios, mantenimiento, seguros y otros. Referencia: IPC ${String(ipc).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "gas", o.gas ?? ipc)))),
         fila("Precio de la manilla de acceso", M.precio26 ? `Precio vigente ${ppP(M.precio26)} (IVA incluido).` : "", M.ops.map(o => td(inp(o, "pct", o.pct ?? +(o.pm * 100).toFixed(2))))),
-        grupo("2. Lo que resulta (al mes)"),
-        fila("Gastos de funcionamiento", `2026: ${ppP(M.G26 / 12)} al mes`, M.ops.map(o => td(h(Ve.Fragment, null, ppP(o.G / 12), h("div", { className: "tenue", style: { fontSize: 12 } }, ppSig(o.G / M.G26 - 1)))))),
-        fila("Más: fondo de imprevistos", `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos`, M.ops.map(o => td(ppP(o.fondo / 12)))),
-        fila("Menos: lo que dejan las manillas", "Sin IVA", M.ops.map(o => td(h(Ve.Fragment, null, "(" + ppP(o.man27 / 12) + ")", o.precio27 ? h("div", { className: "tenue", style: { fontSize: 12 } }, `manilla a ${ppP(o.precio27)}`) : null)))),
-        fila("Menos: otros ingresos", "Concesiones, intereses, reintegros", M.ops.map(o => td("(" + ppP((M.O - M.ET) / 12) + ")"))),
-        fila("Más: descuento por pronto pago", `${ppPct(M.descPct, 2)} de las cuotas`, M.ops.map(o => td(ppP(-o.desc / 12)))),
-        fila("= Lo que se factura a todas las unidades al mes", `2026: ${ppP(M.cuotaMes26)}`, M.ops.map(o => td(ppP(o.mes))), fuerte),
-        fila("Cuánto sube la cuota frente a 2026", null, M.ops.map(o => td(ppSig(o.inc), { fontSize: 18, fontWeight: 800 })), fuerte),
+        grupo("2. Lo que resulta cada mes"),
+        fila("Gastos del mes", "Incluye el fondo de imprevistos", M.ops.map(o => td(mill(o.G / 12 + o.fondo / 12)))),
+        fila("Los pagan los turistas y otros ingresos", "Manillas, concesiones y demás", M.ops.map(o => td(mill((o.man27 + M.O - M.ET) / 12)))),
+        fila("El resto lo pagan los propietarios con la cuota", `Hoy se facturan ${mill(M.cuotaMes26)} al mes`, M.ops.map(o => td(mill(o.mes))), fuerte),
+        fila("La cuota sube", null, M.ops.map(o => td(ppSig(o.inc), { fontSize: 20, fontWeight: 800 })), fuerte),
         grupo(`3. Ejemplo: apartamento con coeficiente ${String(c).replace(".", ",")} %`),
         fila("Cuota al mes", `Hoy paga ${ppP(a26)}`, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1))))),
         fila("Paga de más al mes", null, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1) - a26))))))),
-    h("div", { style: { marginTop: 10 } }, M.ops.map(o => h("p", { key: o.i, style: { margin: "6px 0" } }, h("b", null, o.nombre + ": "), ppOpTexto(M, o).replace(o.nombre + ": ", "")))));
+    h("details", { style: { marginTop: 12 } }, h("summary", { style: { cursor: "pointer", color: "var(--acento)" } }, "Ver el cálculo completo de la cuota"),
+      h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, h("thead", null, h("tr", null, h("th", null, "Al mes"), ...M.ops.map(o => th(o.nombre)))), h("tbody", null,
+        fila("Gastos de funcionamiento", null, M.ops.map(o => td(ppP(o.G / 12)))),
+        fila("+ Fondo de imprevistos", `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos`, M.ops.map(o => td(ppP(o.fondo / 12)))),
+        fila("− Manillas (sin IVA)", null, M.ops.map(o => td(ppP(o.man27 / 12)))),
+        fila("− Otros ingresos", null, M.ops.map(o => td(ppP((M.O - M.ET) / 12)))),
+        fila("+ Descuento por pronto pago", "Se suma porque quien paga a tiempo paga menos", M.ops.map(o => td(ppP(-o.desc / 12)))),
+        fila("= Cuota a facturar", null, M.ops.map(o => td(ppP(o.mes))), fuerte))))));
 }
 var ppSig = v => v == null || !isFinite(v) ? "—" : (v > 0.0005 ? "+" : "") + ppPct(v);
 var ppFmt = (v, f) => typeof v === "string" ? v : v == null || (typeof v === "number" && !isFinite(v)) ? "—" : f === "pct" ? ppSig(v) : f === "n" ? Math.round(v).toLocaleString("es-CO") : f === "txt" ? v : pe(v);
