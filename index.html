@@ -1156,6 +1156,8 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
         fila("Lo que falta lo pagan los propietarios", null, M.ops.map(o => td(mill(o.G / 12 + o.fondo / 12 - (o.man27 + M.O - M.ET) / 12)))),
         fila("Cuota a facturar", `Es un poco más porque quien paga en los primeros 15 días tiene ${ppPct(M.descTasa, 0)} de descuento (se estima que paga a tiempo el ${ppPct(M.descUso, 1)}). Hoy se facturan ${mill(M.cuotaMes26)} al mes.`, M.ops.map(o => td(mill(o.mes))), fuerte),
         fila("La cuota sube", null, M.ops.map(o => td(ppSig(o.inc), { fontSize: 20, fontWeight: 800 })), fuerte),
+        fila("La manilla sube", null, M.ops.map(o => td(ppSig(o.pm), { fontSize: 20, fontWeight: 800 })), fuerte),
+        fila("Precio de la manilla", M.precio26 ? `Hoy vale ${ppP(M.precio26)} (IVA incluido)` : null, M.ops.map(o => td(o.precio27 ? ppP(o.precio27) : "—", { fontWeight: 700 })), fuerte),
         grupo(`3. Ejemplo: apartamento con coeficiente ${String(c).replace(".", ",")} %`),
         fila("Cuota al mes", `Hoy paga ${ppP(a26)}`, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1))))),
         fila("Paga de más al mes", null, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1) - a26))))))),
