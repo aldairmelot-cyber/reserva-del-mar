@@ -1058,21 +1058,23 @@ function ppCalc(base, cfgIn) {
    El fondo de imprevistos no es una línea de ingreso ni de gasto: es el EXCEDENTE (ingresos − gastos) que se traslada al patrimonio. */
 function ppPyg(M, base) {
   let it = c => base.items.find(x => x.c === c) ?? { p26: 0 }, cu = it(PP_CUOTAS).p26, de = it(PP_DESC).p26, fo = it(PP_FONDO).p26, ma = it(PP_MAN).p26, ot = M.otros.reduce((a, x) => a + x.p26, 0);
-  let ing26 = cu + fo + de + ma + ot, col = (a26, f) => [a26, ...M.ops.map(f)], cero = v => Math.abs(v) < 5e3 ? 0 : v;
+  let ing26 = cu + fo + de + ma + ot, col = (a26, f) => [a26, ...M.ops.map(f)], cero = v => Math.abs(v) < 5e3 ? 0 : v, tras = M.ET > 0;
+  // si la Asamblea lleva la explotación de zonas comunes al fondo, esos ingresos salen del presupuesto ordinario
+  let ingOrd = o => o.ing - M.ET;
   return [
-    { t: "INGRESOS", h: 1 },
+    { t: tras ? "INGRESOS ORDINARIOS" : "INGRESOS", h: 1 },
     { t: "Cuotas de administración", v: col(cu + fo, o => o.cuotas + o.fondo) },
     { t: "Menos: descuento por pronto pago", v: col(de, o => o.desc) },
     { t: "Manillas de acceso (sin IVA)", v: col(ma, o => o.man27) },
-    { t: "Otros ingresos (concesiones, intereses, sanciones, reintegros)", v: col(ot, o => M.O) },
-    { t: "Total ingresos", v: col(ing26, o => o.ing), s: 1 },
+    { t: tras ? "Otros ingresos (sin la explotación de zonas comunes)" : "Otros ingresos (concesiones, intereses, sanciones, reintegros)", v: col(ot, o => M.O - M.ET) },
+    { t: tras ? "Total ingresos ordinarios" : "Total ingresos", v: col(ing26, o => ingOrd(o)), s: 1 },
     { t: "GASTOS", h: 1 },
     ...M.grupos.map(g => ({ t: ppxCap(g.n), v: col(g.p26, o => g.v27o?.[o.i] ?? g.v27) })),
     { t: "Total gastos", v: col(M.G26, o => o.G), s: 1 },
-    { t: "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(ing26 - M.G26, o => o.ing - o.G), r: 1 },
-    ...(M.ET > 0 ? [
-      { t: `De este: ${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos`, sub: 1, v: col(fo, o => o.fondo) },
-      { t: "De este: ingresos por explotación de zonas comunes trasladados al fondo", sub: 1, v: col(null, o => M.ET) }] : []),
+    { t: tras ? "EXCEDENTE ORDINARIO = FONDO DE IMPREVISTOS (" + String(M.cfg.fondoPct).replace(".", ",") + " % DE LOS GASTOS)" : "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(ing26 - M.G26, o => ingOrd(o) - o.G), r: 1 },
+    ...(tras ? [
+      { t: "Más: ingresos por explotación de zonas comunes", nota: "Por decisión de la Asamblea van directo al fondo de imprevistos; no financian gastos", v: col(null, o => M.ET) },
+      { t: "TOTAL AL FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(fo, o => ingOrd(o) - o.G + M.ET), r: 1 }] : []),
     { t: "Resultado después del traslado al fondo", v: col(cero(ing26 - M.G26 - fo), o => cero(o.ing - o.G - o.fondoT)) }];
 }
 /* proposición para la Asamblea: ingresos por explotación de zonas comunes a gastos comunes (sin traslado) o al fondo (con traslado) */
@@ -1113,10 +1115,11 @@ function ppResumen(M, base) {
     { t: "INGRESOS Y GASTOS DEL MES", h: 1 },
     { t: "Cuotas de administración, menos el descuento por pronto pago", v: col((cu + fo + de) / 12, o => (o.cuotas + o.fondo + o.desc) / 12) },
     { t: "Manillas de acceso (sin IVA)", v: col(ma / 12, o => o.man27 / 12) },
-    { t: "Otros ingresos", v: col(ot / 12, o => M.O / 12) },
-    { t: "Total ingresos del mes", v: col((cu + fo + de + ma + ot) / 12, o => o.ing / 12), s: 1 },
+    { t: M.ET > 0 ? "Otros ingresos (sin la explotación de zonas comunes)" : "Otros ingresos", v: col(ot / 12, o => (M.O - M.ET) / 12) },
+    { t: "Total ingresos del mes", v: col((cu + fo + de + ma + ot) / 12, o => (o.ing - M.ET) / 12), s: 1 },
     { t: "Gastos de funcionamiento del mes", v: col(M.G26 / 12, o => o.G / 12), s: 1 },
-    { t: "Excedente del mes = fondo de imprevistos", nota: "Se traslada al patrimonio", v: col(res26, o => (o.ing - o.G) / 12), r: 1 },
+    { t: "Excedente del mes = fondo de imprevistos", nota: "Se traslada al patrimonio", v: col(res26, o => (o.ing - M.ET - o.G) / 12), r: 1 },
+    ...(M.ET > 0 ? [{ t: "Más: explotación de zonas comunes que va al fondo", v: col(null, o => M.ET / 12) }, { t: "Total al fondo de imprevistos al mes", v: col(res26, o => o.fondoT / 12), r: 1 }] : []),
     { t: "MANILLA DE ACCESO", h: 1 },
     { t: "Precio de la manilla (IVA incluido)", v: col(M.precio26 || null, o => o.precio27 || null) },
     M.unid26 ? { t: "Manillas a vender al mes (promedio)", v: col(M.unid26 / 12, o => o.unid27 ? o.unid27 / 12 : null), f: "n" } : null,
