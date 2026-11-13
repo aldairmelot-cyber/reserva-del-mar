@@ -1489,6 +1489,100 @@ function ppDoc(M, base, config) {
       { tipo: "tabla", cabecera: !0, columnas: [col("UNIDAD", 26, "left"), col("COEF. %", 12), col("CUOTA 2026", 18), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, 18)), col("VARIACIÓN", 8)], filas: ppFilasUnidad(M, uni) }] }];
   return { continuo: !0, entidad: C.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: C.nit ? "NIT. " + C.nit : "", logo: C.logo || void 0, firmantes: C.firmantes, secciones: secc, leyendas: [] };
 }
+/* ===================== EJECUCIÓN DEL PRESUPUESTO 2026: informe para la Asamblea ===================== */
+/* Compara lo ejecutado de enero al último mes cargado con el presupuesto de esos mismos meses (anual ÷ 12 × meses)
+   y proyecta el cierre a diciembre (lo ejecutado llevado a 12 meses; las manillas con la proyección del presupuesto 2027). */
+function ejNom(n) { return ppxCap(String(n || "").replace(/^ITEM\s*-?\s*\d*\s*-\s*/i, "").replace(/\s+/g, " ").trim()); }
+function ejDoc(M, base, config) {
+  let C = config ?? {}, nM = base.nMes || 10, uM = base.ultMes || nM, ult = Be[uM - 1].toLowerCase(), fr = nM / 12;
+  let dia = new Date(Date.UTC(2026, uM, 0)).getUTCDate(), corte = `Del 1 de enero al ${dia} de ${ult} de 2026`, per = `enero a ${ult}`;
+  let s = t => [corte, t].filter(Boolean), col = (t, a, al = "right") => ({ titulo: t, ancho: a, alin: al });
+  let PER = `ENERO A ${ult.toUpperCase()}`;
+  let L = base.items.filter(x => /^[45]/.test(x.c) && (x.p26 || x.e26)).map(x => ({ ...x, nom: ejNom(x.n), pp: Math.round(x.p26 * fr), pr: x.c === PP_MAN ? Math.round(M.man.proy) : Math.round(x.e26 / nM * 12) }));
+  let T = arr => ["p26", "pp", "e26", "pr"].reduce((o, k) => (o[k] = arr.reduce((a, x) => a + (x[k] || 0), 0), o), {});
+  let ING = L.filter(x => x.c[0] === "4"), GAS = L.filter(x => x.c[0] === "5"), by = (...c) => L.filter(x => c.includes(x.c));
+  let cuo = T(by(PP_CUOTAS, PP_FONDO)), des = T(by(PP_DESC)), man = T(by(PP_MAN)), otr = T(ING.filter(x => ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c))), FO = T(by(PP_FONDO)), TI = T(ING), TG = T(GAS);
+  let resO = k => TI[k] - TG[k], RES = { p26: resO("p26"), pp: resO("pp"), e26: resO("e26"), pr: resO("pr") };
+  let pc = (e, p) => p ? e / Math.abs(p) : null, pcT = v => v == null ? "—" : ppPct(v, 1), $ = ppP;
+  let grupoN = g => ejNom(base.grupos?.[g] ?? g);
+  /* fila con 6 cifras: ppto año, ppto del periodo, ejecutado, %, diferencia, proyección */
+  let fila6 = (t, o, est = "detalle", b = est !== "detalle") => ({ estilo: est, indent: est === "detalle", celdas: [or(t, { bold: b }), er(o.p26, { bold: b }), er(o.pp, { bold: b }), er(o.e26, { bold: b }), or(pcT(pc(o.e26, o.pp)), { bold: b }), er(o.e26 - o.pp, { bold: b }), er(o.pr, { bold: b })] });
+  let gr = t => ({ estilo: "grupo", celdas: [or(t, { bold: !0 }), ...pl(6)] });
+  let cols6 = (pri, w) => [col(pri, w, "left"), ...[["PPTO\nAÑO", 12], [`PPTO\n${PER}`, 12], [`EJECUTADO\n${PER}`, 12], ["%\nEJEC.", 7], ["DIFERENCIA\n(EJEC. − PPTO.)", 12], ["PROYECCIÓN\nA DICIEMBRE", 12]].map(([a, b]) => col(a, b * (100 - w) / 67))];
+  let gruposG = [...new Set(GAS.map(x => x.c.slice(0, 4)))].sort();
+
+  /* ---------- 1. resumen ---------- */
+  let fRes = [gr("INGRESOS"),
+    fila6("Cuotas de administración (incluye la cuota del fondo de imprevistos)", cuo), fila6("Menos: descuento por pronto pago", des),
+    fila6("Manillas de acceso (sin IVA)", man), fila6("Otros ingresos (concesiones, intereses, sanciones, reintegros)", otr),
+    fila6("Total ingresos", TI, "subtotal"), gr("GASTOS"),
+    ...gruposG.map(g => fila6(grupoN(g), T(GAS.filter(x => x.c.startsWith(g))))),
+    fila6("Total gastos", TG, "subtotal"), gr("RESULTADO"),
+    fila6("Excedente (ingresos − gastos)", RES, "subtotal"),
+    fila6("Menos: fondo de imprevistos (se traslada al patrimonio)", FO),
+    fila6("Resultado después del fondo de imprevistos", { p26: RES.p26 - FO.p26, pp: RES.pp - FO.pp, e26: RES.e26 - FO.e26, pr: RES.pr - FO.pr }, "totalDoble")];
+  let dif = (o, mas, menos) => { let d = o.e26 - o.pp; return Math.abs(d) < 1 ? "igual a lo presupuestado" : `${d > 0 ? mas : menos} ${$(Math.abs(d))}`; };
+  let desvG = GAS.map(x => ({ ...x, d: x.e26 - x.pp })), sobre = desvG.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3), ahorro = desvG.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 3);
+  let lst = a => a.map(x => `${x.nom} (${x.d > 0 ? "+" : "−"}${$(Math.abs(x.d))})`).join("; ");
+  let clave = [
+    `Ingresos: de ${per} entraron ${$(TI.e26)}, el ${pcT(pc(TI.e26, TI.pp))} de lo presupuestado para esos meses (${$(TI.pp)}); ${dif(TI, "entraron", "faltaron")}.`,
+    `Cuotas de administración: se facturaron ${$(cuo.e26)} frente a ${$(cuo.pp)} presupuestados (${pcT(pc(cuo.e26, cuo.pp))}). El descuento por pronto pago fue de ${$(Math.abs(des.e26))}.`,
+    `Manillas de acceso: dejaron ${$(man.e26)} frente a ${$(man.pp)} presupuestados (${pcT(pc(man.e26, man.pp))}); ${dif(man, "entraron", "faltaron")}. Al cierre se proyectan ${$(man.pr)} frente a ${$(man.p26)} del presupuesto del año.`,
+    `Otros ingresos: ${$(otr.e26)} frente a ${$(otr.pp)} presupuestados (${pcT(pc(otr.e26, otr.pp))}); ${dif(otr, "entraron", "faltaron")}.`,
+    `Gastos: se ejecutaron ${$(TG.e26)}, el ${pcT(pc(TG.e26, TG.pp))} de lo presupuestado para esos meses (${$(TG.pp)}); ${TG.e26 <= TG.pp ? "se gastaron " + $(TG.pp - TG.e26) + " menos" : "se gastaron " + $(TG.e26 - TG.pp) + " más"}.`,
+    sobre.length ? `Rubros que más se pasaron del presupuesto: ${lst(sobre)}.` : null,
+    ahorro.length ? `Rubros con mayor ahorro: ${lst(ahorro)}.` : null,
+    `Resultado: a ${ult} el excedente es ${$(RES.e26)} (el presupuesto esperaba ${$(RES.pp)} para esos meses). Si el año sigue igual, cerraría con ${$(RES.pr)}; de ahí ${$(FO.pr)} corresponden al fondo de imprevistos.`].filter(Boolean);
+  let secRes = { id: "ej_res", nombre: "Resumen", titulo: "EJECUCIÓN DEL PRESUPUESTO 2026 · RESUMEN", subtitulos: s("Lo presupuestado frente a lo ejecutado, y la proyección al cierre del año"), orientacion: "landscape", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: `Este informe muestra cómo se ejecutó el presupuesto aprobado por la Asamblea para 2026. El año aún no ha cerrado, por eso lo ejecutado de ${per} (${nM} meses) se compara con el presupuesto de esos mismos meses: el presupuesto del año dividido entre doce y multiplicado por ${nM}. La última columna proyecta cómo cerraría el año si los meses que faltan se comportan igual (las manillas se proyectan con la temporada de 2025). Las cifras salen de la contabilidad (World Office).` },
+    { tipo: "tabla", cabecera: !0, columnas: cols6("CONCEPTO", 31), filas: fRes },
+    { tipo: "parrafo", estilo: "h3", texto: "Lo más importante" },
+    ...clave.map((t, i) => ({ tipo: "parrafo", estilo: "enumerado", numero: String(i + 1), texto: t })),
+    { tipo: "parrafo", estilo: "normal", texto: "Cómo leer las tablas: el % de ejecución compara lo ejecutado con lo presupuestado para el mismo periodo. En ingresos, una diferencia positiva es bueno (entró más); en gastos, una diferencia positiva significa que se gastó más de lo presupuestado. El fondo de imprevistos no es un gasto: es el excedente que se reserva y se traslada al patrimonio." }] };
+
+  /* ---------- 2. ingresos por rubro ---------- */
+  let fIng = [];
+  for (const g of [...new Set(ING.map(x => x.c.slice(0, 4)))].sort()) {
+    let H = ING.filter(x => x.c.startsWith(g)); fIng.push(gr(grupoN(g)));
+    H.forEach(x => fIng.push(fila6(x.nom, x))); if (H.length > 1) fIng.push(fila6("Total " + grupoN(g).toLowerCase(), T(H), "subtotal"));
+  }
+  fIng.push(fila6("TOTAL INGRESOS", TI, "totalDoble"));
+  let secIng = { id: "ej_ing", nombre: "Ingresos", titulo: "EJECUCIÓN 2026 · INGRESOS POR RUBRO", subtitulos: s("Lo que se presupuestó recibir y lo que realmente entró"), orientacion: "landscape", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: `Las cuotas de administración y las manillas de acceso son la mayor parte de los ingresos. Las manillas dependen de la temporada turística, por eso su proyección al cierre usa lo vendido en noviembre y diciembre de 2025 ajustado por la tendencia de 2026. En ingresos, el % mayor a 100 indica que entró más de lo presupuestado.` },
+    { tipo: "tabla", cabecera: !0, columnas: cols6("RUBRO", 31), filas: fIng }] };
+
+  /* ---------- 3. gastos por rubro ---------- */
+  let fGas = [];
+  for (const g of gruposG) {
+    let H = GAS.filter(x => x.c.startsWith(g)); fGas.push(gr(grupoN(g)));
+    H.forEach(x => fGas.push(fila6(x.nom + (x.p26 ? "" : " (no presupuestado)"), x))); fGas.push(fila6("Total " + grupoN(g).toLowerCase(), T(H), "subtotal"));
+  }
+  fGas.push(fila6("TOTAL GASTOS", TG, "totalDoble"));
+  let secGas = { id: "ej_gas", nombre: "Gastos", titulo: "EJECUCIÓN 2026 · GASTOS POR RUBRO", subtitulos: s("Lo que se presupuestó gastar y lo que realmente se gastó"), orientacion: "landscape", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: `Cada rubro muestra su presupuesto del año, lo que le correspondía de ${per}, lo ejecutado y la diferencia. En gastos, un % mayor a 100 indica que se gastó más de lo presupuestado; los rubros sin presupuesto aparecen marcados como no presupuestados.` },
+    { tipo: "tabla", cabecera: !0, columnas: cols6("RUBRO", 31), filas: fGas }] };
+
+  /* ---------- 4. mes a mes ---------- */
+  let fMes = [], acE = 0, acP = 0, mPI = TI.p26 / 12, mPG = TG.p26 / 12;
+  for (let m = 0; m < uM; m++) {
+    let eI = ING.reduce((a, x) => a + (x.em?.[m] || 0), 0), eG = GAS.reduce((a, x) => a + (x.em?.[m] || 0), 0); acE += eI - eG; acP += mPI - mPG;
+    fMes.push({ estilo: "detalle", celdas: [or(Be[m]), er(mPI), er(eI), or(pcT(pc(eI, mPI))), er(mPG), er(eG), or(pcT(pc(eG, mPG))), er(eI - eG), er(acE)] });
+  }
+  fMes.push({ estilo: "totalDoble", celdas: [or("ACUMULADO", { bold: !0 }), er(TI.pp, { bold: !0 }), er(TI.e26, { bold: !0 }), or(pcT(pc(TI.e26, TI.pp)), { bold: !0 }), er(TG.pp, { bold: !0 }), er(TG.e26, { bold: !0 }), or(pcT(pc(TG.e26, TG.pp)), { bold: !0 }), er(RES.e26, { bold: !0 }), er(acE, { bold: !0 })] });
+  let mesesNeg = fMes.slice(0, -1).filter(f => f.celdas[7].v < 0).map(f => f.celdas[0].t.toLowerCase());
+  let secMes = { id: "ej_mes", nombre: "Mes a mes", titulo: "EJECUCIÓN 2026 · MES A MES", subtitulos: s("Ingresos y gastos de cada mes frente al presupuesto mensual"), orientacion: "landscape", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: `El presupuesto mensual es el presupuesto del año dividido entre doce: ingresos de ${$(mPI)} y gastos de ${$(mPG)} cada mes. Los ingresos varían por la temporada (las manillas suben en vacaciones). ${mesesNeg.length ? `Los gastos superaron los ingresos en ${mesesNeg.join(", ")}.` : "Todos los meses los ingresos cubrieron los gastos."} El resultado acumulado a ${ult} es ${$(acE)}.` },
+    { tipo: "tabla", cabecera: !0, columnas: [col("MES", 12, "left"), col("INGRESOS\nPRESUPUESTO", 11.5), col("INGRESOS\nEJECUTADO", 11.5), col("%\nEJEC.", 7), col("GASTOS\nPRESUPUESTO", 11.5), col("GASTOS\nEJECUTADO", 11.5), col("%\nEJEC.", 7), col("RESULTADO\nDEL MES", 13.5), col("RESULTADO\nACUMULADO", 14.5)], filas: fMes }] };
+
+  /* ---------- 5. desviaciones a explicar ---------- */
+  let desv = L.filter(x => ![PP_FONDO].includes(x.c)).map(x => ({ ...x, d: x.e26 - x.pp })).filter(x => Math.abs(x.d) >= Math.max(5e6, Math.abs(x.pp) * .1)).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 30);
+  let efecto = x => x.c[0] === "4" ? (x.c === PP_DESC ? (x.d < 0 ? "Más descuento" : "Menos descuento") : x.d > 0 ? "Más ingreso" : "Menos ingreso") : !x.p26 ? "No presupuestado" : x.d > 0 ? "Mayor gasto" : "Menor gasto";
+  let secDesv = { id: "ej_desv", nombre: "Diferencias principales", titulo: "EJECUCIÓN 2026 · DIFERENCIAS PRINCIPALES", subtitulos: s("Rubros con diferencia de más del 10 % y más de $ 5.000.000"), orientacion: "portrait", bloques: [
+    { tipo: "parrafo", estilo: "normal", texto: "Estos son los rubros que más se apartaron del presupuesto, ordenados de mayor a menor diferencia. Son los que la administración explica en la Asamblea." },
+    { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 34, "left"), col(`PPTO\n${PER}`, 14), col(`EJECUTADO\n${PER}`, 14), col("DIFERENCIA", 14), col("%\nEJEC.", 8), col("EFECTO", 16, "center")], filas: desv.map(x => ({ estilo: "detalle", celdas: [or(x.nom + (x.c[0] === "4" ? " (ingreso)" : "")), er(x.pp), er(x.e26), er(x.d), or(pcT(pc(x.e26, x.pp))), or(efecto(x))] })) }] };
+
+  return { continuo: !0, entidad: C.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: C.nit ? "NIT. " + C.nit : "", logo: C.logo || void 0, firmantes: C.firmantes, secciones: [secRes, secIng, secGas, secMes, secDesv], leyendas: ["Entidad sometida al régimen de propiedad horizontal – Ley 675 de 2001", "Cifras expresadas en pesos colombianos (COP$)"] };
+}
 function PpPantalla({ ses, config, notificar, soloLectura }) {
   let [pres, setPres] = Ve.useState(!1), [vistaU, setVistaU] = Ve.useState("uni"), [qU, setQU] = Ve.useState(""), [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null), [tab, setTab] = Ve.useState("gas"), [prog, setProg] = Ve.useState(""), [edit, setEdit] = Ve.useState(!1), [abG, setAbG] = Ve.useState(() => new Set()), refV = Ve.useRef(null), tGuard = Ve.useRef(null), [rowEd, setRowEd] = Ve.useState(null), [fCrit, setFCrit] = Ve.useState(null);
   Ve.useEffect(() => { Promise.all([ses.store.get(PP_BASE).catch(() => null), ses.store.get(PP_DOC).catch(() => null)]).then(([b, c]) => { setBase(b ? JSON.parse(b.j) : !1); setCfg(c ? { ...PP_DEF, ...JSON.parse(c.j) } : { ...PP_DEF }); }); }, [ses]);
@@ -1497,6 +1591,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let preparar = async () => { try { setProg("Preparando…"); let b = await ppPrepararBase(ses, setProg); setBase(b); notificar("ok", "Datos base actualizados."); } catch (e) { notificar("error", e?.message ?? String(e)); } setProg(""); };
   let subirVentas = async files => { let v = { ...(cfg.ventas ?? {}) }; for (const f of Array.from(files)) { let r = ppVentasLeer(await is(new Uint8Array(await f.arrayBuffer()))); if (r) v[r.anio] = r; else notificar("error", f.name + ": no parece un informe de Ventas por producto de World Office."); } guardar({ ...cfg, ventas: v }); };
   let M = Ve.useMemo(() => base && cfg ? ppCalc(base, cfg) : null, [base, cfg]);
+  let bajarEj = async tipo => { try { let d = ejDoc(M, base, config); if (tipo === "pdf") await BL(ses, "Ejecucion_presupuesto_2026.pdf", await en(d), notificar); else await BL(ses, "Ejecucion_presupuesto_2026.xlsx", await Yn(d), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } };
   let bajar = async tipo => { try { let d = ppDoc(M, base, config); if (tipo === "pdf") await BL(ses, "Presupuesto_2027_propuesta.pdf", await en(d), notificar); else { await BL(ses, "Presupuesto_2027_propuesta.xlsx", await Yn(d), notificar); } } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } };
   if (base === null || !cfg) return ppH("p", { className: "tenue" }, "Cargando…");
   let h = ppH, num = (v, on, w = 90, st = 0.01) => h("input", { type: "number", step: st, className: "num a-right", style: { width: w }, value: v ?? "", disabled: soloLectura, onChange: e => on(e.target.value === "" ? null : +e.target.value) });
@@ -1508,7 +1603,9 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
     base && h("span", { className: "tenue" }, `Datos de ${new Date(base.creadoEn).toLocaleDateString("es-CO")} · ejecución a ${ultMes} 2026 · ${base.uni?.length ?? 0} unidades`),
     M && h("button", { type: "button", className: "btn btn-primario", onClick: () => setPres(!0), title: "Pantalla completa por diapositivas, con los supuestos ajustables en vivo" }, "▶ Presentar"),
     M && h("button", { type: "button", className: "btn", onClick: () => bajar("pdf") }, "PDF para la Asamblea"),
-    M && h("button", { type: "button", className: "btn", onClick: () => bajar("xlsx") }, "Excel"));
+    M && h("button", { type: "button", className: "btn", onClick: () => bajar("xlsx") }, "Excel"),
+    M && h("button", { type: "button", className: "btn", onClick: () => bajarEj("pdf"), title: "Informe para la Asamblea: cómo se ejecutó el presupuesto 2026" }, "PDF ejecución 2026"),
+    M && h("button", { type: "button", className: "btn", onClick: () => bajarEj("xlsx") }, "Excel ejecución 2026"));
   if (!base) return h("div", { className: "pantalla" }, enc, h("section", { className: "panel" }, h("p", null, "Primero prepare los datos base: la app lee el presupuesto 2026, su ejecución, el libro auxiliar de 2025 y los coeficientes de las unidades."), barra));
   let tabs = h("div", { className: "seg", role: "tablist", style: { margin: "12px 0" } }, PP_PASOS.map(([v, t]) => h("button", { key: v, type: "button", "aria-pressed": tab === v, onClick: () => setTab(v) }, t)));
   let alerta = M.man.p26 && M.man.proy < M.man.p26 * .97 ? h("div", { className: "aviso aviso-adv" }, h("p", { style: { margin: 0 } }, h("b", null, "Manillas: "), `en 2026 se presupuestaron ${ppP(M.man.p26)} (${ppP(M.man.p26 / 12)} al mes) y la proyección del año da ${ppP(M.man.proy)} (${ppP(M.man.proy / 12)} al mes, ${ppPct(M.man.proy / M.man.p26 - 1)}). El 2027 parte de la proyección para no repetir el faltante.`)) : null;
