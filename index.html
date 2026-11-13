@@ -1144,6 +1144,16 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
   return h("section", { className: "panel" },
     h("h2", null, "Las tres opciones para el Consejo"),
     h("p", { className: "sub" }, "La idea es simple: los gastos se pagan con las manillas y los otros ingresos; lo que falta lo pagan los propietarios con la cuota. Escriba cuánto sube cada cosa en cada opción y todo se recalcula solo."),
+    (() => { let on = M.ET > 0, setT = v => guardar({ ...cfg, trasladoExp: v });
+      let bt = (activo, txt, v) => h("button", { type: "button", disabled: soloLectura, onClick: () => setT(v), style: { padding: "8px 14px", borderRadius: 10, cursor: soloLectura ? "default" : "pointer", fontWeight: 700, border: activo ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: activo ? "var(--acento, #1f6f78)" : "var(--hoja, #fff)", color: activo ? "#fff" : "inherit" } }, txt);
+      return h("div", { style: { border: "1px solid var(--linea, #ddd)", borderRadius: 12, padding: "12px 14px", margin: "10px 0 14px", background: on ? "var(--aviso-suave, #fff8e6)" : "var(--hoja, #fff)" } },
+        h("div", { style: { fontWeight: 700, marginBottom: 6 } }, `Ingresos por explotación de zonas comunes: ${ppP(M.EX / 12)} al mes (${ppP(M.EX)} en el año)`),
+        h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+          bt(!on, "Siguen pagando gastos comunes", 0), bt(on, "La Asamblea los lleva al fondo de imprevistos", 100)),
+        h("p", { className: "tenue", style: { margin: "8px 0 0", fontSize: 13 } }, on
+          ? `Esos recursos ya no hacen parte del presupuesto ordinario: dejan de cubrir gastos, la cuota sube para cubrirlos y el fondo de imprevistos recibe ${ppP(M.ET / 12)} más al mes. Todo el presupuesto ya está ajustado así.`
+          : "Hoy se usan para pagar gastos comunes, como en 2026. Si la Asamblea decide llevarlos al fondo, oprima el otro botón y todo el presupuesto se ajusta solo (Ley 675, arts. 19 par. 2 y 35)."));
+    })(),
     h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos pp-t" },
       h("thead", null, h("tr", null, h("th", null, ""), ...M.ops.map(o => th(o.nombre)))),
       h("tbody", null,
@@ -1154,9 +1164,10 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
         propios.length ? h("tr", null, h("td", { colSpan: 1 + M.ops.length, className: "tenue", style: { fontSize: 13 } }, `Estos porcentajes no tocan ${propios.length} rubros que tienen su propio cálculo (propuesta del proveedor, dos incrementos, valor fijo o sin incremento): ${propios.slice(0, 6).map(x => ppxCap(x.n).replace(/^Item [\d,.]+ - /i, "")).join(", ")}${propios.length > 6 ? "…" : ""}. Se ajustan en la pestaña Gastos.`)) : null,
         grupo("2. Lo que resulta cada mes"),
         fila("Gastos del mes", "Igual al total de la pestaña Gastos, al mes", M.ops.map(o => td(mill(o.G / 12)))),
-        fila("Más: fondo de imprevistos", `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos. No es un gasto: se ahorra para imprevistos y queda como excedente`, M.ops.map(o => td(mill(o.fondo / 12)))),
-        fila("Menos: lo pagan los turistas y otros ingresos", "Manillas, concesiones y demás", M.ops.map(o => td("(" + mill((o.man27 + M.O - M.ET) / 12) + ")"))),
-        fila("Lo que falta lo pagan los propietarios", null, M.ops.map(o => td(mill(o.G / 12 + o.fondo / 12 - (o.man27 + M.O - M.ET) / 12)))),
+        fila("Más: fondo de imprevistos", `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos${M.ET > 0 ? " más la explotación de zonas comunes" : ""}. No es un gasto: se ahorra para imprevistos y queda como excedente`, M.ops.map(o => td(mill(o.fondoT / 12)))),
+        fila("Menos: lo pagan los turistas y otros ingresos", M.ET > 0 ? "Manillas, concesiones y demás (incluye la explotación, que se va al fondo)" : "Manillas, concesiones y demás", M.ops.map(o => td("(" + mill((o.man27 + M.O) / 12) + ")"))),
+
+        fila("Lo que falta lo pagan los propietarios", null, M.ops.map(o => td(mill(o.G / 12 + o.fondoT / 12 - (o.man27 + M.O) / 12)))),
         fila("Cuota a facturar", `Es un poco más porque quien paga en los primeros 15 días tiene ${ppPct(M.descTasa, 0)} de descuento (se estima que paga a tiempo el ${ppPct(M.descUso, 1)}). Hoy se facturan ${mill(M.cuotaMes26)} al mes.`, M.ops.map(o => td(mill(o.mes))), fuerte),
         fila("La cuota sube", null, M.ops.map(o => td(ppSig(o.inc), { fontSize: 20, fontWeight: 800 })), fuerte),
         fila("La manilla sube", null, M.ops.map(o => td(ppSig(o.pm), { fontSize: 20, fontWeight: 800 })), fuerte),
