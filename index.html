@@ -1473,7 +1473,7 @@ function ppDoc(M, base, config) {
   return { continuo: !0, entidad: C.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: C.nit ? "NIT. " + C.nit : "", logo: C.logo || void 0, firmantes: C.firmantes, secciones: secc, leyendas: [] };
 }
 function PpPantalla({ ses, config, notificar, soloLectura }) {
-  let [pres, setPres] = Ve.useState(!1), [vistaU, setVistaU] = Ve.useState("uni"), [qU, setQU] = Ve.useState(""), [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null), [tab, setTab] = Ve.useState("res"), [prog, setProg] = Ve.useState(""), [edit, setEdit] = Ve.useState(!1), [abG, setAbG] = Ve.useState(() => new Set()), refV = Ve.useRef(null), tGuard = Ve.useRef(null);
+  let [pres, setPres] = Ve.useState(!1), [vistaU, setVistaU] = Ve.useState("uni"), [qU, setQU] = Ve.useState(""), [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null), [tab, setTab] = Ve.useState("res"), [prog, setProg] = Ve.useState(""), [edit, setEdit] = Ve.useState(!1), [abG, setAbG] = Ve.useState(() => new Set()), refV = Ve.useRef(null), tGuard = Ve.useRef(null), [rowEd, setRowEd] = Ve.useState(null), [fCrit, setFCrit] = Ve.useState(null);
   Ve.useEffect(() => { Promise.all([ses.store.get(PP_BASE).catch(() => null), ses.store.get(PP_DOC).catch(() => null)]).then(([b, c]) => { setBase(b ? JSON.parse(b.j) : !1); setCfg(c ? { ...PP_DEF, ...JSON.parse(c.j) } : { ...PP_DEF }); }); }, [ses]);
   let guardar = n => { setCfg(n); if (soloLectura) return; clearTimeout(tGuard.current); tGuard.current = setTimeout(() => ses.store.set(PP_DOC, { j: JSON.stringify(n) }).catch(e => notificar("error", "No se pudo guardar: " + (e?.message ?? e))), 600); };
   let setF = (cod, k, v) => { let f = { ...(cfg.filas[cod] ?? {}), [k]: v }; guardar({ ...cfg, filas: { ...cfg.filas, [cod]: f } }); };
@@ -1529,10 +1529,12 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
     let c = [mb("r25", x.r25), mb("p26", x.p26), mb("e26", x.e26p, x.p26 && x.e26p > x.p26 * 1.1 ? { color: "var(--alerta, #b42318)" } : null), x.v27, x.v27 / 12, x.p26 ? ppSig(x.v27 / x.p26 - 1) : "nuevo"];
     let sop = h("span", { style: { whiteSpace: "nowrap" } }, x.soporte ? h("button", { type: "button", className: "btn btn-sm", title: x.soporte.archivo, onClick: () => verSoporte(x) }, "📎 Ver") : null,
       !soloLectura && h("label", { className: "btn btn-sm", style: { marginLeft: 4, cursor: "pointer" }, title: "Adjuntar la propuesta de incremento del proveedor (PDF)" }, x.soporte ? "Cambiar" : "📎 Adjuntar", h("input", { type: "file", accept: "application/pdf", style: { display: "none" }, onChange: e => { let fl = e.target.files?.[0]; e.target.value = ""; fl && subirSoporte(x, fl); } })));
-    if (!edit) return [...c, x.b === "val" ? "Valor fijo" : x.crit === "dos" ? `${PP_BASES[x.b]} + ${ppPct((+x.p || 0) / 100, 2)} en enero y ${ppPct((+x.p2 || 0) / 100, 2)} más desde julio` : x.crit === "otro" ? `${PP_BASES[x.b]} + ${ppPct(x.pct, 2)} (propuesta)` : `${PP_BASES[x.b]} + ${PP_CRIT[x.crit] ?? x.crit} ${ppPct(x.pct, 2)}`, sop];
-    return [...c,
-      h("span", null, h("select", { value: x.b, onChange: e => setF(x.c, "b", e.target.value) }, Object.entries(PP_BASES).map(([k, t]) => h("option", { key: k, value: k }, t))), x.b === "val" && num(x.v, v => setF(x.c, "v", v), 110, 1000)),
-      x.b !== "val" ? h("span", null, h("select", { value: x.crit, onChange: e => setF(x.c, "c", e.target.value) }, Object.entries(PP_CRIT).map(([k, t]) => h("option", { key: k, value: k }, t))), (x.crit === "otro" || x.crit === "dos") && h("span", null, x.crit === "dos" ? " enero " : " ", num(x.p, v => setF(x.c, "p", v), 70), " %"), x.crit === "dos" && h("span", null, " julio ", num(x.p2, v => setF(x.c, "p2", v), 70), " %")) : "", sop];
+    let ctlBase = h("span", null, h("select", { value: x.b, onChange: e => setF(x.c, "b", e.target.value) }, Object.entries(PP_BASES).map(([k, t]) => h("option", { key: k, value: k }, t))), x.b === "val" && num(x.v, v => setF(x.c, "v", v), 110, 1000));
+    let ctlCrit = x.b !== "val" ? h("span", null, h("select", { value: x.crit, onChange: e => setF(x.c, "c", e.target.value) }, Object.entries(PP_CRIT).map(([k, t]) => h("option", { key: k, value: k }, t))), (x.crit === "otro" || x.crit === "dos") && h("span", null, x.crit === "dos" ? " enero " : " ", num(x.p, v => setF(x.c, "p", v), 70), " %"), x.crit === "dos" && h("span", null, " julio ", num(x.p2, v => setF(x.c, "p2", v), 70), " %")) : "";
+    if (!edit && rowEd === x.c) return [...c, h("div", { style: { display: "grid", gap: 6, minWidth: 260 } }, h("div", null, h("span", { className: "tenue" }, "Base: "), ctlBase), h("div", null, h("span", { className: "tenue" }, "Sube con: "), ctlCrit), h("button", { type: "button", className: "btn btn-sm btn-primario", style: { justifySelf: "start" }, onClick: () => setRowEd(null) }, "Listo")), sop];
+    let cambiar = !soloLectura && h("button", { type: "button", className: "btn btn-sm", style: { marginLeft: 6 }, title: "Cambiar la base o el incremento de este rubro", onClick: () => setRowEd(x.c) }, "✎ Cambiar");
+    if (!edit) return [...c, h("span", null, x.b === "val" ? "Valor fijo" : x.crit === "dos" ? `${PP_BASES[x.b]} + ${ppPct((+x.p || 0) / 100, 2)} en enero y ${ppPct((+x.p2 || 0) / 100, 2)} más desde julio` : x.crit === "otro" ? `${PP_BASES[x.b]} + ${ppPct(x.pct, 2)} (propuesta)` : `${PP_BASES[x.b]} + ${PP_CRIT[x.crit] ?? x.crit} ${ppPct(x.pct, 2)}`, cambiar), sop];
+    return [...c, ctlBase, ctlCrit, sop];
   };
   let ccR = () => ["a-right", "a-right", "a-right", "a-right", "a-right pp-m", "a-right", "", "", ""];
   let encR = t => [[[t], ["Real 2025"], ["Ppto 2026"], ["Proyección 2026"], ["Ppto 2027"], ["2027 al mes", 1, "a-right pp-m"], ["Var."], ...(edit ? [["Base", 1, ""], ["Criterio", 1, ""]] : [["Cómo se calcula", 1, ""]]), ["Soporte", 1, ""]]];
@@ -1546,16 +1548,22 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   /* 3. gastos */
   let todosAb = M.grupos.every(g => abG.has(g.g));
   let filasG = [];
-  for (const g of M.grupos) {
+  let tipoC = x => x.b === "val" || ["otro", "dos", "sin"].includes(x.crit) ? "propio" : x.crit;
+  let cuentaC = k => M.gastos.filter(x => tipoC(x) === k);
+  if (fCrit) for (const x of M.gastos.filter(x => tipoC(x) === fCrit)) filasG.push(fRubro(x));
+  else for (const g of M.grupos) {
     let ab = abG.has(g.g);
     filasG.push({ t: (ab ? "▾ " : "▸ ") + `${g.g} · ${ppxCap(g.n)}`, s: ab, on: () => { let n = new Set(abG); ab ? n.delete(g.g) : n.add(g.g); setAbG(n); }, c: [g.r25, g.p26, g.e26p, g.v27, g.v27 / 12, g.p26 ? ppSig(g.v27 / g.p26 - 1) : "", ...blanco], cc: ccR() });
     if (ab) for (const x of g.filas) filasG.push(fRubro(x, 1));
   }
-  filasG.push({ t: "TOTAL GASTOS DE FUNCIONAMIENTO", r: 1, c: [M.G25, M.G26, M.G26p, M.G, M.G / 12, ppSig(M.G / M.G26 - 1), ...blanco], cc: ccR() });
+  if (fCrit) { let L = M.gastos.filter(x => tipoC(x) === fCrit), sm = k => L.reduce((a, x) => a + (x[k] || 0), 0); filasG.push({ t: "TOTAL DE ESTOS RUBROS", r: 1, c: [sm("r25"), sm("p26"), sm("e26p"), sm("v27"), sm("v27") / 12, sm("p26") ? ppSig(sm("v27") / sm("p26") - 1) : "", ...blanco], cc: ccR() }); }
+  else filasG.push({ t: "TOTAL GASTOS DE FUNCIONAMIENTO", r: 1, c: [M.G25, M.G26, M.G26p, M.G, M.G / 12, ppSig(M.G / M.G26 - 1), ...blanco], cc: ccR() });
   let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
     h("p", { className: "sub" }, `${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes. Toque un grupo para ver sus rubros. En cada rubro, la cifra subrayada es la base del 2027 y la última columna dice cómo se calcula (base + incremento). La proyección 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses; cuando cierre diciembre se puede cambiar por el real. En rojo, rubros que la proyección pasa en más de 10 % del presupuesto 2026. Para cambiar la base de un rubro use «Editar bases y criterios».`),
-    h("div", { className: "pp-barra" }, h("button", { type: "button", className: "btn btn-sm", onClick: () => setAbG(todosAb ? new Set() : new Set(M.grupos.map(g => g.g))) }, todosAb ? "Ver solo los grupos" : "Ver todos los rubros"), botonesEd),
-    ppTab(h, encR("Grupo / rubro"), filasG));
+    h("div", { className: "aviso aviso-info" }, h("p", { style: { margin: 0 } }, h("b", null, "¿Cómo sube cada rubro? "), "Toque un grupo para ver solo esos rubros. Para cambiar cómo sube un rubro (salario mínimo, IPC, % de la propuesta del proveedor, dos incrementos en enero y julio, valor fijo o sin incremento) use ", h("b", null, "✎ Cambiar"), " en la columna «Cómo se calcula». En «Soporte» se adjunta el PDF de la propuesta.")),
+    h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0" } }, [[null, "Todos los rubros", M.gastos], ["sml", "Suben con el salario mínimo", cuentaC("sml")], ["ipc", "Suben con el IPC", cuentaC("ipc")], ["propio", "Cálculo propio (propuesta, dos incrementos, fijo o sin incremento)", cuentaC("propio")]].map(([k, t, L]) => h("button", { key: String(k), type: "button", onClick: () => setFCrit(k), style: { textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: fCrit === k ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: fCrit === k ? "var(--acento-suave, #e8f3f4)" : "var(--hoja, #fff)" } }, h("div", { style: { fontWeight: 700 } }, t), h("div", { className: "tenue", style: { fontSize: 12 } }, `${L.length} rubros · ${ppP(L.reduce((a, x) => a + x.v27, 0) / 12)} al mes`)))),
+    h("div", { className: "pp-barra" }, !fCrit && h("button", { type: "button", className: "btn btn-sm", onClick: () => setAbG(todosAb ? new Set() : new Set(M.grupos.map(g => g.g))) }, todosAb ? "Ver solo los grupos" : "Ver todos los rubros"), botonesEd),
+    ppTab(h, encR(fCrit ? "Rubro" : "Grupo / rubro"), filasG));
 
   /* 4. ingresos */
   let manF = [
