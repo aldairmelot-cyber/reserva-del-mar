@@ -1453,7 +1453,7 @@ function ppDoc(M, base, config) {
   let pyg = ppPyg(M, base), wP = Math.floor(72 / (2 * (1 + nO)));
   let secPyg = { id: "pp_pyg", nombre: "Presupuesto 2027", titulo: "PRESUPUESTO 2027 · INGRESOS Y GASTOS", subtitulos: s("En el año y al mes · el excedente es el fondo de imprevistos, que se traslada al patrimonio"), orientacion: "landscape", bloques: [
     { tipo: "parrafo", estilo: "normal", texto: "Las cuotas de administración, las manillas y los otros ingresos cubren los gastos y dejan un excedente igual al fondo de imprevistos (un porcentaje de los gastos, mínimo 1 % por el art. 35 de la Ley 675). El fondo no es ingreso ni gasto: es el excedente del ejercicio, que se traslada al patrimonio. Los valores mensuales son el valor anual dividido entre doce." },
-    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wP * 2 * (1 + nO), "left"), ...["PPTO 2026", ...M.ops.map((o, i) => `OPCIÓN ${i + 1}`)].flatMap(t => [col(`${t} · AÑO`, wP), col(`${t} · MES`, wP)])], filas: pyg.map(f => fila(f, f.h ? Array(2 * (1 + nO)).fill(0) : f.v.flatMap(v => v == null ? ["", ""] : [v, v / 12]))) } ] };
+    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wP * 2 * (1 + nO), "left"), ...["PPTO 2026", ...M.ops.map((o, i) => `OPCIÓN ${i + 1}`)].flatMap(t => [col(`${t}\nAÑO`, wP), col(`${t}\nMES`, wP)])], filas: pyg.map(f => fila(f, f.h ? Array(2 * (1 + nO)).fill(0) : f.v.flatMap(v => v == null ? ["", ""] : [v, v / 12]))) } ] };
   let filasG = [];
   for (const g of M.grupos) {
     filasG.push({ estilo: "grupo", celdas: [or(`${g.g} ${g.n}`), ...Array(7).fill(or(""))] });
