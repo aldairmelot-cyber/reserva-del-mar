@@ -5638,7 +5638,7 @@ function cmDoc(c, entidad) {
     else if (tag === "p") {
       let cl = el.className || "";
       if (/^Santa Marta,/.test(txt)) continue;
-      if (cl.includes("firma")) { b.push({ tipo: "reservar", alto: 90 }, { tipo: "parrafo", estilo: "normal", texto: " " }, { tipo: "parrafo", estilo: "normal", texto: " " }); lineas(el).forEach(t => b.push({ tipo: "parrafo", estilo: "normal", texto: t })); }
+      if (cl.includes("firma")) { let cie = b.length && /^(Cordialmente|Atentamente)[,.]?$/i.test(b[b.length - 1].texto || "") ? b.pop() : null; b.push({ tipo: "reservar", alto: cie ? 110 : 90 }); cie && b.push(cie); b.push( { tipo: "parrafo", estilo: "normal", texto: " " }, { tipo: "parrafo", estilo: "normal", texto: " " }); lineas(el).forEach(t => b.push({ tipo: "parrafo", estilo: "normal", texto: t })); }
       else if (cl.includes("formula")) lineas(el).forEach(t => b.push({ tipo: "parrafo", estilo: "centrado", texto: t }));
       else { let ls = lineas(el); if (ls.length > 1) ls.forEach(t => b.push({ tipo: "parrafo", estilo: "normal", texto: t })); else if (txt) b.push({ tipo: "parrafo", estilo: "normal", texto: txt }); }
     }
