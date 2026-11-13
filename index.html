@@ -1014,8 +1014,8 @@ function ppCalc(base, cfgIn) {
     let f = cfg.filas?.[x.c] ?? {}, e26p = proy(x), b = f.b ?? (x.p26 > 0 ? "p26" : "val");
     let bv = b === "p26" ? x.p26 : b === "e26" ? e26p : b === "r25" ? x.r25 : Math.round(+f.v || 0);
     let nota = f.nota ?? (x.p26 > 0 ? "" : "No estaba en el presupuesto 2026: se deja en cero; cámbielo si debe presupuestarse.");
-    let crit = f.c ?? ppCriterioDef(x), pct = b === "val" ? 0 : pctDe(crit, f.p);
-    return { ...x, e26p, b, bv, crit, pct, p: f.p, v: f.v, v27: ppR(bv * (1 + pct)), nota };
+    let crit = f.c ?? ppCriterioDef(x), pct = b === "val" ? 0 : crit === "dos" ? (1 + (+f.p || 0) / 100) * (1 + (+f.p2 || 0) / 200) - 1 : pctDe(crit, f.p);
+    return { ...x, e26p, b, bv, crit, pct, p: f.p, p2: f.p2, v: f.v, soporte: f.soporte ?? null, v27: ppR(bv * (1 + pct)), nota };
   };
   let gastos = base.items.filter(x => /^5/.test(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
   let otros = base.items.filter(x => /^4/.test(x.c) && ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
@@ -1135,6 +1135,8 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
   let fila = (t, ayuda, cells, st) => h("tr", { style: st }, h("td", null, t, ayuda && h("div", { className: "tenue", style: { fontSize: 12 } }, ayuda)), ...cells);
   let grupo = t => h("tr", { className: "pp-g" }, h("td", { colSpan: 1 + M.ops.length }, t));
   let fuerte = { fontWeight: 700, background: "var(--acento-suave, #e8f3f4)" };
+  let gr = k => { let L = M.gastos.filter(x => x.b !== "val" && x.crit === k); return { n: L.length, v: L.reduce((a, x) => a + (x.bv || 0), 0) }; };
+  let propios = M.gastos.filter(x => x.b === "val" || ["otro", "dos", "sin"].includes(x.crit));
   let mill = v => ppP(v);
   return h("section", { className: "panel" },
     h("h2", null, "Las tres opciones para el Consejo"),
@@ -1143,9 +1145,10 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
       h("thead", null, h("tr", null, h("th", null, ""), ...M.ops.map(o => th(o.nombre)))),
       h("tbody", null,
         grupo("1. Lo que usted decide: cuánto sube cada cosa"),
-        fila("Gastos de personal", `Vigilancia, aseo, recepción y demás contratos atados al salario. Referencia: salario mínimo ${String(sml).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "per", o.per ?? sml)))),
-        fila("Demás gastos", `Servicios, mantenimiento, seguros y otros. Referencia: IPC ${String(ipc).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "gas", o.gas ?? ipc)))),
+        fila("Rubros que suben con el salario mínimo", `${gr("sml").n} rubros (${ppP(gr("sml").v / 12)} al mes en 2026), como aseo, recepción y asesorías atadas al salario. Referencia: ${String(sml).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "per", o.per ?? sml)))),
+        fila("Rubros que suben con el IPC", `${gr("ipc").n} rubros (${ppP(gr("ipc").v / 12)} al mes en 2026): servicios, mantenimiento, seguros y otros. Referencia: ${String(ipc).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "gas", o.gas ?? ipc)))),
         fila("Precio de la manilla de acceso", M.precio26 ? `Precio vigente ${ppP(M.precio26)} (IVA incluido).` : "", M.ops.map(o => td(inp(o, "pct", o.pct ?? +(o.pm * 100).toFixed(2))))),
+        propios.length ? h("tr", null, h("td", { colSpan: 1 + M.ops.length, className: "tenue", style: { fontSize: 13 } }, `Estos porcentajes no tocan ${propios.length} rubros que tienen su propio cálculo (propuesta del proveedor, dos incrementos, valor fijo o sin incremento): ${propios.slice(0, 6).map(x => ppxCap(x.n).replace(/^Item [\d,.]+ - /i, "")).join(", ")}${propios.length > 6 ? "…" : ""}. Se ajustan en la pestaña Gastos.`)) : null,
         grupo("2. Lo que resulta cada mes"),
         fila("Gastos del mes", "Igual al total de la pestaña Gastos, al mes", M.ops.map(o => td(mill(o.G / 12)))),
         fila("Más: fondo de imprevistos", `${String(M.cfg.fondoPct).replace(".", ",")} % de los gastos. No es un gasto: se ahorra para imprevistos y queda como excedente`, M.ops.map(o => td(mill(o.fondo / 12)))),
@@ -1214,7 +1217,7 @@ function ppCuotasTipo(M, uni) {
   for (const [k, c, a] of uni) { let t = /^PQ/.test(k) ? "Parqueadero" : /^LC/.test(k) ? "Local" : /^DEP/.test(k) ? "Depósito" : "Apartamento"; let key = t + "|" + c; let o = (g[key] ??= { t, c, n: 0, a26: a, ks: [] }); o.n++; o.ks.push(k); }
   return Object.values(g).sort((x, y) => x.t.localeCompare(y.t) || x.c - y.c).map(x => ({ ...x, ks: x.ks.sort(ppOrdK), o: M.ops.map(o => ppR(o.mes * x.c / 100, 1)) }));
 }
-var PP_CRIT = { ipc: "IPC", sml: "Salario mínimo", sin: "Sin incremento", otro: "Otro %" };
+var PP_CRIT = { ipc: "IPC", sml: "Salario mínimo", otro: "% propio (propuesta del proveedor)", dos: "Dos incrementos: enero y julio", sin: "Sin incremento" };
 var PP_BASES = { p26: "Presupuesto 2026", e26: "Proyección 2026", r25: "Real 2025", val: "Valor fijo" };
 /* ---------- Presupuesto 2027 · modo presentación (para exponer al Consejo y a la Asamblea) ----------
    Pantalla completa por diapositivas, solo con tablas y cifras (anuales y mensuales), sin gráficas.
@@ -1515,19 +1518,24 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
     h("p", { className: "sub" }, "En el año y al mes. La cuota se calcula para que ingresos menos gastos deje un excedente igual al fondo de imprevistos. El fondo no es ingreso ni gasto: es ese excedente, que se traslada al patrimonio."),
     ppPygTab(h, M, base));
 
+  /* soporte del rubro: PDF de la propuesta de incremento del proveedor */
+  let subirSoporte = async (x, fl) => { try { notificar("ok", "Subiendo " + fl.name + "…"); let ant = cfg.filas?.[x.c]?.soporte; let p = await cmGuardarPdf(ses, "ppto-" + x.c, fl); setF(x.c, "soporte", p); ant && cmBorrarPdf(ses, ant); notificar("ok", "Soporte adjuntado a " + ppxCap(x.n) + "."); } catch (e) { notificar("error", "No se pudo adjuntar: " + (e?.message ?? e)); } };
+  let verSoporte = async x => { let w = window.open("", "_blank"); try { let u = await cmLeerPdf(ses, { pdf: x.soporte }), url = URL.createObjectURL(new Blob([u], { type: "application/pdf" })); if (w) w.location.href = url; else await BL(ses, x.soporte.archivo, u, notificar); setTimeout(() => URL.revokeObjectURL(url), 600000); } catch (e) { w && w.close(); notificar("error", "No se pudo abrir: " + (e?.message ?? e)); } };
   /* tabla de rubros (gastos y otros ingresos) */
   let celdasRubro = x => {
     let mb = (k, v, st) => h("span", { title: x.b === k ? "Base del cálculo 2027" : null, style: { ...(st ?? {}), ...(x.b === k ? { fontWeight: 800, borderBottom: "3px solid var(--acento, #1f6f78)", paddingBottom: 1 } : {}) } }, pe(v));
     let c = [mb("r25", x.r25), mb("p26", x.p26), mb("e26", x.e26p, x.p26 && x.e26p > x.p26 * 1.1 ? { color: "var(--alerta, #b42318)" } : null), x.v27, x.v27 / 12, x.p26 ? ppSig(x.v27 / x.p26 - 1) : "nuevo"];
-    if (!edit) return [...c, x.b === "val" ? "Valor fijo" : `${PP_BASES[x.b]} + ${PP_CRIT[x.crit] ?? x.crit} ${ppPct(x.pct, 2)}`];
+    let sop = h("span", { style: { whiteSpace: "nowrap" } }, x.soporte ? h("button", { type: "button", className: "btn btn-sm", title: x.soporte.archivo, onClick: () => verSoporte(x) }, "📎 Ver") : null,
+      !soloLectura && h("label", { className: "btn btn-sm", style: { marginLeft: 4, cursor: "pointer" }, title: "Adjuntar la propuesta de incremento del proveedor (PDF)" }, x.soporte ? "Cambiar" : "📎 Adjuntar", h("input", { type: "file", accept: "application/pdf", style: { display: "none" }, onChange: e => { let fl = e.target.files?.[0]; e.target.value = ""; fl && subirSoporte(x, fl); } })));
+    if (!edit) return [...c, x.b === "val" ? "Valor fijo" : x.crit === "dos" ? `${PP_BASES[x.b]} + ${ppPct((+x.p || 0) / 100, 2)} en enero y ${ppPct((+x.p2 || 0) / 100, 2)} más desde julio` : x.crit === "otro" ? `${PP_BASES[x.b]} + ${ppPct(x.pct, 2)} (propuesta)` : `${PP_BASES[x.b]} + ${PP_CRIT[x.crit] ?? x.crit} ${ppPct(x.pct, 2)}`, sop];
     return [...c,
       h("span", null, h("select", { value: x.b, onChange: e => setF(x.c, "b", e.target.value) }, Object.entries(PP_BASES).map(([k, t]) => h("option", { key: k, value: k }, t))), x.b === "val" && num(x.v, v => setF(x.c, "v", v), 110, 1000)),
-      x.b !== "val" ? h("span", null, h("select", { value: x.crit, onChange: e => setF(x.c, "c", e.target.value) }, Object.entries(PP_CRIT).map(([k, t]) => h("option", { key: k, value: k }, t))), x.crit === "otro" && num(x.p, v => setF(x.c, "p", v), 70)) : ""];
+      x.b !== "val" ? h("span", null, h("select", { value: x.crit, onChange: e => setF(x.c, "c", e.target.value) }, Object.entries(PP_CRIT).map(([k, t]) => h("option", { key: k, value: k }, t))), (x.crit === "otro" || x.crit === "dos") && h("span", null, x.crit === "dos" ? " enero " : " ", num(x.p, v => setF(x.c, "p", v), 70), " %"), x.crit === "dos" && h("span", null, " julio ", num(x.p2, v => setF(x.c, "p2", v), 70), " %")) : "", sop];
   };
-  let ccR = () => ["a-right", "a-right", "a-right", "a-right", "a-right pp-m", "a-right", "", ""];
-  let encR = t => [[[t], ["Real 2025"], ["Ppto 2026"], ["Proyección 2026"], ["Ppto 2027"], ["2027 al mes", 1, "a-right pp-m"], ["Var."], ...(edit ? [["Base", 1, ""], ["Criterio", 1, ""]] : [["Cómo se calcula", 1, ""]])]];
+  let ccR = () => ["a-right", "a-right", "a-right", "a-right", "a-right pp-m", "a-right", "", "", ""];
+  let encR = t => [[[t], ["Real 2025"], ["Ppto 2026"], ["Proyección 2026"], ["Ppto 2027"], ["2027 al mes", 1, "a-right pp-m"], ["Var."], ...(edit ? [["Base", 1, ""], ["Criterio", 1, ""]] : [["Cómo se calcula", 1, ""]]), ["Soporte", 1, ""]]];
   let fRubro = (x, sub) => ({ t: ppxCap(x.n), nota: x.nota || null, sub, c: celdasRubro(x), cc: ccR() });
-  let blanco = edit ? ["", ""] : [""];
+  let blanco = edit ? ["", "", ""] : ["", ""];
   let botonesEd = !soloLectura && h("div", { className: "pp-barra" },
     h("button", { type: "button", className: "btn btn-sm" + (edit ? " btn-primario" : ""), onClick: () => setEdit(!edit) }, edit ? "Terminar de editar" : "Editar bases y criterios"),
     edit && h("button", { type: "button", className: "btn btn-sm", onClick: () => { let f = { ...cfg.filas }; for (const x of M.gastos) if (x.p26 && x.e26p > x.p26 * 1.1) f[x.c] = { ...(f[x.c] ?? {}), b: "e26" }; guardar({ ...cfg, filas: f }); } }, "Usar la proyección 2026 donde supere el presupuesto"),
