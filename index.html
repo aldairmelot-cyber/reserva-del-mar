@@ -1111,7 +1111,7 @@ function ppExpComp(M, base) {
   return { A, B, filas: [
     { t: "Ingresos por explotación de zonas comunes en el año", v: par((o, X) => X.EX) },
     { t: "Ingresos por explotación de zonas comunes al mes", v: par((o, X) => X.EX / 12) },
-    { t: "Se destinan a", v: par((o, X) => X.ET > 0 ? "Fondo de imprevistos" : "Gastos comunes"), f: "txt" },
+    { t: "Se destinan a", v: par((o, X) => X.ET > 0 ? "Fondo imprevistos" : "Gastos comunes"), f: "txt" },
     { t: "Fondo de imprevistos en el año", v: par(o => o.fondoT), s: 1 },
     { t: "Fondo de imprevistos al mes", v: par(o => o.fondoT / 12) },
     { t: "Total a facturar a las unidades al mes", v: par(o => o.mes), r: 1 },
@@ -1496,22 +1496,22 @@ function ppDoc(M, base, config) {
     { t: "Precio de la manilla (IVA incluido)", v: [null, M.precio26 || null, ...M.ops.map(o => o.precio27 || null)] },
     M.unid26 ? { t: "Manillas en el año", v: [null, M.unid26, ...M.ops.map(o => o.unid27)], f: "n" } : null,
     M.unid26 ? { t: "Manillas al mes (promedio)", v: [null, M.unid26 / 12, ...M.ops.map(o => o.unid27 ? o.unid27 / 12 : null)], f: "n" } : null].filter(Boolean);
-  let XC = ppExpComp(M, base), wE = Math.floor(64 / (2 * nO));
+  let XC = ppExpComp(M, base), wE = Math.floor(66 / (2 * nO));
   let secExp = { id: "pp_exp", nombre: "Explotación de zonas comunes", titulo: "PARA DECISIÓN DE LA ASAMBLEA · INGRESOS POR EXPLOTACIÓN DE ZONAS COMUNES", subtitulos: s("Sin traslado (gastos comunes) o con traslado al fondo de imprevistos"), orientacion: "landscape", bloques: [
     { tipo: "parrafo", estilo: "normal", texto: `Se pone a consideración de la Asamblea trasladar al fondo de imprevistos los ingresos por explotación de zonas comunes: ${ppP(M.EX)} en el año (${ppP(M.EX / 12)} al mes). Si se trasladan, dejan de cubrir gastos y la cuota de administración debe cubrir esa diferencia. El presupuesto presentado está calculado ${M.ET > 0 ? "con" : "sin"} el traslado.` },
     { tipo: "parrafo", estilo: "normal", texto: PP_LEY_EXP },
-    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wE * 2 * nO, "left"), ...M.ops.flatMap((o, i) => [col(`OPCIÓN ${i + 1} · SIN TRASLADO`, wE), col(`OPCIÓN ${i + 1} · CON TRASLADO`, wE)])], filas: XC.filas.map(f => fila(f, f.v)) },
+    { tipo: "tabla", cabecera: !0, columnas: [col("CONCEPTO", 100 - wE * 2 * nO, "left"), ...M.ops.flatMap((o, i) => [col(`OPCIÓN ${i + 1}\nSIN TRASLADO`, wE), col(`OPCIÓN ${i + 1}\nCON TRASLADO`, wE)])], filas: XC.filas.map(f => fila(f, f.v)) },
     { tipo: "parrafo", estilo: "h3", texto: "Ingresos considerados explotación de zonas comunes" },
     { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 60, "left"), col("PPTO 2027", 20), col("2027 AL MES", 20)], filas: [...M.otros.filter(x => x.exp).map(x => ({ estilo: "detalle", celdas: [or(ppxCap(x.n)), er(x.v27), er(x.v27 / 12)] })), { estilo: "subtotal", celdas: [or("Total"), er(M.EX), er(M.EX / 12)] }] }] };
   let secc = [secRes, secPyg, secExp,
     { id: "pp_gas", nombre: "Gastos 2027", titulo: "PRESUPUESTO DE GASTOS 2027", subtitulos: s("Por rubro, con su base, criterio de incremento y valor mensual"), orientacion: "landscape", bloques: [
-      { tipo: "parrafo", estilo: "normal", texto: `Cada rubro parte del presupuesto 2026 (o de su ejecución proyectada cuando no tenía presupuesto) y se incrementa con el IPC (${ppPct(M.ipc, 2)}) o, si su costo depende de personal (vigilancia, aseo, recepción, administración), con el incremento del salario mínimo (${ppPct(M.sml, 2)}). La proyección 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses.` },
-      { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 40, "left"), col("PPTO 2026", 10), col("EJECUCIÓN REAL 2026", 11), col("CRITERIO", 10, "left"), col("% INCR.", 7), col("PPTO 2027", 11), col("2027 AL MES", 11)], filas: filasG }] },
+      { tipo: "parrafo", estilo: "normal", texto: `Cada rubro parte del presupuesto 2026 aprobado o de su ejecución real 2026, según se haya definido para el rubro, y se incrementa con el IPC (${ppPct(M.ipc, 2)}) o, si su costo depende de personal (vigilancia, aseo, recepción, administración), con el incremento del salario mínimo (${ppPct(M.sml, 2)}). La ejecución real 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses.` },
+      { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 38, "left"), col("PPTO 2026\nAPROBADO", 11), col("EJECUCIÓN\nREAL 2026", 11), col("CRITERIO", 11, "left"), col("% INCR.", 7), col("PPTO 2027", 11), col("2027\nAL MES", 11)], filas: filasG }] },
     { id: "pp_ing", nombre: "Ingresos 2027", titulo: "PRESUPUESTO DE INGRESOS 2027", subtitulos: s("Manillas y otros ingresos"), orientacion: "portrait", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: `Manillas: en 2026 se presupuestaron ${ppP(M.man.p26)}; lo ejecutado a ${ultMes} es ${ppP(M.man.e26)} y la proyección del año es ${ppP(M.man.proy)} (noviembre y diciembre se estiman con lo de 2025 ajustado por la tendencia de agosto a octubre). El presupuesto 2027 de manillas parte de esa proyección, no del presupuesto 2026, para no sobreestimar el ingreso.` },
-      { tipo: "tabla", cabecera: !0, columnas: [col("MANILLAS DE ACCESO", 100 - wI * (2 + nO), "left"), col("PPTO 2026", wI), col("PROYECCIÓN 2026", wI), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, wI))], filas: manF.map(f => fila(f, f.v)) },
+      { tipo: "tabla", cabecera: !0, columnas: [col("MANILLAS DE ACCESO", 100 - wI * (2 + nO), "left"), col("PPTO 2026\nAPROBADO", wI), col("EJECUCIÓN\nREAL 2026", wI), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, wI))], filas: manF.map(f => fila(f, f.v)) },
       { tipo: "parrafo", estilo: "h3", texto: "Otros ingresos" },
-      { tipo: "tabla", cabecera: !0, columnas: [col("INGRESO", 40, "left"), col("PPTO 2026", 15), col("PROYECCIÓN 2026", 15), col("PPTO 2027", 15), col("2027 AL MES", 15)], filas: [...M.otros.map(x => ({ estilo: "detalle", celdas: [or(x.n), er(x.p26), er(x.e26p), er(x.v27), er(x.v27 / 12)] })), { estilo: "subtotal", celdas: [or("Total otros ingresos"), er(M.otros.reduce((a, x) => a + x.p26, 0)), er(M.otros.reduce((a, x) => a + (x.e26p || 0), 0)), er(M.O), er(M.O / 12)] }] }] },
+      { tipo: "tabla", cabecera: !0, columnas: [col("INGRESO", 40, "left"), col("PPTO 2026\nAPROBADO", 15), col("EJECUCIÓN\nREAL 2026", 15), col("PPTO 2027", 15), col("2027 AL MES", 15)], filas: [...M.otros.map(x => ({ estilo: "detalle", celdas: [or(x.n), er(x.p26), er(x.e26p), er(x.v27), er(x.v27 / 12)] })), { estilo: "subtotal", celdas: [or("Total otros ingresos"), er(M.otros.reduce((a, x) => a + x.p26, 0)), er(M.otros.reduce((a, x) => a + (x.e26p || 0), 0)), er(M.O), er(M.O / 12)] }] }] },
     { id: "pp_cuo", nombre: "Cuotas por unidad", titulo: "CUOTA MENSUAL POR UNIDAD", subtitulos: s("Según el coeficiente de copropiedad de cada unidad"), orientacion: "portrait", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: "La cuota de cada unidad es la facturación mensual (cuota de administración más fondo de imprevistos) multiplicada por su coeficiente de copropiedad. La tabla muestra cada apartamento, local, parqueadero y depósito con coeficiente propio, por torre, con su cuota mensual de 2026 y la que tendría en cada opción." },
       { tipo: "tabla", cabecera: !0, columnas: [col("UNIDAD", 26, "left"), col("COEF. %", 12), col("CUOTA 2026", 18), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, 18)), col("VARIACIÓN", 8)], filas: ppFilasUnidad(M, uni) }] }];
