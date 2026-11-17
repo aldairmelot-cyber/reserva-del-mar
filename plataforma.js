@@ -30,6 +30,7 @@
     "cman_raw", "cman_idx", "cman_seg", "cman_cfg", "cbl_raw", "cbl_idx", "cbl_seg",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
     "verif_idx", "verif_raw", "fondo_cfg", "rph", "rph_pdf", "comunicados", "comunicados_pdf", "fv_idx", "fv_pdf", "cartera_mov", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
+    "cxi_seg", "cxi_pub", "cxi_gest", "cxi_sop",
   ];
 
   /* ------------------------------------------------------------------ perfiles */
@@ -39,7 +40,9 @@
   let perfil = { rol: "editor", nombre: "", email: "" };
   function fijarPerfil(p) { perfil = p; window.EFPH_PERFIL = Object.freeze({ ...p, etiqueta: PERFILES[p.rol] || p.rol }); }
   const esEditor = () => perfil.rol === "editor";
-  const puedeEscribir = (ruta) => esEditor() || String(ruta).startsWith("_usuarios/") || (!!perfil.firma && String(ruta).startsWith("firmas/"));
+  /* cartera escribe su gestión de las consignaciones por identificar (las reglas de Firestore lo limitan a su correo) */
+  const puedeEscribir = (ruta) => esEditor() || String(ruta).startsWith("_usuarios/") || (!!perfil.firma && String(ruta).startsWith("firmas/"))
+    || (perfil.rol === "cartera" && /^(cxi_gest|cxi_sop)\//.test(String(ruta)));
   const sinPermiso = () => { const e = new Error("Su perfil es de solo consulta."); e.code = "not_granted"; return e; };
   const negado = (e) => !!e && (e.code === "permission-denied" || e.code === "not_granted");
   if (MODO === "local") {
@@ -160,8 +163,8 @@
 
   /* Envoltura: la app ve objetos normales; en Firestore cada documento es { j: "<json>" }. */
   function envolverFirestore(fs) {
-    /* _roles se guarda en campos simples: las reglas de seguridad leen su campo `rol`. */
-    const enc = (d, ruta) => (/^(_roles|firmas)\//.test(String(ruta || "")) ? { ...(d || {}) } : { j: JSON.stringify(d === undefined ? null : d) });
+    /* _roles, firmas y cxi_gest se guardan en campos simples: las reglas de seguridad leen sus campos (rol, email, por, estado…). */
+    const enc = (d, ruta) => (/^(_roles|firmas|cxi_gest)\//.test(String(ruta || "")) ? { ...(d || {}) } : { j: JSON.stringify(d === undefined ? null : d) });
     const vacioDoc = (ruta) => ({ id: ruta.split("/").pop(), ref: { path: ruta }, exists: false, data: () => undefined, get: () => undefined });
     const vacioCol = () => ({ docs: [], size: 0, empty: true, forEach: () => {} });
     const dec = (s) => { const x = s.data(); return x && typeof x.j === "string" ? JSON.parse(x.j) : x; };
