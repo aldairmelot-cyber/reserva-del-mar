@@ -1020,10 +1020,11 @@ function ppCriterioDef(x) { if (/^5160/.test(x.c)) return "sin"; if (PP_SML.test
 var PP_UNIR = { "516015": "51601501", "516010": "51601501", "516020": "51601501", "51602001": "51601501" };
 /* Cuota 2026 por unidad: la base de inmuebles de World Office no siempre coincide con lo que factura Access.
    - Apto 511 T2 y PQ 371: hasta mayo de 2026 se facturaban juntos en el apto ($944.183); desde junio de 2026 van aparte
-     (apto 0,175 % = $843.020; PQ 371 0,021 % = $101.162). WO conserva la cuota unida en el apto. Aquí se separan, sin cambiar el total.
-   - DEP 545 (0,003 % según su certificado) NO se agrega: WO suma 100 % sin él, porque su coeficiente va dentro del apto 1135 T4
-     (0,301 %). Access lo factura aparte desde marzo de 2025: posible doble cobro, pendiente de validar con el RPH. */
-var PP_UNI_AJ = { "511 T2": { cuota: 843020 }, PQ371: { cuota: 101162 } };
+     (apto 0,175 % = $843.020; PQ 371 0,021 % = $101.162). WO conserva la cuota unida en el apto. Se separan sin cambiar el total.
+   - Apto 1135 T4: WO le da 0,301 % = apto 0,254 % (certificado 080-157708) + PQ 552 y 553 + DEP 545 0,003 % (certificado 080-158070).
+     El DEP 545 se vendió a otra persona (Gastón Coma, E.P. 266 de 2025) y Access lo factura aparte desde marzo de 2025 sin
+     rebajarlo del apto (doble cobro). Aquí: apto 0,298 % ($1.435.543) y DEP 545 0,003 % ($14.452); el total no cambia. */
+var PP_UNI_AJ = { "511 T2": { cuota: 843020 }, PQ371: { cuota: 101162 }, "1135 T4": { coef: .298, cuota: 1435543 }, DEP545: { coef: .003, cuota: 14452 } };
 var PP_NOMBRE = { "51601501": "DEPRECIACIONES (EQUIPO DE OFICINA, CÓMPUTO Y MAQUINARIA)" };
 function ppUnirBase(base) {
   if (!base?.items || base.unida) return base;
