@@ -8082,7 +8082,7 @@ function FvPantalla({ ses, notificar, soloLectura }) {
       traslados entre esas dos cuentas se anulan y lo que no casa uno a uno se aplica a las más antiguas.
    2) para cada una busca posibles dueños: referencias bancarias y nombres que ya se identificaron antes, pagos del mismo valor
       exacto en el historial de cada propietario y la cuota facturada del mes.
-   El seguimiento (ya confirmada) se guarda en cxi_seg/estado. */
+   La gestión de cartera (en gestión / resuelta con unidad, soporte y explicación) se guarda en cxi_gest; la lista publicada en cxi_pub. */
 var CXI_VISTAS = ["cxi"];
 var cxH = Ve.createElement;
 var CXI_STOP = new Set(["8600329097", "860032909", "800194297", "830070527", "8300705270", "900378893", "8909039380000"]);
@@ -8298,23 +8298,144 @@ pintar();
 <\/script></body></html>`;
 }
 
+/* ---------- gestión de cartera sobre las consignaciones por identificar ----------
+   cxi_pub/lista      → la lista que calcula contabilidad, publicada para cartera (cartera no lee los libros auxiliares).
+   cxi_gest/<id>      → lo que hace cartera con cada consignación: en gestión o resuelta (unidad, soporte, nota);
+                        contabilidad la marca registrada en World Office o la devuelve.
+   cxi_sop/<sid>-<i>  → el soporte (PDF o imagen) en partes de base64. */
+var cxIdGest = k => String(k).replace(/[^\w.-]+/g, "_").slice(0, 300);
+var cxQuien = () => { let p = window.EFPH_PERFIL || {}, u = window.firebase?.auth?.()?.currentUser; return { email: String(p.email || u?.email || "").toLowerCase(), nombre: p.nombre || u?.displayName || p.email || u?.email || "" }; };
+var CXI_SOP_MAX = 8 * 1024 * 1024;
+async function cxGuardarSoporte(ses, file) {
+  if (file.size > CXI_SOP_MAX) throw new Error("El soporte pesa más de 8 MB. Tómele una foto más liviana o páselo a PDF.");
+  let u = new Uint8Array(await file.arrayBuffer()), s = "";
+  for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768));
+  let b64 = btoa(s), T = 180000, n = Math.max(1, Math.ceil(b64.length / T)), id = `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  for (let i = 0; i < n; i++) await ses.store.set(`cxi_sop/${id}-${i}`, { d: b64.slice(i * T, (i + 1) * T) });
+  return { id, partes: n, nombre: file.name, tipo: file.type || "application/octet-stream", bytes: file.size };
+}
+async function cxLeerSoporte(ses, p) {
+  let b = "";
+  for (let i = 0; i < p.partes; i++) { let d = await ses.store.get(`cxi_sop/${p.id}-${i}`); if (!d) throw new Error("Falta una parte del soporte."); b += d.d; }
+  return Uint8Array.from(atob(b), ch => ch.charCodeAt(0));
+}
+async function cxBorrarSoporte(ses, p) { if (p) for (let i = 0; i < p.partes; i++) await ses.store.del(`cxi_sop/${p.id}-${i}`).catch(() => { }); }
+/* estado de una consignación para mostrar y filtrar */
+var cxEstado = (g, viejo) => g?.registrada ? "registrada" : g?.estado === "resuelta" ? "resuelta" : g?.estado === "gestion" ? "gestion" : viejo ? "resuelta" : "pend";
+var CXI_EST = { pend: ["Pendiente", "est-sin"], gestion: ["En gestión", "est-atencion"], resuelta: ["Resuelta", "est-ok"], registrada: ["Registrada", "est-info"] };
+
+/* formulario de cartera dentro del detalle de la consignación */
+function CxiGestion({ x, g, ses, notificar, esEditor, puedeGestionar, onGuardado }) {
+  let h = cxH, [u, setU] = Ve.useState(g?.unidad ?? ""), [ref, setRef] = Ve.useState(g?.ref ?? ""), [nota, setNota] = Ve.useState(g?.nota ?? ""), [file, setFile] = Ve.useState(null), [oc, setOc] = Ve.useState(""), [notaCont, setNotaCont] = Ve.useState("");
+  let pesos = v => "$" + pe(Math.round(v)), sugeridas = [...new Set((x.cands ?? []).map(o => cpmUnidad(o.ter).unidad).concat(x.duenos.map(t => cpmUnidad(t).unidad)))].filter(Boolean);
+  let est = cxEstado(g), bloqueada = !!g?.registrada;
+  let guardar = async estado => {
+    if (estado === "resuelta" && !u.trim()) { notificar("error", "Escriba a qué unidad corresponde la consignación."); return; }
+    if (estado === "resuelta" && !file && !g?.soporte && !ref.trim()) { notificar("error", "Adjunte el soporte del pago o escriba la referencia del soporte para marcarla resuelta."); return; }
+    if (estado === "resuelta" && nota.trim().length < 10) { notificar("error", "Escriba la explicación de la identificación: cómo supo que el pago es de esa unidad."); return; }
+    setOc(estado);
+    try {
+      let soporte = g?.soporte ?? null;
+      if (file) { let nuevo = await cxGuardarSoporte(ses, file); await cxBorrarSoporte(ses, soporte); soporte = nuevo; }
+      let q = cxQuien(), doc = { k: x.k, doc: x.doc, f: x.f, fo: x.fo ?? null, v: x.v, nota_banco: x.nota ?? "", estado, unidad: u.trim(), ref: ref.trim(), nota: nota.trim(), soporte, por: q.email, porNombre: q.nombre, fecha: new Date().toISOString(), historial: [...(g?.historial ?? []), { estado, por: q.nombre || q.email, fecha: new Date().toISOString() }].slice(-20) };
+      await ses.store.set("cxi_gest/" + cxIdGest(x.k), doc); setFile(null); onGuardado(x.k, doc);
+      notificar("ok", estado === "resuelta" ? `Consignación de ${pesos(x.v)} marcada resuelta: ${u.trim()}.` : "Quedó en gestión.");
+    } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); }
+    setOc("");
+  };
+  let quitar = async () => {
+    setOc("quitar");
+    try { await cxBorrarSoporte(ses, g?.soporte); await ses.store.del("cxi_gest/" + cxIdGest(x.k)); onGuardado(x.k, null); notificar("ok", "Volvió a pendiente."); } catch (e) { notificar("error", "No se pudo: " + (e?.message ?? e)); }
+    setOc("");
+  };
+  let contab = async accion => {
+    setOc(accion);
+    try {
+      let q = cxQuien(), d = accion === "registrar" ? { ...g, registrada: { por: q.nombre || q.email, fecha: new Date().toISOString() } }
+        : accion === "desregistrar" ? { ...g, registrada: null }
+        : { ...g, estado: "gestion", devuelta: { nota: notaCont.trim(), por: q.nombre || q.email, fecha: new Date().toISOString() }, historial: [...(g?.historial ?? []), { estado: "devuelta", por: q.nombre || q.email, fecha: new Date().toISOString(), nota: notaCont.trim() }].slice(-20) };
+      await ses.store.set("cxi_gest/" + cxIdGest(x.k), d); onGuardado(x.k, d);
+      notificar("ok", accion === "registrar" ? "Marcada como registrada en World Office." : accion === "desregistrar" ? "Se quitó la marca de registrada." : "Devuelta a cartera.");
+    } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); }
+    setOc("");
+  };
+  let verSoporte = async () => { setOc("sop"); try { await PO(ses, g.soporte.nombre || "soporte", await cxLeerSoporte(ses, g.soporte), notificar); } catch (e) { notificar("error", "No se pudo abrir el soporte: " + (e?.message ?? e)); } setOc(""); };
+  return h("div", { style: { borderTop: "1px dashed var(--linea, #ccc)", marginTop: 12, paddingTop: 12 } },
+    h("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 } },
+      h("b", null, "Gestión de cartera"), h("span", { className: "est " + CXI_EST[est][1] }, CXI_EST[est][0]),
+      g?.porNombre && h("span", { className: "tenue" }, `${g.porNombre} · ${cbFecha(String(g.fecha).slice(0, 10))}`),
+      g?.registrada && h("span", { className: "tenue" }, `· registrada por ${g.registrada.por} el ${cbFecha(String(g.registrada.fecha).slice(0, 10))}`)),
+    g?.devuelta && g.estado === "gestion" && h("div", { className: "aviso aviso-adv", style: { marginBottom: 8 } }, h("p", { style: { margin: 0 } }, `Contabilidad la devolvió (${g.devuelta.por}, ${cbFecha(String(g.devuelta.fecha).slice(0, 10))})${g.devuelta.nota ? ": " + g.devuelta.nota : "."}`)),
+    h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 } },
+      h("label", { className: "campo" }, h("span", null, "¿De qué unidad es?"),
+        h("input", { list: "cxi-u-" + cxIdGest(x.k), value: u, disabled: !puedeGestionar || bloqueada, placeholder: "Ej.: Apto 1731 · T4", onChange: e => setU(e.target.value) }),
+        h("datalist", { id: "cxi-u-" + cxIdGest(x.k) }, sugeridas.map(t => h("option", { key: t, value: t })))),
+      h("label", { className: "campo" }, h("span", null, "Soporte del pago (PDF o foto)"),
+        g?.soporte && h("div", null, h("button", { type: "button", className: "enlace", disabled: !!oc, onClick: verSoporte }, oc === "sop" ? "Abriendo…" : `📎 ${g.soporte.nombre}`)),
+        puedeGestionar && !bloqueada && h("input", { type: "file", accept: "application/pdf,image/*", onChange: e => setFile(e.target.files?.[0] ?? null) })),
+      h("label", { className: "campo" }, h("span", null, "Referencia del soporte"), h("input", { value: ref, disabled: !puedeGestionar || bloqueada, placeholder: "N.º de comprobante, correo, WhatsApp…", onChange: e => setRef(e.target.value) })),
+      h("label", { className: "campo", style: { gridColumn: "1 / -1" } }, h("span", null, "Explicación de la identificación"), h("textarea", { rows: 3, value: nota, disabled: !puedeGestionar || bloqueada, placeholder: "Cómo se identificó: con quién habló, qué soporte mostró, a qué cuota o mes corresponde el pago, si paga varias unidades… Si aún está en gestión, anote qué falta.", onChange: e => setNota(e.target.value) }))),
+    puedeGestionar && !bloqueada && h("div", { className: "acciones-fila", style: { marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" } },
+      h("button", { type: "button", className: "btn btn-primario", disabled: !!oc, onClick: () => guardar("resuelta") }, oc === "resuelta" ? "Guardando…" : "✓ Resuelta: tengo el soporte y la unidad"),
+      h("button", { type: "button", className: "btn", disabled: !!oc, onClick: () => guardar("gestion") }, oc === "gestion" ? "Guardando…" : "Guardar en gestión"),
+      g && h("button", { type: "button", className: "btn btn-quitar", disabled: !!oc, onClick: quitar }, oc === "quitar" ? "…" : "Volver a pendiente")),
+    esEditor && g?.estado === "resuelta" && h("div", { style: { marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+      h("b", null, "Contabilidad:"),
+      !g.registrada ? h(Ve.Fragment, null,
+        h("button", { type: "button", className: "btn btn-sm btn-primario", disabled: !!oc, onClick: () => contab("registrar") }, oc === "registrar" ? "…" : "Ya la registré en World Office"),
+        h("input", { value: notaCont, placeholder: "Motivo para devolverla (opcional)", onChange: e => setNotaCont(e.target.value), style: { minWidth: 240 } }),
+        h("button", { type: "button", className: "btn btn-sm", disabled: !!oc, onClick: () => contab("devolver") }, oc === "devolver" ? "…" : "Devolver a cartera"))
+        : h("button", { type: "button", className: "btn btn-sm", disabled: !!oc, onClick: () => contab("desregistrar") }, oc === "desregistrar" ? "…" : "Quitar marca de registrada")));
+}
+
 function CxiPantalla({ ses, config, notificar, soloLectura }) {
-  let h = cxH, [X, setX] = Ve.useState(null), [prog, setProg] = Ve.useState(""), [err, setErr] = Ve.useState(""), [seg, setSeg] = Ve.useState({}), [fil, setFil] = Ve.useState("todas"), [oc, setOc] = Ve.useState(null), [verOk, setVerOk] = Ve.useState(!1);
-  let [anioSel, setAnioSel] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [abierta, setAbierta] = Ve.useState(null), [plegados, setPlegados] = Ve.useState({});
-  let cargar = async () => { setErr(""); setX(null); try { let H = await cxLeer(ses, config.entidad || "", setProg); setProg("Buscando los posibles dueños…"); await new Promise(r => setTimeout(r, 30)); let P = cxPendientes(H.pool), L = cxPistas(P.pend, P.pares, H); setX({ ...H, L, sinAsociar: P.sinAsociar }); } catch (e) { setErr(e?.message ?? String(e)); } setProg(""); };
-  Ve.useEffect(() => { cargar(); ses.store.get("cxi_seg/estado").then(d => setSeg(d?.items ?? {})).catch(() => { }); }, [ses]);
-  let marcar = async (k, v) => { let n = { ...seg }; v ? n[k] = { ok: !0, fecha: new Date().toISOString().slice(0, 10) } : delete n[k]; setSeg(n); try { await ses.store.set("cxi_seg/estado", { items: n }); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } };
+  let h = cxH, [X, setX] = Ve.useState(null), [prog, setProg] = Ve.useState(""), [err, setErr] = Ve.useState(""), [seg, setSeg] = Ve.useState({}), [gest, setGest] = Ve.useState({}), [fil, setFil] = Ve.useState("todas"), [oc, setOc] = Ve.useState(null), [estSel, setEstSel] = Ve.useState("activas");
+  let [anioSel, setAnioSel] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [abierta, setAbierta] = Ve.useState(null), [plegados, setPlegados] = Ve.useState({}), [pubOk, setPubOk] = Ve.useState(null);
+  let esEditor = !efConsulta(), puedeGestionar = esEditor || efPerfil() === "cartera";
+  let leerGest = async () => { try { let L = await ses.store.list("cxi_gest"); setGest(Object.fromEntries(L.map(d => [d.data.k, d.data]))); } catch { setGest({}); } };
+  /* contabilidad calcula con los libros y publica la lista; los perfiles de consulta leen la lista publicada */
+  let publicar = async (H, L, P) => {
+    let duenos = new Set(L.flatMap(x => (x.cands ?? []).map(o => o.ter).concat(x.duenos)));
+    let pub = { calculado: new Date().toISOString(), por: cxQuien().nombre, hasta: H.hasta, libros: H.libros, saldo: H.saldo, s2805: H.s2805,
+      L: L.map(x => ({ k: x.k, f: x.f, fo: x.fo ?? null, doc: x.doc, v: x.v, r: x.r, nota: x.nota, cta: x.cta, duenos: x.duenos, seg: x.seg, corto: x.corto, porque: x.porque, cands: x.cands })),
+      pagos: H.pagos.filter(p => duenos.has(p.ter)).map(p => ({ ter: p.ter, f: p.f, doc: p.doc, v: p.v })) };
+    await ses.store.set("cxi_pub/lista", { j: JSON.stringify(pub) });
+    return pub.calculado;
+  };
+  let cargar = async () => {
+    setErr(""); setX(null);
+    try {
+      if (!esEditor) {
+        setProg("Leyendo la lista que publicó contabilidad…");
+        let d = await ses.store.get("cxi_pub/lista");
+        if (!d) throw new Error("Contabilidad todavía no ha publicado la lista de consignaciones por identificar. Pídale que abra esta pantalla para publicarla.");
+        let P = JSON.parse(d.j);
+        setX({ ...P, pub: !0, sinAsociar: [], libChk: [] });
+      } else {
+        let H = await cxLeer(ses, config.entidad || "", setProg); setProg("Buscando los posibles dueños…"); await new Promise(r => setTimeout(r, 30));
+        let P = cxPendientes(H.pool), L = cxPistas(P.pend, P.pares, H);
+        setX({ ...H, L, sinAsociar: P.sinAsociar });
+        publicar(H, L, P).then(t => setPubOk(t)).catch(e => setPubOk("error: " + (e?.message ?? e)));
+      }
+    } catch (e) { setErr(e?.message ?? String(e)); }
+    setProg("");
+  };
+  Ve.useEffect(() => { cargar(); leerGest(); esEditor && ses.store.get("cxi_seg/estado").then(d => setSeg(d?.items ?? {})).catch(() => { }); }, [ses]);
+  let onGuardado = (k, d) => setGest(G => { let n = { ...G }; d ? n[k] = d : delete n[k]; return n; });
   if (err) return h("section", { className: "panel vacio" }, h("h2", null, "Consignaciones por identificar"), h("p", { className: "sub" }, err), h("button", { type: "button", className: "btn", onClick: cargar }, "Reintentar"));
-  if (!X) return h("section", { className: "panel" }, h("h2", null, "Consignaciones por identificar"), h("p", { className: "tenue" }, prog || "Cargando…"), h("p", { className: "sub" }, "Lee todos los libros auxiliares cargados; puede tardar un minuto."));
+  if (!X) return h("section", { className: "panel" }, h("h2", null, "Consignaciones por identificar"), h("p", { className: "tenue" }, prog || "Cargando…"), h("p", { className: "sub" }, esEditor ? "Lee todos los libros auxiliares cargados; puede tardar un minuto." : ""));
   let pesos = v => "$" + pe(Math.round(v)), hoy = new Date().toISOString().slice(0, 10), sum = L => L.reduce((s, x) => s + x.v, 0);
-  let act = X.L.filter(x => !seg[x.k]), ok = X.L.filter(x => seg[x.k]), base = verOk ? ok : act;
-  let qN = cxN(q).replace(/[$.\s]/g, ""), busca = x => !qN || cxN([x.doc, x.nota, x.porque, ...x.duenos].join(" ")).replace(/\s/g, "").includes(qN) || String(Math.round(x.v)).includes(qN);
-  let vis = base.filter(x => (fil === "todas" || x.seg === fil) && busca(x));
+  let estDe = x => cxEstado(gest[x.k], seg[x.k]);
+  let porEst = e => X.L.filter(x => estDe(x) === e);
+  let act = X.L.filter(x => ["pend", "gestion"].includes(estDe(x)));
+  let base = estSel === "activas" ? act : estSel === "todas" ? X.L : X.L.filter(x => estDe(x) === estSel);
+  let qN = cxN(q).replace(/[$.\s]/g, ""), busca = x => !qN || cxN([x.doc, x.nota, x.porque, ...x.duenos, gest[x.k]?.unidad ?? ""].join(" ")).replace(/\s/g, "").includes(qN) || String(Math.round(x.v)).includes(qN);
+  let vis = base.filter(x => (fil === "todas" || x.seg === fil) && busca(x) && (anioSel === "todos" || cxAnio(x) === anioSel));
   let anios = [...new Set(base.map(cxAnio))].sort((a, b) => b.localeCompare(a)), aniosVis = anioSel === "todos" ? anios : [anioSel];
   let fuertes = act.filter(x => x.seg === "alta");
-  /* cuadre contra la contabilidad: saldo de la cuenta + anticipos a nombre de la copropiedad = detalle − identificaciones sin consignación ± diferencias de los libros */
+  /* cuadre contra la contabilidad (solo con los libros a la vista: perfil editor) */
   let cu = (() => {
-    if (!X.saldo) return null;
+    if (!X.saldo || X.pub) return null;
     let real = X.saldo.v + (X.s2805 || 0), det = sum(X.L), sinA = (X.sinAsociar ?? []).reduce((s, x) => s + x.r, 0), filas = [], chk = X.libChk ?? [];
     chk.forEach((b, i) => {
       i === 0 && Math.abs(b.ini) >= 1 && filas.push({ t: `Saldo inicial de ${b.libro} sin detalle de consignaciones`, v: b.ini });
@@ -8326,7 +8447,7 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
     Math.abs(otra) >= 10 && filas.push({ t: "Otras diferencias (traslados que no suman cero)", v: otra });
     return { real, det, sinA, filas, cuadra: Math.abs(real - det) < 10 };
   })();
-  let pagosDe = ter => X.pagos.filter(p => p.ter === ter).sort((a, b) => b.f - a.f).slice(0, 6);
+  let pagosDe = ter => (X.pagos ?? []).filter(p => p.ter === ter).sort((a, b) => b.f - a.f).slice(0, 6);
   let bajarHtml = async () => { setOc("html"); try { let L = act.filter(x => anioSel === "todos" || cxAnio(x) === anioSel); await PO(ses, `Consignaciones_por_identificar_${anioSel === "todos" ? "" : anioSel + "_"}${hoy}.html`, new TextEncoder().encode(cxHtml(L, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
   let bajar = async () => { setOc("pdf"); try { let L = act.filter(x => anioSel === "todos" || cxAnio(x) === anioSel); await PO(ses, `Informe_consignaciones_por_identificar_${anioSel === "todos" ? "" : anioSel + "_"}${hoy}.pdf`, await en(cxDocPdf(L, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
   let chip = (activo, txt, sub, onClick, key) => h("button", { key, type: "button", onClick, style: { textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: activo ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: activo ? "var(--acento-suave, #e8f3f4)" : "var(--hoja, #fff)", minWidth: 120 } }, h("div", { style: { fontWeight: 700 } }, txt), h("div", { className: "tenue", style: { fontSize: 12 } }, sub));
@@ -8336,15 +8457,32 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
       h("div", null, h("b", null, "Posibles dueños y por qué"), !(x.cands ?? []).length ? h("p", { className: "tenue", style: { margin: "4px 0" } }, "Sin candidatos.") :
         h("ol", { style: { margin: "4px 0", paddingLeft: 18 } }, x.cands.map((o, i) => { let u = cpmUnidad(o.ter); return h("li", { key: i, style: { marginBottom: 6 } }, h("b", null, u.unidad), " ", h("span", { className: "tenue" }, u.prop), h("div", { style: { fontSize: 13 } }, o.txt.join("; ") + ".")); }))),
       x.duenos[0] && h("div", null, h("b", null, `Últimos pagos de ${cpmUnidad(x.duenos[0]).unidad}`), (() => { let P = pagosDe(x.duenos[0]); return !P.length ? h("p", { className: "tenue" }, "Sin pagos en los libros.") :
-        h("table", { className: "t-datos", style: { marginTop: 4 } }, h("tbody", null, P.map((p, i) => h("tr", { key: i, style: Math.abs(p.v - x.v) <= 1 ? { fontWeight: 700 } : null }, h("td", null, cbFecha(cxF(p.f))), h("td", { className: "mono" }, p.doc), h("td", { className: "a-right num" }, pesos(p.v)))))); })()))));
+        h("table", { className: "t-datos", style: { marginTop: 4 } }, h("tbody", null, P.map((p, i) => h("tr", { key: i, style: Math.abs(p.v - x.v) <= 1 ? { fontWeight: 700 } : null }, h("td", null, cbFecha(cxF(p.f))), h("td", { className: "mono" }, p.doc), h("td", { className: "a-right num" }, pesos(p.v)))))); })())),
+    h(CxiGestion, { key: x.k + (gest[x.k]?.fecha ?? "") + (gest[x.k]?.registrada?.fecha ?? ""), x, g: gest[x.k], ses, notificar, esEditor, puedeGestionar, onGuardado })));
+  let celdaGest = x => { let g = gest[x.k], e = estDe(x);
+    return h("td", { onClick: e2 => { e2.stopPropagation(); setAbierta(abierta === x.k ? null : x.k); } },
+      h("label", { style: { cursor: "pointer", display: "flex", gap: 6, alignItems: "center" }, title: e === "pend" ? "Abrir para validar con el soporte" : "" },
+        h("input", { type: "checkbox", readOnly: !0, checked: e === "resuelta" || e === "registrada", style: { pointerEvents: "none" } }),
+        h("span", { className: "est " + CXI_EST[e][1] }, CXI_EST[e][0])),
+      g?.unidad && h("div", { style: { fontSize: 12.5, marginTop: 2 } }, h("b", null, g.unidad)),
+      g?.soporte && h("div", { className: "tenue", style: { fontSize: 12 } }, "📎 con soporte"),
+      g?.nota && h("div", { style: { fontSize: 12, maxWidth: 260, whiteSpace: "normal" }, title: g.nota }, g.nota.length > 90 ? g.nota.slice(0, 90) + "…" : g.nota),
+      !g && seg[x.k] && h("div", { className: "tenue", style: { fontSize: 12 } }, `confirmada ${cbFecha(seg[x.k].fecha)}`));
+  };
+  let nE = e => porEst(e).length, vE = e => pesos(sum(porEst(e)));
   return h("div", { className: "pantalla" },
     h("div", { className: "pantalla-enc" }, h("div", null, h("h2", { className: "h-sec" }, "Consignaciones por identificar"),
-      h("p", { className: "lead" }, "Pagos que llegaron al banco sin decir de quién son, con una pista del posible dueño, separados por año. Toque una consignación para ver el detalle. El informe en PDF es para que cartera lo confirme con los propietarios y pida el soporte."))),
+      h("p", { className: "lead" }, esEditor
+        ? "Pagos que llegaron al banco sin decir de quién son, con una pista del posible dueño. Cartera los valida en esta misma pantalla: los marca en gestión y, cuando tiene el soporte y la unidad, los marca resueltos. Aquí usted ve los resueltos con su soporte para registrarlos en World Office."
+        : "Pagos que llegaron al banco sin decir de quién son, con una pista del posible dueño. Toque una consignación para validarla: anote con quién habló y, cuando tenga el soporte y sepa de qué unidad es, márquela ✓ Resuelta. Contabilidad la registra y deja de salir aquí."),
+      X.pub ? h("p", { className: "tenue" }, `Lista calculada por contabilidad el ${cbFecha(String(X.calculado).slice(0, 10))} con los libros hasta el ${cbFecha(X.hasta)}.`)
+        : pubOk && h("p", { className: "tenue" }, String(pubOk).startsWith("error") ? `No se pudo publicar la lista para cartera (${pubOk.slice(7)}).` : "Lista publicada para cartera ✓"))),
     h("div", { className: "kpis" },
-      h("div", { className: "kpi" }, h("span", null, "Consignaciones"), h("b", null, act.length), h("small", null, ok.length ? `${ok.length} ya confirmadas` : "sin identificar")),
-      h("div", { className: "kpi" }, h("span", null, "Valor total"), h("b", { className: "num" }, pesos(sum(act)))),
-      h("div", { className: "kpi" }, h("span", null, "Con pista fuerte"), h("b", null, `${fuertes.length} · ${pesos(sum(fuertes))}`)),
-      cu && h("div", { className: "kpi" }, h("span", null, "Saldo contable real"), h("b", { className: "num" }, pesos(cu.real)), h("small", null, `cuenta ${X.saldo.cta}${Math.abs(X.s2805 || 0) >= 1 ? " + anticipos a nombre de la copropiedad" : ""} al ${cbFecha(X.saldo.hasta)}${cu.cuadra ? " · cuadra con el detalle" : " · ver el cuadre"}`))),
+      h("div", { className: "kpi" }, h("span", null, "Pendientes"), h("b", null, nE("pend")), h("small", null, vE("pend"))),
+      h("div", { className: "kpi" }, h("span", null, "En gestión de cartera"), h("b", null, nE("gestion")), h("small", null, vE("gestion"))),
+      h("div", { className: "kpi" }, h("span", null, esEditor ? "Resueltas · por registrar" : "Resueltas · esperando a contabilidad"), h("b", null, nE("resuelta")), h("small", null, vE("resuelta"))),
+      h("div", { className: "kpi" }, h("span", null, "Con pista fuerte"), h("b", null, `${fuertes.length} · ${pesos(sum(fuertes))}`), h("small", null, "sin resolver")),
+      X.saldo && h("div", { className: "kpi" }, h("span", null, "Saldo contable real"), h("b", { className: "num" }, pesos(cu ? cu.real : X.saldo.v + (X.s2805 || 0))), h("small", null, `cuenta ${X.saldo.cta} al ${cbFecha(X.saldo.hasta)}${cu ? cu.cuadra ? " · cuadra con el detalle" : " · ver el cuadre" : ""}`))),
     cu && !cu.cuadra && h("section", { className: "panel" },
       h("h3", { style: { marginTop: 0 } }, "Cuadre con la contabilidad"),
       h("p", { className: "sub" }, "Cómo se pasa del detalle de consignaciones pendientes al saldo que muestran los libros. Las identificaciones de la segunda línea rebajaron la cuenta, pero en los libros cargados no aparece la consignación que identifican; no se le cobran a otra consignación."),
@@ -8359,17 +8497,19 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
           h("thead", null, h("tr", null, h("th", null, "Registrada"), h("th", null, "Documento"), h("th", null, "Tercero"), h("th", null, "Nota"), h("th", { className: "a-right" }, "Valor"))),
           h("tbody", null, [...X.sinAsociar].sort((a, b) => a.f - b.f).map((x, i) => h("tr", { key: i }, h("td", null, cbFecha(cxF(x.f))), h("td", { className: "mono" }, x.doc), h("td", null, x.ter), h("td", null, x.nota), h("td", { className: "a-right num" }, pesos(x.r)))))))),
     h("section", { className: "panel" },
+      h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
+        ...[["activas", "Por resolver", act], ["pend", "Pendientes", porEst("pend")], ["gestion", "En gestión", porEst("gestion")], ["resuelta", esEditor ? "Resueltas · por registrar" : "Resueltas", porEst("resuelta")], ["registrada", "Registradas", porEst("registrada")], ["todas", "Todas", X.L]]
+          .filter(([k, , G]) => k === "activas" || k === "todas" || G.length).map(([k, t, G]) => chip(estSel === k, t, `${G.length} · ${pesos(sum(G))}`, () => { setEstSel(k); setAnioSel("todos"); }, "e" + k))),
       h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
         chip(anioSel === "todos", "Todos los años", `${base.length} · ${pesos(sum(base))}`, () => setAnioSel("todos"), "todos"),
         ...anios.map(a => { let G = base.filter(x => cxAnio(x) === a), F = G.filter(x => x.seg === "alta"); return chip(anioSel === a, a, `${G.length} · ${pesos(sum(G))}${F.length ? ` · ${F.length} fuertes` : ""}`, () => setAnioSel(anioSel === a ? "todos" : a), a); })),
       h("div", { className: "herramientas" },
         h("input", { type: "search", placeholder: "Buscar valor, apartamento, referencia…", value: q, onChange: e => setQ(e.target.value), style: { minWidth: 260 } }),
         ...[["todas", "Todas"], ["alta", "Alta"], ["media", "Media"], ["baja", "Baja"], ["sin", "Sin pista"]].map(([k, t]) => h("button", { key: k, type: "button", className: "btn btn-sm" + (fil === k ? " btn-primario" : ""), onClick: () => setFil(k) }, `${t} (${base.filter(x => (k === "todas" || x.seg === k) && (anioSel === "todos" || cxAnio(x) === anioSel)).length})`)),
-        ok.length > 0 && h("label", { style: { marginLeft: 8 } }, h("input", { type: "checkbox", checked: verOk, onChange: e => setVerOk(e.target.checked) }), " Ver las ya confirmadas"),
         h("span", { style: { flex: 1 } }),
-        h("button", { type: "button", className: "btn btn-primario", disabled: !!oc || !act.length, onClick: bajarHtml, title: "Página para abrir en el navegador o el celular: cartera marca Sí/No y copia las respuestas" }, oc === "html" ? "Generando…" : `Informe interactivo para cartera${anioSel === "todos" ? "" : " · " + anioSel}`),
+        h("button", { type: "button", className: "btn", disabled: !!oc || !act.length, onClick: bajarHtml, title: "Página para abrir en el navegador o el celular: marca Sí/No y copia las respuestas" }, oc === "html" ? "Generando…" : `Informe interactivo${anioSel === "todos" ? "" : " · " + anioSel}`),
         h("button", { type: "button", className: "btn", disabled: !!oc || !act.length, onClick: bajar }, oc === "pdf" ? "Generando…" : `PDF${anioSel === "todos" ? "" : " · " + anioSel}`),
-        h("button", { type: "button", className: "btn", onClick: cargar }, "Volver a calcular")),
+        h("button", { type: "button", className: "btn", onClick: () => { cargar(); leerGest(); } }, esEditor ? "Volver a calcular" : "Actualizar")),
       ...aniosVis.map(a => { let G = vis.filter(x => cxAnio(x) === a).sort((p, r) => (r.fo && r.fo <= r.f ? r.fo : r.f) - (p.fo && p.fo <= p.f ? p.fo : p.f)); if (!G.length) return null; let cerrado = plegados[a];
         let cuenta = s => G.filter(x => x.seg === s).length;
         return h("div", { key: a, style: { marginTop: 14, border: "1px solid var(--linea, #ddd)", borderRadius: 10, overflow: "hidden" } },
@@ -8379,18 +8519,20 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
             h("span", { style: { flex: 1 } }),
             ...["alta", "media", "baja", "sin"].filter(cuenta).map(s => h("span", { key: s, className: "est " + CXI_SEG[s][1], style: { marginLeft: 4 } }, `${CXI_SEG[s][0]} ${cuenta(s)}`))),
           !cerrado && h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
-            h("thead", null, h("tr", null, ["Fecha y recibo", "Valor", "Posible dueño", "¿Por qué lo creemos?", "Seguridad", verOk ? "Confirmada" : "¿Ya se confirmó?"].map((t, i) => h("th", { key: i, className: i === 1 ? "a-right" : "" }, t)))),
+            h("thead", null, h("tr", null, ["Fecha y recibo", "Valor", "Posible dueño", "¿Por qué lo creemos?", "Seguridad", "Gestión de cartera"].map((t, i) => h("th", { key: i, className: i === 1 ? "a-right" : "" }, t)))),
             h("tbody", null, G.flatMap(x => [h("tr", { key: x.k, onClick: () => setAbierta(abierta === x.k ? null : x.k), style: { cursor: "pointer", background: abierta === x.k ? "var(--acento-suave, #e8f3f4)" : null } },
               h("td", null, (abierta === x.k ? "▾ " : "▸ ") + cbFecha(cxF(x.fo && x.fo <= x.f ? x.fo : x.f)), h("div", { className: "tenue mono" }, x.doc)),
               h("td", { className: "a-right num" }, h("b", null, pesos(x.v))),
               h("td", null, x.duenos.length ? x.duenos.map((t, i) => { let u = cpmUnidad(t); return h("div", { key: i }, h("b", null, u.unidad), h("div", { className: "tenue" }, u.prop)); }) : "—"),
               h("td", { style: { maxWidth: 420 } }, x.corto || x.porque),
               h("td", null, h("span", { className: "est " + CXI_SEG[x.seg][1] }, CXI_SEG[x.seg][0])),
-              h("td", { onClick: e => e.stopPropagation() }, soloLectura ? (seg[x.k] ? "Sí" : "") : h("label", { style: { cursor: "pointer" } }, h("input", { type: "checkbox", checked: !!seg[x.k], onChange: e => marcar(x.k, e.target.checked) }), seg[x.k] ? ` ${cbFecha(seg[x.k].fecha)}` : ""))),
+              celdaGest(x)),
               abierta === x.k ? detalle(x) : null]).filter(Boolean)))));
       }),
       !vis.length && h("p", { className: "tenue", style: { marginTop: 12 } }, "No hay consignaciones con ese filtro."),
-      h("p", { className: "pie" }, `Libros auxiliares: ${X.libros.join(", ")}. Marque «¿Ya se confirmó?» cuando cartera confirme el dueño y entregue el soporte; deja de salir en el informe. Cuando contabilidad registre la identificación y se cargue de nuevo el libro auxiliar, la consignación desaparece sola.`)));
+      h("p", { className: "pie" }, esEditor
+        ? `Libros auxiliares: ${(X.libros ?? []).join(", ")}. Cartera marca cada consignación en gestión o resuelta (con la unidad y el soporte). Cuando usted registre la identificación en World Office, márquela «Ya la registré»; al cargar de nuevo el libro auxiliar, la consignación desaparece sola de la lista.`
+        : "Marque «En gestión» mientras averigua y «✓ Resuelta» cuando tenga el soporte, la unidad y la explicación de cómo la identificó. Contabilidad la registra en World Office y, al actualizar los libros, deja de salir aquí.")));
 }
 
 
