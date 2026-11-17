@@ -1016,8 +1016,9 @@ function ppEsExplot(x) { return /^4220/.test(x.c) || /CONCESI|VALLA|BBQ|ALQUILER
 function ppCriterioDef(x) { if (/^5160/.test(x.c)) return "sin"; if (PP_SML.test(x.n)) return "sml"; return "ipc"; }
 /* Cuentas que en World Office no se pueden reclasificar y pertenecen a un rubro del presupuesto:
    su ejecución (2026 y 2025) se suma al rubro y la cuenta deja de salir como rubro aparte.
-   Depreciaciones: la causación mensual cae en las cuentas madre y el presupuesto está en los ítems 901 y 902. */
-var PP_UNIR = { "516015": "51601501", "516010": "51601501", "516020": "51602001" };
+   Depreciaciones: van todas en un solo renglón (cuentas madre 516010/516015/516020 y los ítems 901 y 902). */
+var PP_UNIR = { "516015": "51601501", "516010": "51601501", "516020": "51601501", "51602001": "51601501" };
+var PP_NOMBRE = { "51601501": "DEPRECIACIONES (EQUIPO DE OFICINA, CÓMPUTO Y MAQUINARIA)" };
 function ppUnirBase(base) {
   if (!base?.items || base.unida) return base;
   let items = base.items.map(x => ({ ...x, em: [...(x.em ?? [])] })), por = new Map(items.map(x => [x.c, x]));
@@ -1025,9 +1026,10 @@ function ppUnirBase(base) {
     let o = por.get(de), d = por.get(a); if (!o || !d) continue;
     d.p26 = (d.p26 || 0) + (o.p26 || 0); d.e26 = (d.e26 || 0) + (o.e26 || 0); d.r25 = (d.r25 || 0) + (o.r25 || 0);
     d.em = Array.from({ length: Math.max(d.em.length, o.em.length) }, (_, i) => (d.em[i] || 0) + (o.em[i] || 0));
-    d.unidas = [...(d.unidas ?? []), `${de} ${ppxCap ? ppxCap(o.n) : o.n}`];
+    d.unidas = [...(d.unidas ?? []), ...(o.unidas ?? []), `${de} ${ppxCap(o.n)}`];
     por.delete(de);
   }
+  for (const [c, n] of Object.entries(PP_NOMBRE)) { let x = por.get(c); x && x.unidas && (x.n = n); }
   return { ...base, items: items.filter(x => por.get(x.c) === x), unida: !0 };
 }
 function ppCalc(base, cfgIn) {
@@ -1042,12 +1044,12 @@ function ppCalc(base, cfgIn) {
   let fila = x => {
     let f = cfg.filas?.[x.c] ?? {}, e26p = proy(x), b = f.b ?? (x.p26 > 0 ? "p26" : "val");
     let bv = b === "p26" ? x.p26 : b === "e26" ? e26p : b === "r25" ? x.r25 : Math.round(+f.v || 0);
-    let nota = f.nota ?? (x.unidas ? `La ejecución incluye la cuenta ${x.unidas.join(" y la cuenta ")}, que en World Office no se puede reclasificar.` : x.p26 > 0 ? "" : "No estaba en el presupuesto 2026: se deja en cero; cámbielo si debe presupuestarse.");
+    let nota = f.nota ?? (x.unidas ? `Une el ítem 901, el ítem 902 y las cuentas ${x.unidas.filter(u => !/^5160\d{4}/.test(u)).map(u => u.split(" ")[0]).join(", ")}, donde World Office registra la depreciación mensual.` : x.p26 > 0 ? "" : "No estaba en el presupuesto 2026: se deja en cero; cámbielo si debe presupuestarse.");
     let crit = f.c ?? ppCriterioDef(x), pct = b === "val" ? 0 : crit === "dos" ? (1 + (+f.p || 0) / 100) * (1 + (+f.p2 || 0) / 200) - 1 : pctDe(crit, f.p);
     return { ...x, e26p, b, bv, crit, pct, p: f.p, p2: f.p2, v: f.v, soporte: f.soporte ?? null, v27: ppR(bv * (1 + pct)), nota };
   };
-  let gastos = base.items.filter(x => /^5/.test(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
-  let otros = base.items.filter(x => /^4/.test(x.c) && ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c) && (x.p26 || x.e26 || x.r25)).map(fila);
+  let gastos = base.items.filter(x => /^5/.test(x.c) && (x.p26 || x.e26)).map(fila);
+  let otros = base.items.filter(x => /^4/.test(x.c) && ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c) && (x.p26 || x.e26)).map(fila);
   let G = gastos.reduce((a, x) => a + x.v27, 0), O = otros.reduce((a, x) => a + x.v27, 0);
   // ingresos por explotación económica de zonas comunes (Ley 675, art. 19 par. 2): la Asamblea decide si van a gastos comunes o al fondo (art. 35)
   for (const x of otros) x.exp = cfg.explot?.[x.c] != null ? !!cfg.explot[x.c] : ppEsExplot(x);
