@@ -968,7 +968,7 @@ var PP_SML = /VIGILANCIA|OPERARIOS|LIMPIEZA|RECEPCI|STAF|CONSERJ|SERVICIO ADMON|
 var ppR = (v, m = 1000) => Math.round((v || 0) / m) * m;
 var ppP = v => "$ " + pe(Math.round(v || 0));
 var ppPct = (v, d = 1) => (v == null || !isFinite(v) ? "—" : (v * 100).toFixed(d).replace(".", ",") + " %");
-var PP_DEF = { ipc: 5.51, sml: 9, crec: 0, fondoPct: 1, precio26: 0, descPct: null, filas: {}, op: [{ nombre: "Opción 1", idx: "ipc", pct: null, per: null, gas: null }, { nombre: "Opción 2", idx: "sml", pct: null, per: null, gas: null }, { nombre: "Opción 3", idx: "otro", pct: 12, per: null, gas: null }], ventas: {} };
+var PP_DEF = { ipc: 5.51, sml: 9, crec: 0, fondoPct: 1, precio26: 0, descPct: null, exAnt: !1, filas: {}, op: [{ nombre: "Opción 1", idx: "ipc", pct: null, per: null, gas: null }, { nombre: "Opción 2", idx: "sml", pct: null, per: null, gas: null }, { nombre: "Opción 3", idx: "otro", pct: 12, per: null, gas: null }], ventas: {} };
 
 async function ppPrepararBase(ses, prog) {
   prog("Leyendo el presupuesto y la ejecución de 2026…");
@@ -1042,6 +1042,9 @@ function ppUnirBase(base) {
   for (const [c, n] of Object.entries(PP_NOMBRE)) { let x = por.get(c); x && x.unidas && (x.n = n); }
   return { ...base, items: items.filter(x => por.get(x.c) === x), unida: !0 };
 }
+/* Ingresos y gastos de ejercicios anteriores: por defecto NO entran al presupuesto (no se repiten);
+   la casilla "Incluir ejercicios anteriores" (cfg.exAnt) los vuelve a sumar con su base y criterio. */
+var ppEsExAnt = c => /^5315/.test(c) || ["42503502", "42503503"].includes(c);
 function ppCalc(base, cfgIn) {
   base = ppUnirBase(base);
   let cfg = { ...PP_DEF, ...cfgIn }, ipc = (+cfg.ipc || 0) / 100, sml = (+cfg.sml || 0) / 100, nM = base.nMes || 10;
@@ -1056,7 +1059,9 @@ function ppCalc(base, cfgIn) {
     let bv = b === "p26" ? x.p26 : b === "e26" ? e26p : b === "r25" ? x.r25 : Math.round(+f.v || 0);
     let nota = f.nota ?? (x.unidas ? `Une el ítem 901, el ítem 902 y las cuentas ${x.unidas.filter(u => !/^5160\d{4}/.test(u)).map(u => u.split(" ")[0]).join(", ")}, donde World Office registra la depreciación mensual.` : x.p26 > 0 ? "" : "No estaba en el presupuesto 2026: se deja en cero; cámbielo si debe presupuestarse.");
     let crit = f.c ?? ppCriterioDef(x), pct = b === "val" ? 0 : crit === "dos" ? (1 + (+f.p || 0) / 100) * (1 + (+f.p2 || 0) / 200) - 1 : pctDe(crit, f.p);
-    return { ...x, e26p, b, bv, crit, pct, p: f.p, p2: f.p2, v: f.v, soporte: f.soporte ?? null, v27: ppR(bv * (1 + pct)), nota };
+    let fuera = ppEsExAnt(x.c) && !cfg.exAnt;
+    fuera && (nota = "Ejercicio anterior: no se incluye en el presupuesto 2027. Para incluirlo, marque «Incluir ingresos y gastos de ejercicios anteriores».");
+    return { ...x, e26p, b, bv, crit, pct, p: f.p, p2: f.p2, v: f.v, soporte: f.soporte ?? null, v27: fuera ? 0 : ppR(bv * (1 + pct)), nota, exAnt: ppEsExAnt(x.c), fuera };
   };
   let gastos = base.items.filter(x => /^5/.test(x.c) && (x.p26 || x.e26)).map(fila);
   let otros = base.items.filter(x => /^4/.test(x.c) && ![PP_CUOTAS, PP_FONDO, PP_MAN, PP_DESC].includes(x.c) && (x.p26 || x.e26)).map(fila);
@@ -1517,7 +1522,7 @@ function ppDoc(M, base, config) {
     { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 60, "left"), col("PPTO 2027", 20), col("2027 AL MES", 20)], filas: [...M.otros.filter(x => x.exp).map(x => ({ estilo: "detalle", celdas: [or(ppxCap(x.n)), er(x.v27), er(x.v27 / 12)] })), { estilo: "subtotal", celdas: [or("Total"), er(M.EX), er(M.EX / 12)] }] }] };
   let secc = [secRes, secPyg, secExp,
     { id: "pp_gas", nombre: "Gastos 2027", titulo: "PRESUPUESTO DE GASTOS 2027", subtitulos: s("Por rubro, con su base, criterio de incremento y valor mensual"), orientacion: "landscape", bloques: [
-      { tipo: "parrafo", estilo: "normal", texto: `Cada rubro parte del presupuesto 2026 aprobado o de su ejecución real 2026, según se haya definido para el rubro, y se incrementa con el IPC (${ppPct(M.ipc, 2)}) o, si su costo depende de personal (vigilancia, aseo, recepción, administración), con el incremento del salario mínimo (${ppPct(M.sml, 2)}). La ejecución real 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses.` },
+      { tipo: "parrafo", estilo: "normal", texto: `Cada rubro parte del presupuesto 2026 aprobado o de su ejecución real 2026, según se haya definido para el rubro, y se incrementa con el IPC (${ppPct(M.ipc, 2)}) o, si su costo depende de personal (vigilancia, aseo, recepción, administración), con el incremento del salario mínimo (${ppPct(M.sml, 2)}). La ejecución real 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses. ${M.cfg.exAnt ? "Incluye los ingresos y gastos de ejercicios anteriores." : "No incluye los ingresos y gastos de ejercicios anteriores (costos y gastos de ejercicios anteriores y reintegros de años anteriores), porque no se repiten."}` },
       { tipo: "tabla", cabecera: !0, columnas: [col("RUBRO", 38, "left"), col("PPTO 2026\nAPROBADO", 11), col("EJECUCIÓN\nREAL 2026", 11), col("CRITERIO", 11, "left"), col("% INCR.", 7), col("PPTO 2027", 11), col("2027\nAL MES", 11)], filas: filasG }] },
     { id: "pp_ing", nombre: "Ingresos 2027", titulo: "PRESUPUESTO DE INGRESOS 2027", subtitulos: s("Manillas y otros ingresos"), orientacion: "portrait", bloques: [
       { tipo: "parrafo", estilo: "normal", texto: `Manillas: en 2026 se presupuestaron ${ppP(M.man.p26)}; lo ejecutado a ${ultMes} es ${ppP(M.man.e26)} y la proyección del año es ${ppP(M.man.proy)} (noviembre y diciembre se estiman con lo de 2025 ajustado por la tendencia de agosto a octubre). El presupuesto 2027 de manillas parte de esa proyección, no del presupuesto 2026, para no sobreestimar el ingreso.` },
@@ -1753,7 +1758,15 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   }
   if (fCrit) { let L = M.gastos.filter(x => tipoC(x) === fCrit), sm = k => L.reduce((a, x) => a + (x[k] || 0), 0); filasG.push({ t: "TOTAL DE ESTOS RUBROS", r: 1, c: [sm("p26"), sm("e26p"), sm("v27"), sm("v27") / 12, sm("p26") ? ppSig(sm("v27") / sm("p26") - 1) : "", ...blanco], cc: ccR() }); }
   else filasG.push({ t: "TOTAL GASTOS DE FUNCIONAMIENTO", r: 1, c: [M.G26, M.G26p, M.G, M.G / 12, ppSig(M.G / M.G26 - 1), ...blanco], cc: ccR() });
-  let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
+    /* ingresos y gastos de ejercicios anteriores: fuera del presupuesto salvo que se decida incluirlos */
+  let exL = [...M.gastos, ...M.otros].filter(x => x.exAnt), exG = M.gastos.filter(x => x.exAnt), exI = M.otros.filter(x => x.exAnt);
+  let exVal = L => L.reduce((a, x) => a + ppR(x.bv * (1 + x.pct)), 0);
+  let chkExAnt = exL.length > 0 && h("div", { className: "pp-barra", style: { alignItems: "center", background: "var(--acento-suave, #f3f8f8)", padding: "8px 12px", borderRadius: 8 } },
+    h("label", { style: { display: "flex", gap: 8, alignItems: "center", cursor: soloLectura ? "default" : "pointer" } },
+      h("input", { type: "checkbox", checked: !!cfg.exAnt, disabled: soloLectura, onChange: e => guardar({ ...cfg, exAnt: e.target.checked }) }),
+      h("b", null, "Incluir ingresos y gastos de ejercicios anteriores")),
+    h("span", { className: "tenue" }, `${cfg.exAnt ? "Incluidos" : "No incluidos"}: gastos ${exG.map(x => x.n.replace(/^item\s*[\d.,-]+\s*-?\s*/i, "")).join(", ") || "—"} (${ppP(exVal(exG))} al año) e ingresos ${exI.map(x => x.n.replace(/^item\s*[\d.,-]+\s*-?\s*/i, "")).join(", ") || "—"} (${ppP(exVal(exI))} al año). Son de años anteriores y por lo general no se repiten.`));
+let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
     h("p", { className: "sub" }, `${ppP(M.G)} en el año, ${ppP(M.G / 12)} al mes. Toque un grupo para ver sus rubros. La base del 2027 puede ser el presupuesto 2026 aprobado o la ejecución real 2026; la cifra subrayada es la base que se usa, y se elige para todos, por grupo o por rubro. La ejecución real 2026 lleva lo ejecutado de enero a ${ultMes} a doce meses; cuando cierre diciembre se puede cambiar por el real. En rojo, rubros que la proyección pasa en más de 10 % del presupuesto 2026. Para cambiar la base de un rubro use «Editar bases y criterios».`),
     h("div", { className: "aviso aviso-info" }, h("p", { style: { margin: 0 } }, h("b", null, "¿Cómo sube cada rubro? "), "Toque un grupo para ver solo esos rubros. Para cambiar cómo sube un rubro (salario mínimo, IPC, % de la propuesta del proveedor, dos incrementos en enero y julio, valor fijo o sin incremento) use ", h("b", null, "✎ Cambiar"), " en la columna «Cómo se calcula». En «Soporte» se adjunta el PDF de la propuesta.")),
     h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0" } }, [[null, "Todos los rubros", M.gastos], ["sml", "Suben con el salario mínimo", cuentaC("sml")], ["ipc", "Suben con el IPC", cuentaC("ipc")], ["propio", "Cálculo propio (propuesta, dos incrementos, fijo o sin incremento)", cuentaC("propio")]].map(([k, t, L]) => h("button", { key: String(k), type: "button", onClick: () => setFCrit(k), style: { textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: fCrit === k ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: fCrit === k ? "var(--acento-suave, #e8f3f4)" : "var(--hoja, #fff)" } }, h("div", { style: { fontWeight: 700 } }, t), h("div", { className: "tenue", style: { fontSize: 12 } }, `${L.length} rubros · ${ppP(L.reduce((a, x) => a + x.v27, 0) / 12)} al mes`)))),
@@ -1762,6 +1775,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
       h("button", { type: "button", className: "btn btn-sm" + (baseDe(M.gastos).sola === "p26" ? " btn-primario" : ""), onClick: () => ponerBase(M.gastos, "p26") }, "Presupuesto 2026 aprobado"),
       h("button", { type: "button", className: "btn btn-sm" + (baseDe(M.gastos).sola === "e26" ? " btn-primario" : ""), onClick: () => ponerBase(M.gastos, "e26") }, "Ejecución real 2026"),
       h("span", { className: "tenue" }, txtBase(M.gastos) + ". También se puede elegir por grupo (columna «Cómo se calcula») o por rubro (✎ Cambiar).")),
+    chkExAnt,
     ppTab(h, encR(fCrit ? "Rubro" : "Grupo / rubro"), filasG));
 
   /* 4. ingresos */
@@ -1774,8 +1788,8 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let vIng = h(Ve.Fragment, null,
     h("section", { className: "panel" }, h("h2", null, "Manillas de acceso"),
       h("p", { className: "sub" }, `Ejecutado a ${ultMes} de 2026: ${ppP(M.man.e26)}. Noviembre y diciembre se estiman con lo de 2025 ajustado por la tendencia de agosto a octubre (${ppPct(M.man.fac - 1)}). Cada opción parte de la proyección 2026.`),
-      ppTab(h, [[["Concepto"], ["Ppto 2026"], ["Proyección 2026"], ...M.ops.map((o, i) => [`Opción ${i + 1}`])]], manF)),
-    h("section", { className: "panel" }, h("h2", null, "Otros ingresos"),
+      ppTab(h, [[["Concepto"], ["Ppto 2026 aprobado"], ["Ejecución real 2026"], ...M.ops.map((o, i) => [`Opción ${i + 1}`])]], manF)),
+    h("section", { className: "panel" }, h("h2", null, "Otros ingresos"), chkExAnt,
       h("p", { className: "sub" }, "Concesiones, intereses, sanciones y reintegros. Las cuotas de administración, el fondo y el descuento por pronto pago se calculan en cada opción (pestaña Resumen mensual)."),
       botonesEd,
       ppTab(h, encR("Ingreso"), [...M.otros.map(x => fRubro(x)), { t: "TOTAL OTROS INGRESOS", r: 1, c: [M.otros.reduce((a, x) => a + x.p26, 0), M.otros.reduce((a, x) => a + (x.e26p || 0), 0), M.O, M.O / 12, "", ...blanco], cc: ccR() }])));
