@@ -950,6 +950,15 @@ function BdPantalla({ ses, notificar, soloLectura }) {
    manillas de acceso (turismo). Dos opciones: el precio de la manilla sube por IPC o por salario mínimo; la cuota cubre el resto. */
 var PP_VISTAS = ["ppto_2027"];
 /* orden de trabajo: 1 gastos → 2 opciones de incremento (manilla y cuota) → 3 distribución de la cuota y valor de la manilla → 4 presupuesto (PyG); al final, datos de apoyo */
+var PP_PRES_CSS = `
+.pp-pres{position:fixed;inset:0;z-index:9000;background:var(--fondo,#f6f4f0);display:flex;flex-direction:column}
+.pp-pres-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 22px;background:#fff;border-bottom:1px solid var(--linea,#ddd)}
+.pp-pres-tit{display:flex;flex-direction:column;line-height:1.2;margin-right:8px}
+.pp-pres-tit span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave)}
+.pp-pres-tit b{font-family:var(--f-marca);font-size:18px}
+.pp-pres-cuerpo{flex:1;overflow:auto;padding:18px 28px 40px}
+.pp-pres-hoja{max-width:1480px;margin:0 auto}
+`;
 var PP_PASOS = [["gas", "1. Gastos e incrementos"], ["res", "2. Opciones: manilla y cuota"], ["cuo", "3. Cuota por unidad y manilla"], ["pyg", "4. Presupuesto (PyG)"], ["ing", "Otros ingresos"], ["sup", "Supuestos"]];
 var PP_PASO_TXT = { gas: "Paso 1. Estructure los gastos: revise la base de cada rubro y defina cuánto sube (salario mínimo, IPC, propuesta del proveedor o dos incrementos). Adjunte los soportes.", res: "Paso 2. Con los gastos definidos, arme las tres opciones: cuánto sube la manilla y, con eso, cuánto debe subir la cuota de administración.", cuo: "Paso 3. Así queda la cuota de cada unidad y el valor de la manilla en cada opción.", pyg: "Paso 4. Así queda el presupuesto 2027 (ingresos, gastos y excedente = fondo de imprevistos) en cada opción.", ing: "Datos de apoyo: otros ingresos (concesiones, intereses, reintegros) y el comportamiento de las manillas.", sup: "Datos de apoyo: IPC, salario mínimo, descuento por pronto pago, fondo de imprevistos y ventas de manillas." };
 var PP_DOC = "ppto_proy/2027", PP_BASE = "ppto_proy/2027_base";
@@ -1607,6 +1616,22 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let preparar = async () => { try { setProg("Preparando…"); let b = await ppPrepararBase(ses, setProg); setBase(b); notificar("ok", "Datos base actualizados."); } catch (e) { notificar("error", e?.message ?? String(e)); } setProg(""); };
   let subirVentas = async files => { let v = { ...(cfg.ventas ?? {}) }; for (const f of Array.from(files)) { let r = ppVentasLeer(await is(new Uint8Array(await f.arrayBuffer()))); if (r) v[r.anio] = r; else notificar("error", f.name + ": no parece un informe de Ventas por producto de World Office."); } guardar({ ...cfg, ventas: v }); };
   let M = Ve.useMemo(() => base && cfg ? ppCalc(base, cfg) : null, [base, cfg]);
+  /* presentar: las mismas pestañas de la pantalla, en pantalla completa. ← → cambian de pestaña, Esc sale */
+  let salirPres = () => { setPres(!1); try { document.fullscreenElement && document.exitFullscreen(); } catch { } };
+  Ve.useEffect(() => {
+    if (!pres) return;
+    let f = e => {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "")) return;
+      let i = PP_PASOS.findIndex(p => p[0] === tab);
+      if (e.key === "Escape") salirPres();
+      else if ((e.key === "ArrowRight" || e.key === "PageDown") && i < PP_PASOS.length - 1) { e.preventDefault(); setTab(PP_PASOS[i + 1][0]); }
+      else if ((e.key === "ArrowLeft" || e.key === "PageUp") && i > 0) { e.preventDefault(); setTab(PP_PASOS[i - 1][0]); }
+    };
+    let salioFs = () => { !document.fullscreenElement && setPres(!1); };
+    window.addEventListener("keydown", f); document.addEventListener("fullscreenchange", salioFs);
+    return () => { window.removeEventListener("keydown", f); document.removeEventListener("fullscreenchange", salioFs); };
+  }, [pres, tab]);
+  Ve.useEffect(() => { if (pres) { let el = document.querySelector(".pp-pres-cuerpo"); el && el.scrollTo(0, 0); } }, [pres, tab]);
   let bajarEj = async tipo => { try { let d = ejDoc(M, base, config); if (tipo === "pdf") await BL(ses, "Ejecucion_presupuesto_2026.pdf", await en(d), notificar); else await BL(ses, "Ejecucion_presupuesto_2026.xlsx", await Yn(d), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } };
   let bajar = async tipo => { try { let d = ppDoc(M, base, config); if (tipo === "pdf") await BL(ses, "Presupuesto_2027_propuesta.pdf", await en(d), notificar); else { await BL(ses, "Presupuesto_2027_propuesta.xlsx", await Yn(d), notificar); } } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } };
   if (base === null || !cfg) return ppH("p", { className: "tenue" }, "Cargando…");
@@ -1617,7 +1642,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let barra = h("div", { className: "herramientas" },
     !soloLectura && h("button", { type: "button", className: "btn", disabled: !!prog, onClick: preparar }, prog || (base ? "Actualizar datos base" : "Preparar datos base")),
     base && h("span", { className: "tenue" }, `Datos de ${new Date(base.creadoEn).toLocaleDateString("es-CO")} · ejecución a ${ultMes} 2026 · ${base.uni?.length ?? 0} unidades`),
-    M && h("button", { type: "button", className: "btn btn-primario", onClick: () => setPres(!0), title: "Pantalla completa por diapositivas, con los supuestos ajustables en vivo" }, "▶ Presentar"),
+    M && h("button", { type: "button", className: "btn btn-primario", onClick: () => { setPres(!0); try { document.documentElement.requestFullscreen?.().catch(() => { }); } catch { } }, title: "Las mismas pestañas de esta pantalla, en pantalla completa para exponer. ← → cambian de pestaña; Esc sale." }, "▶ Presentar"),
     M && h("button", { type: "button", className: "btn", onClick: () => bajar("pdf") }, "PDF para la Asamblea"),
     M && h("button", { type: "button", className: "btn", onClick: () => bajar("xlsx") }, "Excel"),
     M && h("button", { type: "button", className: "btn", onClick: () => bajarEj("pdf"), title: "Informe para la Asamblea: cómo se ejecutó el presupuesto 2026" }, "PDF ejecución 2026"),
@@ -1755,7 +1780,6 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
     h("ul", null, Object.values(cfg.ventas ?? {}).sort((a, b) => a.anio - b.anio).map(v => { let m = ppVentasMan(v); return h("li", { key: v.anio }, h("b", null, v.anio), ` · ${v.periodo} · ${m ? `${m.u.toLocaleString("es-CO")} manillas, precio promedio ${ppP(m.precio)}` : "sin manillas"}`); })),
     !soloLectura && h("div", { className: "herramientas" }, h("button", { type: "button", className: "btn", onClick: () => refV.current?.click() }, "Subir ventas por producto"), h("input", { ref: refV, type: "file", accept: ".xlsx", multiple: !0, hidden: !0, onChange: e => { e.target.files && subirVentas(e.target.files); e.target.value = ""; } })));
 
-  if (pres) return h(PpPresentacion, { base, cfg0: cfg, entidad: { nombre: config?.entidad }, soloLectura, guardar: n => { guardar(n); notificar("ok", "Escenario guardado como proyecto vigente."); }, onCerrar: () => setPres(!1) });
   let iP = PP_PASOS.findIndex(p => p[0] === tab), sigP = iP >= 0 && iP < 3 ? PP_PASOS[iP + 1] : null;
   let guia = h("div", { className: "aviso aviso-info", style: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" } }, h("p", { style: { margin: 0, flex: 1 } }, PP_PASO_TXT[tab]), sigP && h("button", { type: "button", className: "btn btn-primario btn-sm", onClick: () => { setTab(sigP[0]); window.scrollTo(0, 0); } }, "Siguiente: " + sigP[1].replace(/^\d\. /, "") + " →"));
   let manCuo = tab === "cuo" && h("section", { className: "panel" }, h("h2", null, "Valor de la manilla y cuota en cada opción"),
@@ -1764,7 +1788,20 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
       { t: "La manilla sube", c: ["", ...M.ops.map(o => ppSig(o.pm))], f: "txt" },
       { t: "Total a facturar a las unidades al mes", c: [M.cuotaMes26, ...M.ops.map(o => o.mes)], s: 1 },
       { t: "La cuota sube", c: ["", ...M.ops.map(o => ppSig(o.inc))], f: "txt", r: 1 }]));
-  return h("div", { className: "pantalla" }, h("style", null, PP_CSS), enc, barra, tabs, guia, manCuo, tab === "res" ? vRes : tab === "pyg" ? vPyg : tab === "gas" ? vGas : tab === "ing" ? vIng : tab === "cuo" ? vCuo : vSup);
+  let vista = tab === "res" ? vRes : tab === "pyg" ? vPyg : tab === "gas" ? vGas : tab === "ing" ? vIng : tab === "cuo" ? vCuo : vSup;
+  if (pres) {
+    let iT = PP_PASOS.findIndex(p => p[0] === tab);
+    return h("div", { className: "pp-pres" }, h("style", null, PP_CSS + PP_PRES_CSS),
+      h("div", { className: "pp-pres-top" },
+        h("div", { className: "pp-pres-tit" }, h("span", null, config?.entidad || ""), h("b", null, "Presupuesto 2027")),
+        h("div", { className: "seg", role: "tablist" }, PP_PASOS.map(([v, t]) => h("button", { key: v, type: "button", "aria-pressed": tab === v, onClick: () => setTab(v) }, t))),
+        h("span", { style: { flex: 1 } }),
+        h("button", { type: "button", className: "btn btn-sm", disabled: iT <= 0, onClick: () => setTab(PP_PASOS[iT - 1][0]), title: "Pestaña anterior (←)" }, "←"),
+        h("button", { type: "button", className: "btn btn-sm", disabled: iT >= PP_PASOS.length - 1, onClick: () => setTab(PP_PASOS[iT + 1][0]), title: "Pestaña siguiente (→)" }, "→"),
+        h("button", { type: "button", className: "btn btn-sm btn-primario", onClick: salirPres, title: "Salir de la presentación (Esc)" }, "Salir")),
+      h("div", { className: "pp-pres-cuerpo" }, h("div", { className: "pantalla pp-pres-hoja" }, guia, manCuo, vista)));
+  }
+  return h("div", { className: "pantalla" }, h("style", null, PP_CSS), enc, barra, tabs, guia, manCuo, vista);
 }
 
 /* ===================== Impuestos · Declarado vs sistema =====================
