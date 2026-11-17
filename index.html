@@ -8408,7 +8408,7 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
       if (!esEditor) {
         setProg("Leyendo la lista que publicó contabilidad…");
         let d = await ses.store.get("cxi_pub/lista");
-        if (!d) throw new Error("Contabilidad todavía no ha publicado la lista de consignaciones por identificar. Pídale que abra esta pantalla para publicarla.");
+        if (!d) throw new Error("No se pudo leer la lista de consignaciones por identificar. Contabilidad la publica cada vez que abre esta pantalla; si ya la abrió, falta publicar en Firebase las reglas nuevas que dan este permiso al perfil de cartera.");
         let P = JSON.parse(d.j);
         setX({ ...P, pub: !0, sinAsociar: [], libChk: [] });
       } else {
