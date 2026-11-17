@@ -1458,16 +1458,16 @@ function ppFilasUnidad(M, uni) {
   let filas = [], nOps = M.ops.length, tot = [0, ...M.ops.map(() => 0)], totC = 0;
   for (const g of orden) {
     let L = G.get(g), st = [0, ...M.ops.map(() => 0)], sc = 0;
-    filas.push({ estilo: "grupo", celdas: [or(`${g} · ${L.length} unidades`), or(""), or(""), ...M.ops.map(() => or("")), or("")] });
+    filas.push({ estilo: "grupo", celdas: [or(`${g} · ${L.length} unidades`), or(""), or(""), ...M.ops.map(() => or(""))] });
     for (const [k, c, a] of L) {
       let v = M.ops.map(o => ppR(o.mes * c / 100, 1));
       st[0] += a; v.forEach((x, j) => st[j + 1] += x); sc += c;
-      filas.push({ estilo: "detalle", celdas: [or(nom(k)), or(String(c).replace(".", ",")), er(a), ...v.map(x => er(x)), or(a ? ppPct(v[0] / a - 1) : "")] });
+      filas.push({ estilo: "detalle", celdas: [or(nom(k)), or(String(c).replace(".", ",")), er(a), ...v.map(x => er(x))] });
     }
-    filas.push({ estilo: "subtotal", celdas: [or(`Total ${g.toLowerCase().replace(/^torre/, "torre")}`), or(String(Math.round(sc * 1000) / 1000).replace(".", ",")), er(st[0]), ...st.slice(1).map(x => er(x)), or("")] });
+    filas.push({ estilo: "subtotal", celdas: [or(`Total ${g.toLowerCase().replace(/^torre/, "torre")}`), or(String(Math.round(sc * 1000) / 1000).replace(".", ",")), er(st[0]), ...st.slice(1).map(x => er(x))] });
     st.forEach((x, j) => tot[j] += x); totC += sc;
   }
-  filas.push({ estilo: "totalDoble", celdas: [or("TOTAL RECAUDO MENSUAL"), or(String(Math.round(totC * 1000) / 1000).replace(".", ",")), er(tot[0]), ...tot.slice(1).map(x => er(x)), or("")] });
+  filas.push({ estilo: "totalDoble", celdas: [or("TOTAL RECAUDO MENSUAL"), or(String(Math.round(totC * 1000) / 1000).replace(".", ",")), er(tot[0]), ...tot.slice(1).map(x => er(x))] });
   return filas;
 }
 function ppDoc(M, base, config) {
@@ -1525,8 +1525,8 @@ function ppDoc(M, base, config) {
       { tipo: "parrafo", estilo: "h3", texto: "Otros ingresos" },
       { tipo: "tabla", cabecera: !0, columnas: [col("INGRESO", 40, "left"), col("PPTO 2026\nAPROBADO", 15), col("EJECUCIÓN\nREAL 2026", 15), col("PPTO 2027", 15), col("2027 AL MES", 15)], filas: [...M.otros.map(x => ({ estilo: "detalle", celdas: [or(x.n), er(x.p26), er(x.e26p), er(x.v27), er(x.v27 / 12)] })), { estilo: "subtotal", celdas: [or("Total otros ingresos"), er(M.otros.reduce((a, x) => a + x.p26, 0)), er(M.otros.reduce((a, x) => a + (x.e26p || 0), 0)), er(M.O), er(M.O / 12)] }] }] },
     { id: "pp_cuo", nombre: "Cuotas por unidad", titulo: "CUOTA MENSUAL POR UNIDAD", subtitulos: s("Según el coeficiente de copropiedad de cada unidad"), orientacion: "portrait", bloques: [
-      { tipo: "parrafo", estilo: "normal", texto: "La cuota de cada unidad es la facturación mensual (cuota de administración más fondo de imprevistos) multiplicada por su coeficiente de copropiedad. La tabla muestra cada apartamento, local, parqueadero y depósito con coeficiente propio, por torre, con su cuota mensual de 2026 y la que tendría en cada opción." },
-      { tipo: "tabla", cabecera: !0, columnas: [col("UNIDAD", 26, "left"), col("COEF. %", 12), col("CUOTA 2026", 18), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}`, 18)), col("VARIACIÓN", 8)], filas: ppFilasUnidad(M, uni) }] }];
+      { tipo: "parrafo", estilo: "normal", texto: "La cuota de cada unidad es la facturación mensual (cuota de administración más fondo de imprevistos) multiplicada por su coeficiente de copropiedad. La tabla muestra cada apartamento, local, parqueadero y depósito con coeficiente propio, por torre, con su cuota mensual de 2026 y la que tendría en cada opción. Debajo de cada opción va cuánto sube la cuota frente a 2026 (es el mismo porcentaje para todas las unidades)." },
+      { tipo: "tabla", cabecera: !0, columnas: [col("UNIDAD", 28, "left"), col("COEF. %", 12), col("CUOTA 2026", 18), ...M.ops.map((o, i) => col(`OPCIÓN ${i + 1}\n${ppSig(o.inc)}`, 14))], filas: ppFilasUnidad(M, uni) }] }];
   return { continuo: !0, entidad: C.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: C.nit ? "NIT. " + C.nit : "", logo: C.logo || void 0, firmantes: C.firmantes, secciones: secc, leyendas: [] };
 }
 /* ===================== EJECUCIÓN DEL PRESUPUESTO 2026: informe para la Asamblea ===================== */
