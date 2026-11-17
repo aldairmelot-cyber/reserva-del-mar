@@ -1018,9 +1018,18 @@ function ppCriterioDef(x) { if (/^5160/.test(x.c)) return "sin"; if (PP_SML.test
    su ejecución (2026 y 2025) se suma al rubro y la cuenta deja de salir como rubro aparte.
    Depreciaciones: van todas en un solo renglón (cuentas madre 516010/516015/516020 y los ítems 901 y 902). */
 var PP_UNIR = { "516015": "51601501", "516010": "51601501", "516020": "51601501", "51602001": "51601501" };
+/* Unidades que la base de inmuebles de World Office trae incompletas, validadas con el certificado de tradición
+   y con la cuenta de cobro de noviembre de 2026 (Access):
+   - DEP545 (matrícula 080-158070): coeficiente 0,003 %; WO lo trae en 0. Propietario: Gastón Coma (E.P. 266 de 2025).
+   - PQ371 (matrícula 080-140382): coeficiente 0,021 %; WO trae la cuota en $0. Propietarios: Ilsa Cecilia Molina Portilla 50 % y
+     Ricardo Aldana Pineda 50 % (E.P. 7499 de 2024 y E.P. 217 de 2025). */
+var PP_UNI_AJ = { DEP545: { coef: .003, cuota: 14452 }, PQ371: { coef: .021, cuota: 101162 } };
 var PP_NOMBRE = { "51601501": "DEPRECIACIONES (EQUIPO DE OFICINA, CÓMPUTO Y MAQUINARIA)" };
 function ppUnirBase(base) {
   if (!base?.items || base.unida) return base;
+  let uni = (base.uni ?? []).map(u => [...u]);
+  for (const [k, aj] of Object.entries(PP_UNI_AJ)) { let u = uni.find(x => x[0] === k); if (!u) uni.push([k, aj.coef, aj.cuota]); else { u[1] > 0 || (u[1] = aj.coef); u[2] > 0 || (u[2] = aj.cuota); } }
+  base = { ...base, uni };
   let items = base.items.map(x => ({ ...x, em: [...(x.em ?? [])] })), por = new Map(items.map(x => [x.c, x]));
   for (const [de, a] of Object.entries(PP_UNIR)) {
     let o = por.get(de), d = por.get(a); if (!o || !d) continue;
@@ -1632,10 +1641,10 @@ async function ejGenerar(ses, config, anio, mes) {
 }
 function PpPantalla({ ses, config, notificar, soloLectura }) {
   let [pres, setPres] = Ve.useState(!1), [vistaU, setVistaU] = Ve.useState("uni"), [qU, setQU] = Ve.useState(""), [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null), [tab, setTab] = Ve.useState("gas"), [prog, setProg] = Ve.useState(""), [edit, setEdit] = Ve.useState(!1), [abG, setAbG] = Ve.useState(() => new Set()), refV = Ve.useRef(null), tGuard = Ve.useRef(null), [rowEd, setRowEd] = Ve.useState(null), [fCrit, setFCrit] = Ve.useState(null);
-  Ve.useEffect(() => { Promise.all([ses.store.get(PP_BASE).catch(() => null), ses.store.get(PP_DOC).catch(() => null)]).then(([b, c]) => { setBase(b ? JSON.parse(b.j) : !1); setCfg(c ? { ...PP_DEF, ...JSON.parse(c.j) } : { ...PP_DEF }); }); }, [ses]);
+  Ve.useEffect(() => { Promise.all([ses.store.get(PP_BASE).catch(() => null), ses.store.get(PP_DOC).catch(() => null)]).then(([b, c]) => { setBase(b ? ppUnirBase(JSON.parse(b.j)) : !1); setCfg(c ? { ...PP_DEF, ...JSON.parse(c.j) } : { ...PP_DEF }); }); }, [ses]);
   let guardar = n => { setCfg(n); if (soloLectura) return; clearTimeout(tGuard.current); tGuard.current = setTimeout(() => ses.store.set(PP_DOC, { j: JSON.stringify(n) }).catch(e => notificar("error", "No se pudo guardar: " + (e?.message ?? e))), 600); };
   let setF = (cod, k, v) => { let f = { ...(cfg.filas[cod] ?? {}), [k]: v }; guardar({ ...cfg, filas: { ...cfg.filas, [cod]: f } }); };
-  let preparar = async () => { try { setProg("Preparando…"); let b = await ppPrepararBase(ses, setProg); setBase(b); notificar("ok", "Datos base actualizados."); } catch (e) { notificar("error", e?.message ?? String(e)); } setProg(""); };
+  let preparar = async () => { try { setProg("Preparando…"); let b = await ppPrepararBase(ses, setProg); setBase(ppUnirBase(b)); notificar("ok", "Datos base actualizados."); } catch (e) { notificar("error", e?.message ?? String(e)); } setProg(""); };
   let subirVentas = async files => { let v = { ...(cfg.ventas ?? {}) }; for (const f of Array.from(files)) { let r = ppVentasLeer(await is(new Uint8Array(await f.arrayBuffer()))); if (r) v[r.anio] = r; else notificar("error", f.name + ": no parece un informe de Ventas por producto de World Office."); } guardar({ ...cfg, ventas: v }); };
   let M = Ve.useMemo(() => base && cfg ? ppCalc(base, cfg) : null, [base, cfg]);
   /* presentar: las mismas pestañas de la pantalla, en pantalla completa. ← → cambian de pestaña, Esc sale */
