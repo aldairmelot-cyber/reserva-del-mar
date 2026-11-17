@@ -1083,7 +1083,7 @@ function ppCalc(base, cfgIn) {
     let pm = o.pct != null && o.pct !== "" ? +o.pct / 100 : o.idx === "sml" ? sml : ipc, cr = (+cfg.crec || 0) / 100;
     let pPer = o.per != null && o.per !== "" ? +o.per / 100 : sml, pGas = o.gas != null && o.gas !== "" ? +o.gas / 100 : ipc;
     let pctO = x => x.b === "val" ? 0 : x.crit === "sml" ? pPer : x.crit === "ipc" ? pGas : x.pct;
-    for (const x of gastos) (x.v27o ??= [])[i] = ppR(x.bv * (1 + pctO(x)));
+    for (const x of gastos) (x.v27o ??= [])[i] = x.fuera ? 0 : ppR(x.bv * (1 + pctO(x)));
     let Go = gastos.reduce((a, x) => a + x.v27o[i], 0), fondoO = ppR(Go * (+cfg.fondoPct || 0) / 100);
     let precio27 = precio26 ? ppR(precio26 * (1 + pm), 100) : 0, pmReal = precio26 ? precio27 / precio26 - 1 : pm;
     let man27 = ppR(manProy * (1 + pmReal) * (1 + cr));
