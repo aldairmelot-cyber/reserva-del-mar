@@ -8111,13 +8111,14 @@ async function cxLeer(ses, ent, avance) {
   for (const m of [...metas].sort((a, b) => a.desde.localeCompare(b.desde) || b.hasta.localeCompare(a.hasta))) { if (cur && m.hasta <= cur) continue; tramos.push({ meta: m, a: cur && m.desde <= cur ? (d => { let t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); })(cur) : m.desde }); cur = m.hasta; }
   if (!tramos.length) throw new Error("No hay libros auxiliares cargados. Cárguelos en Verificación contable › Cargar libros auxiliares.");
   let entN = cxN(ent).slice(0, 14), esPH = t => entN && cxN(t).startsWith(entN);
-  let pool = [], banco = new Map(), duenos = new Map(), cuotas = [], saldo = null, hasta = "";
+  let pool = [], banco = new Map(), duenos = new Map(), cuotas = [], saldo = null, hasta = "", libChk = [];
   for (const [ti, t] of tramos.entries()) {
     avance?.(`Leyendo ${t.meta.etiqueta ?? t.meta.archivo} (${ti + 1} de ${tramos.length})…`);
     let L = await vxCargar(ses.store, t.meta), C = typeof L.meta.cuentas === "string" ? JSON.parse(L.meta.cuentas) : L.meta.cuentas, fa = +t.a.replace(/-/g, "");
     let ci = C.findIndex(c => /^130595/.test(String(c[0])) && /CONSIG/i.test(c[1]));
     ci >= 0 && (saldo = { v: -(+C[ci][3] || 0), cta: String(C[ci][0]), hasta: t.meta.hasta });
     hasta = t.meta.hasta;
+    let n0 = pool.length;
     for (const x of L.movs) {
       if (x[1] && x[1] < fa) continue;
       let cta = String(C[x[0]][0]), ter = L.strs[x[2]] || "", doc = cxDoc(L.strs[x[4]]), db = +x[5] || 0, cr = +x[6] || 0, nota = L.strs[x[3]] || "";
@@ -8127,29 +8128,50 @@ async function cxLeer(ses, ent, avance) {
       if (/^11/.test(cta) && db > 0 && /^RC/.test(doc)) { let b = banco.get(k) ?? { f: x[1], doc, v: 0, notas: [] }; b.v += db; nota && b.notas.push(nota); banco.set(k, b); }
       else if (/^(1305|2805)/.test(cta) && cxEsDueno(ter)) { duenos.has(k) || duenos.set(k, new Set()); duenos.get(k).add(ter); if (/^FV/.test(doc) && /^13050501/.test(cta) && db > 0) cuotas.push({ ter, f: x[1], v: db }); }
     }
+    /* control de saldos de la cuenta en este libro: saldo inicial + movimientos = saldo final */
+    if (ci >= 0 && t.a === t.meta.desde) {
+      let neto = pool.slice(n0).filter(x => x.cta === String(C[ci][0])).reduce((s, x) => s + x.v, 0);
+      libChk.push({ libro: t.meta.etiqueta ?? t.meta.archivo, desde: t.meta.desde, hasta: t.meta.hasta, ini: -(+C[ci][2] || 0), fin: -(+C[ci][3] || 0), neto: Math.round(neto * 100) / 100 });
+    }
   }
   /* pagos de cada propietario: recibos con un solo propietario y valor en bancos */
   let pagos = [];
   for (const [k, b] of banco) { let d = duenos.get(k); if (d && d.size === 1) pagos.push({ ter: [...d][0], f: b.f, doc: b.doc, v: Math.round(b.v), notas: b.notas }); }
-  return { pool, pagos, cuotas, saldo, hasta, libros: tramos.map(t => t.meta.etiqueta ?? t.meta.archivo) };
+  let s2805 = Math.round(pool.filter(x => /^2805/.test(x.cta)).reduce((s, x) => s + x.v, 0) * 100) / 100;
+  return { pool, pagos, cuotas, saldo, s2805, libChk, hasta, libros: tramos.map(t => t.meta.etiqueta ?? t.meta.archivo) };
 }
 
-/* consignaciones que siguen sin identificar */
+/* consignaciones que siguen sin identificar.
+   Reglas para descargar cada identificación (débito) contra una consignación (crédito):
+   - primero se casan uno a uno por el mismo valor, idealmente con la misma fecha en la nota;
+   - lo que no casa se aplica a las consignaciones más antiguas, PERO una identificación que trae en la nota la fecha
+     de la consignación (p. ej. "31-5-2022") solo puede descargar consignaciones de esa fecha o anteriores (2 días de holgura),
+     y ninguna identificación descarga consignaciones registradas después del cierre de su mes;
+   - el saldo inicial (SI) agrupa lo pendiente de antes del primer libro, así que sirve para cualquier fecha;
+   - las identificaciones se procesan por la fecha que dicen en la nota (la de la consignación), no por la de registro.
+   Lo que no encuentra consignación con esas reglas no se le cobra a otra: queda en sinAsociar y se muestra en el cuadre. */
+var cxMasDias = (f, d) => { let t = new Date(Date.UTC(f / 1e4 | 0, (f / 100 | 0) % 100 - 1, f % 100)); t.setUTCDate(t.getUTCDate() + d); return +t.toISOString().slice(0, 10).replace(/-/g, ""); };
 function cxPendientes(pool) {
   let byDoc = new Map(); for (const x of pool) { let k = x.doc + "|" + x.f; byDoc.has(k) || byDoc.set(k, []); byDoc.get(k).push(x); }
   let fuera = new Set();
   for (const L of byDoc.values()) { let ctas = new Set(L.map(x => x.cta.slice(0, 4))); if (ctas.size > 1 && Math.abs(L.reduce((s, x) => s + x.v, 0)) < 1) L.forEach(x => fuera.add(x)); }
   let M = pool.filter(x => !fuera.has(x) && Math.abs(x.v) >= .5).map((x, i) => ({ ...x, i, fo: cxFechaNota(x.nota) }));
-  let cr = M.filter(x => x.v > 0).sort((a, b) => a.f - b.f), db = M.filter(x => x.v < 0).sort((a, b) => a.f - b.f), pares = [];
-  for (const c of cr) { c.r = c.v; c.fo = c.fo || c.f; }
-  let resto = [];
+  let ef = x => x.fo && x.fo <= x.f ? x.fo : x.f, finMes = f => (f / 100 | 0) * 100 + 31;
+  let cr = M.filter(x => x.v > 0).sort((a, b) => a.f - b.f), db = M.filter(x => x.v < 0).sort((a, b) => ef(a) - ef(b) || a.f - b.f), pares = [];
+  for (const c of cr) { c.r = c.v; c.fo = c.fo || c.f; c.si = /^SI\b/.test(c.doc); }
+  let puede = (c, d) => c.f <= finMes(d.f) && (c.si || !d.fo || d.fo > d.f || c.fo <= cxMasDias(d.fo, 2));
+  let resto = [], sinAsociar = [];
   for (const d of db) {
-    let a = -d.v, C = cr.filter(c => c.r === c.v && Math.abs(c.v - a) <= 1 && c.f <= d.f);
+    let a = -d.v, C = cr.filter(c => !c.si && c.r === c.v && Math.abs(c.v - a) <= 1 && puede(c, d));
     let b = C.find(c => d.fo && c.fo === d.fo) || C.find(c => d.fo && cxDias(c.fo, d.fo) <= 2) || C[0];
     if (b) { b.r = 0; pares.push([b, d]); } else resto.push(d);
   }
-  for (const d of resto) { let a = -d.v; for (const c of cr) { if (a <= 0) break; if (c.r <= 0 || c.f > d.f) continue; let t = Math.min(a, c.r); c.r -= t; a -= t; } }
-  return { pend: cr.filter(c => c.r > .5).map(c => ({ ...c, r: Math.round(c.r * 100) / 100 })), pares };
+  for (const d of resto) {
+    let a = -d.v;
+    for (const c of cr) { if (a <= 0) break; if (c.r <= 0 || !puede(c, d)) continue; let t = Math.min(a, c.r); c.r -= t; a -= t; }
+    a > .5 && sinAsociar.push({ ...d, r: Math.round(a * 100) / 100, fo: d.fo });
+  }
+  return { pend: cr.filter(c => c.r > .5).map(c => ({ ...c, r: Math.round(c.r * 100) / 100 })), pares, sinAsociar };
 }
 
 /* posibles dueños de cada consignación */
@@ -8183,9 +8205,9 @@ function cxPistas(pend, pares, H) {
       duenos = empate.map(o => o.ter);
       seg = empate.length === 1 ? (top.pts >= 100 ? "alta" : top.pts >= 60 ? "media" : "baja") : (top.pts >= 100 ? "media" : "baja");
     }
-    var porque = !top ? (cxDatafono(c.nota) ? "Abono de datáfono o pasarela (el banco abona el neto de las ventas con tarjeta). Se identifica con el reporte del datáfono o de la pasarela." : /^NC/.test(c.doc) ? "Es un ajuste contable (nota de contabilidad), no una consignación del banco. Revisar el soporte de la nota." : "No encontramos un pago parecido en el historial.")
+    var porque = !top ? c.si ? "Saldo inicial de la cuenta: agrupa consignaciones de antes del primer libro auxiliar cargado. El detalle está en el libro anterior." : (cxDatafono(c.nota) ? "Abono de datáfono o pasarela (el banco abona el neto de las ventas con tarjeta). Se identifica con el reporte del datáfono o de la pasarela." : /^NC/.test(c.doc) ? "Es un ajuste contable (nota de contabilidad), no una consignación del banco. Revisar el soporte de la nota." : "No encontramos un pago parecido en el historial.")
       : duenos.length > 1 ? `Varios propietarios encajan: ${duenos.map(t => cpmUnidad(t).unidad).join(" o ")}. ` + cand.get(duenos[0]).txt[0].replace(/^./, m => m.toUpperCase()) + "." : top.txt.slice(0, 2).join("; ").replace(/^./, m => m.toUpperCase()) + ".";
-    let corto = !top ? (cxDatafono(c.nota) ? "Abono de datáfono: se identifica con el reporte del datáfono" : /^NC/.test(c.doc) ? "Ajuste contable: revisar el soporte de la nota" : "Sin pista: revisar el extracto")
+    let corto = !top ? c.si ? "Saldo inicial: ver el detalle en el libro anterior" : (cxDatafono(c.nota) ? "Abono de datáfono: se identifica con el reporte del datáfono" : /^NC/.test(c.doc) ? "Ajuste contable: revisar el soporte de la nota" : "Sin pista: revisar el extracto")
       : duenos.length > 1 ? `Hay ${duenos.length} posibles: ${cand.get(duenos[0]).corto[0] ?? "mismo valor"}` : (top.corto.slice(0, 2).join(". ") || "Mismo valor");
     let dobles = (mismoDia.get(v + "|" + c.f) ?? []).filter(d => d !== c.doc);
     dobles.length && (corto += `. Ojo: otra igual el mismo día (${dobles.join(", ")})`);
@@ -8279,7 +8301,7 @@ pintar();
 function CxiPantalla({ ses, config, notificar, soloLectura }) {
   let h = cxH, [X, setX] = Ve.useState(null), [prog, setProg] = Ve.useState(""), [err, setErr] = Ve.useState(""), [seg, setSeg] = Ve.useState({}), [fil, setFil] = Ve.useState("todas"), [oc, setOc] = Ve.useState(null), [verOk, setVerOk] = Ve.useState(!1);
   let [anioSel, setAnioSel] = Ve.useState("todos"), [q, setQ] = Ve.useState(""), [abierta, setAbierta] = Ve.useState(null), [plegados, setPlegados] = Ve.useState({});
-  let cargar = async () => { setErr(""); setX(null); try { let H = await cxLeer(ses, config.entidad || "", setProg); setProg("Buscando los posibles dueños…"); await new Promise(r => setTimeout(r, 30)); let P = cxPendientes(H.pool), L = cxPistas(P.pend, P.pares, H); setX({ ...H, L }); } catch (e) { setErr(e?.message ?? String(e)); } setProg(""); };
+  let cargar = async () => { setErr(""); setX(null); try { let H = await cxLeer(ses, config.entidad || "", setProg); setProg("Buscando los posibles dueños…"); await new Promise(r => setTimeout(r, 30)); let P = cxPendientes(H.pool), L = cxPistas(P.pend, P.pares, H); setX({ ...H, L, sinAsociar: P.sinAsociar }); } catch (e) { setErr(e?.message ?? String(e)); } setProg(""); };
   Ve.useEffect(() => { cargar(); ses.store.get("cxi_seg/estado").then(d => setSeg(d?.items ?? {})).catch(() => { }); }, [ses]);
   let marcar = async (k, v) => { let n = { ...seg }; v ? n[k] = { ok: !0, fecha: new Date().toISOString().slice(0, 10) } : delete n[k]; setSeg(n); try { await ses.store.set("cxi_seg/estado", { items: n }); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } };
   if (err) return h("section", { className: "panel vacio" }, h("h2", null, "Consignaciones por identificar"), h("p", { className: "sub" }, err), h("button", { type: "button", className: "btn", onClick: cargar }, "Reintentar"));
@@ -8289,7 +8311,20 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
   let qN = cxN(q).replace(/[$.\s]/g, ""), busca = x => !qN || cxN([x.doc, x.nota, x.porque, ...x.duenos].join(" ")).replace(/\s/g, "").includes(qN) || String(Math.round(x.v)).includes(qN);
   let vis = base.filter(x => (fil === "todas" || x.seg === fil) && busca(x));
   let anios = [...new Set(base.map(cxAnio))].sort((a, b) => b.localeCompare(a)), aniosVis = anioSel === "todos" ? anios : [anioSel];
-  let fuertes = act.filter(x => x.seg === "alta"), dif = X.saldo ? X.saldo.v - sum(X.L) : null;
+  let fuertes = act.filter(x => x.seg === "alta");
+  /* cuadre contra la contabilidad: saldo de la cuenta + anticipos a nombre de la copropiedad = detalle − identificaciones sin consignación ± diferencias de los libros */
+  let cu = (() => {
+    if (!X.saldo) return null;
+    let real = X.saldo.v + (X.s2805 || 0), det = sum(X.L), sinA = (X.sinAsociar ?? []).reduce((s, x) => s + x.r, 0), filas = [], chk = X.libChk ?? [];
+    chk.forEach((b, i) => {
+      i === 0 && Math.abs(b.ini) >= 1 && filas.push({ t: `Saldo inicial de ${b.libro} sin detalle de consignaciones`, v: b.ini });
+      i > 0 && Math.abs(b.ini - chk[i - 1].fin) >= 1 && filas.push({ t: `El saldo inicial de ${b.libro} no es igual al saldo final de ${chk[i - 1].libro}`, v: b.ini - chk[i - 1].fin });
+      let d = b.fin - (b.ini + b.neto); Math.abs(d) >= 1 && filas.push({ t: `En ${b.libro} los movimientos cargados no llevan al saldo final del libro (faltan o sobran movimientos)`, v: d });
+    });
+    let otra = real - (det - sinA + filas.reduce((s, f) => s + f.v, 0));
+    Math.abs(otra) >= 1 && filas.push({ t: "Otras diferencias (traslados que no suman cero, redondeos)", v: otra });
+    return { real, det, sinA, filas, cuadra: Math.abs(real - det) < 1 };
+  })();
   let pagosDe = ter => X.pagos.filter(p => p.ter === ter).sort((a, b) => b.f - a.f).slice(0, 6);
   let bajarHtml = async () => { setOc("html"); try { let L = act.filter(x => anioSel === "todos" || cxAnio(x) === anioSel); await PO(ses, `Consignaciones_por_identificar_${anioSel === "todos" ? "" : anioSel + "_"}${hoy}.html`, new TextEncoder().encode(cxHtml(L, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
   let bajar = async () => { setOc("pdf"); try { let L = act.filter(x => anioSel === "todos" || cxAnio(x) === anioSel); await PO(ses, `Informe_consignaciones_por_identificar_${anioSel === "todos" ? "" : anioSel + "_"}${hoy}.pdf`, await en(cxDocPdf(L, X, config, hoy)), notificar); } catch (e) { notificar("error", "No se pudo generar: " + (e?.message ?? e)); } setOc(null); };
@@ -8308,7 +8343,20 @@ function CxiPantalla({ ses, config, notificar, soloLectura }) {
       h("div", { className: "kpi" }, h("span", null, "Consignaciones"), h("b", null, act.length), h("small", null, ok.length ? `${ok.length} ya confirmadas` : "sin identificar")),
       h("div", { className: "kpi" }, h("span", null, "Valor total"), h("b", { className: "num" }, pesos(sum(act)))),
       h("div", { className: "kpi" }, h("span", null, "Con pista fuerte"), h("b", null, `${fuertes.length} · ${pesos(sum(fuertes))}`)),
-      X.saldo && h("div", { className: "kpi" }, h("span", null, `Saldo cuenta ${X.saldo.cta}`), h("b", { className: "num" }, pesos(X.saldo.v)), h("small", null, `al ${cbFecha(X.saldo.hasta)}${Math.abs(dif) >= 1 ? ` · ${pesos(dif)} sin detalle en los libros` : " · cuadra con el detalle"}`))),
+      cu && h("div", { className: "kpi" }, h("span", null, "Saldo contable real"), h("b", { className: "num" }, pesos(cu.real)), h("small", null, `cuenta ${X.saldo.cta}${Math.abs(X.s2805 || 0) >= 1 ? " + anticipos a nombre de la copropiedad" : ""} al ${cbFecha(X.saldo.hasta)}${cu.cuadra ? " · cuadra con el detalle" : " · ver el cuadre"}`))),
+    cu && !cu.cuadra && h("section", { className: "panel" },
+      h("h3", { style: { marginTop: 0 } }, "Cuadre con la contabilidad"),
+      h("p", { className: "sub" }, "Cómo se pasa del detalle de consignaciones pendientes al saldo que muestran los libros. Las identificaciones de la segunda línea rebajaron la cuenta, pero en los libros cargados no aparece la consignación que identifican; no se le cobran a otra consignación."),
+      h("table", { className: "t-datos" }, h("tbody", null,
+        h("tr", null, h("td", null, `Detalle de consignaciones pendientes (${X.L.length})`), h("td", { className: "a-right num" }, pesos(cu.det))),
+        Math.abs(cu.sinA) >= 1 && h("tr", null, h("td", null, `(−) Identificaciones y castigos sin consignación asociada (${X.sinAsociar.length})`), h("td", { className: "a-right num" }, pesos(-cu.sinA))),
+        ...cu.filas.map((f, i) => h("tr", { key: "f" + i }, h("td", null, `(${f.v < 0 ? "−" : "+"}) ${f.t}`), h("td", { className: "a-right num" }, pesos(f.v)))),
+        h("tr", { style: { fontWeight: 700 } }, h("td", null, `= Saldo contable real al ${cbFecha(X.saldo.hasta)}`), h("td", { className: "a-right num" }, pesos(cu.real))))),
+      (X.sinAsociar ?? []).length > 0 && h("details", { style: { marginTop: 10 } },
+        h("summary", null, `Ver las ${X.sinAsociar.length} identificaciones sin consignación asociada`),
+        h("table", { className: "t-datos", style: { marginTop: 6 } },
+          h("thead", null, h("tr", null, h("th", null, "Registrada"), h("th", null, "Documento"), h("th", null, "Tercero"), h("th", null, "Nota"), h("th", { className: "a-right" }, "Valor"))),
+          h("tbody", null, [...X.sinAsociar].sort((a, b) => a.f - b.f).map((x, i) => h("tr", { key: i }, h("td", null, cbFecha(cxF(x.f))), h("td", { className: "mono" }, x.doc), h("td", null, x.ter), h("td", null, x.nota), h("td", { className: "a-right num" }, pesos(x.r)))))))),
     h("section", { className: "panel" },
       h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
         chip(anioSel === "todos", "Todos los años", `${base.length} · ${pesos(sum(base))}`, () => setAnioSel("todos"), "todos"),
