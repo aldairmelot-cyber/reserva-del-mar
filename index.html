@@ -4283,12 +4283,12 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
   };
   let quitar = async id => { await guardarCfg({ ...cfg, traslados: (cfg.traslados ?? []).filter(t => t.id !== id) }); };
   let P = aclP, anios = [hoy.getFullYear(), hoy.getFullYear() - 1];
-  let descargar = async () => { setGen(true); try { await BL(ses, `Fondo_de_imprevistos_${fiMeses[r.mes - 1]}_${r.anio}.pdf`, await en(fiDoc(r, entidad)), notificar); } catch (e) { notificar("error", e.message || String(e)); } setGen(false); };
+  let descargar = async (word) => { setGen(true); try { await BL(ses, `Fondo_de_imprevistos_${fiMeses[r.mes - 1]}_${r.anio}.${word ? "docx" : "pdf"}`, word ? await Ls(fiDoc(r, entidad)) : await en(fiDoc(r, entidad)), notificar); } catch (e) { notificar("error", e.message || String(e)); } setGen(false); };
   let th = (t, i, der) => aH("th", { key: i, className: der ? "a-right" : "" }, t), num = (v, b, cls) => aH("td", { className: "a-right num" + (cls ? " " + cls : "") }, b ? aH("b", null, P(v)) : P(v));
   let chip = v => aH("span", { className: "chip " + (Math.abs(v) < 1 ? "chip-ok" : v > 0 ? "chip-warn" : "chip-gris") }, fiEstado(v));
   return aH(Ve.Fragment, null,
     aH("section", { className: "panel" },
-      aH("div", { className: "panel-tit" }, aH("h2", null, "Fondo de imprevistos"), r && aH("div", { className: "acciones" }, aH("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: descargar }, gen ? "Generando…" : "Descargar PDF"))),
+      aH("div", { className: "panel-tit" }, aH("h2", null, "Fondo de imprevistos"), r && aH("div", { className: "acciones" }, aH("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: () => descargar(!1) }, gen ? "Generando…" : "Descargar PDF"), aH("button", { type: "button", className: "btn btn-sm", disabled: gen, onClick: () => descargar(!0) }, "Descargar Word"))),
       aH("p", { className: "sub" }, "C\xF3mo debe estar el fondo seg\xFAn el art\xEDculo 79 del reglamento (escritura 0753 de 2023) y el art\xEDculo 35 de la Ley 675 de 2001: 1% del gasto presupuestado, m\xE1s los intereses de mora y las sanciones efectivamente recaudados (recibos de caja a las cuentas de cartera), m\xE1s los rendimientos de sus inversiones. Se calcula con el balance acumulado, el libro auxiliar y el presupuesto cargados."),
       aH("div", { className: "fila" },
         aH("label", { className: "campo", htmlFor: "fi-anio" }, aH("span", null, "A\xF1o"), aH("select", { id: "fi-anio", value: anio, onChange: e => { setAnio(+e.target.value); setMes(0); } }, anios.map(a => aH("option", { key: a, value: a }, a)))),
