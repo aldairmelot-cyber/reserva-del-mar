@@ -9329,6 +9329,146 @@ var POL_HALLAZGOS = [
   ["Orientación técnica", "Remite a la Orientación Técnica 15 de 2015; el CTCP la actualizó en junio de 2024 (con correcciones editoriales en enero de 2025)."]
 ];
 
+/* situaciones y procedimiento por política: [situación, qué se hace] */
+var POL_SIT = {
+  "1": [
+    ["Sale una norma contable nueva (por ejemplo, Colombia adopta la tercera edición de la NIIF para las Pymes)", "Contabilidad evalúa el efecto en cada política y en las cifras, propone al Consejo los ajustes al manual antes de la fecha de vigencia y los aplica desde esa fecha, revelando el cambio (política 20)."],
+    ["Se presenta una transacción que ninguna política cubre", "Contabilidad aplica la sección de la NIIF para las Pymes que trate un caso similar y, a falta de ella, los conceptos de la sección 2; documenta el criterio, lo informa al Revisor Fiscal y propone al Consejo incluirlo en el manual."],
+    ["El cierre mensual no se completa dentro de los primeros 15 días", "Contabilidad informa al Administrador y al Consejo la causa (soportes, extractos o facturas pendientes) y la fecha de entrega; el informe mensual indica qué partidas quedaron provisionales."]
+  ],
+  "2": [
+    ["Entra dinero al banco sin recibo de caja", "Cartera identifica al pagador. Identificado: recibo de caja (débito banco, crédito cuenta por cobrar del inmueble 1305). Si al cierre del mes no se identifica: débito banco, crédito 13059501 consignaciones por identificar; se abona a la cuenta de cobro cuando se identifique (política 5)."],
+    ["En el banco de manillas entra un pago sin factura", "Se expide la factura electrónica de la venta en el mes siguiente con el soporte del pago (débito banco o cuenta puente, crédito ingreso por control de acceso e IVA por pagar)."],
+    ["Sale dinero del banco y no está registrado (pago, impuesto, débito automático)", "Se obtiene el soporte y se registra el egreso o la nota bancaria en el mes siguiente (débito gasto o cuenta por pagar, crédito banco). Si no hay soporte, se reclama al banco por escrito."],
+    ["Gastos bancarios, comisiones, IVA y 4 × 1000 del extracto", "Nota bancaria al cierre de cada mes: débito gastos financieros (5305), crédito banco."],
+    ["El datáfono abona el neto de las ventas", "Se registra la comisión como gasto financiero y las retenciones practicadas (renta, IVA, ICA) como anticipos de impuestos (1355), contra el valor bruto registrado."],
+    ["Recibo de caja en libros que no aparece en el banco", "Se verifica el soporte con el propietario y el extracto del mes siguiente; si el pago no existió o se registró por error, se reversa el recibo y se restablece la cuenta de cobro, informando al propietario."],
+    ["Cheque o transferencia registrada que el banco no ha debitado", "Se mantiene como partida conciliatoria; si a los 6 meses no se ha cobrado, se reversa el pago contra la cuenta por pagar al beneficiario."],
+    ["Partida conciliatoria con más de 60 días", "Contabilidad la ajusta con el soporte disponible o la presenta al Consejo con la gestión realizada para decidir el ajuste."],
+    ["Faltante o sobrante en el arqueo de caja menor", "Faltante: cuenta por cobrar al custodio (1365) y reporte al representante legal. Sobrante: se consigna en el banco y se registra como aprovechamiento (4295)."],
+    ["Una cuenta bancaria queda en sobregiro al cierre", "Se reclasifica el sobregiro a obligaciones financieras (2105) y se informa al Consejo."]
+  ],
+  "3": [
+    ["Cierre de cada mes", "Contabilidad liquida lo que debe tener el fondo (1 %, intereses y sanciones recaudados, rendimientos y demás fuentes del art. 79) y el Administrador traslada lo pendiente a la inversión del fondo a más tardar en el mes siguiente (débito 12450502 o 11200503, crédito banco de expensas)."],
+    ["La inversión del fondo genera rendimientos", "Débito inversión del fondo, crédito ingresos financieros (4210); quedan en la misma inversión y hacen parte del fondo."],
+    ["Cierre del ejercicio con excedente", "Comprobante de cierre de diciembre: débito 3605, crédito 3305 por el valor que corresponde al fondo (hasta el excedente del año); el resto a 3705."],
+    ["Cierre del ejercicio con déficit o con excedente menor al fondo del año", "Solo se traslada a 3305 hasta el excedente disponible. La diferencia se revela y se propone a la Asamblea apropiarla de excedentes acumulados (débito 3705, crédito 3305). El dinero del fondo se traslada a la inversión de todas formas."],
+    ["La Asamblea aprueba usar el fondo", "Con el acta: se registra el gasto o el activo contra el banco, se retira el recurso de la inversión del fondo y, al cierre, se disminuye la reserva (débito 3305, crédito 3605 o 3705) por el valor usado."],
+    ["Surge un gasto imprevisto urgente y no hay presupuesto", "El Administrador atiende lo urgente (reglamento, art. 72 num. 13) y convoca al Consejo; el uso del fondo requiere aprobación de la Asamblea. Si el fondo no alcanza, la Asamblea decreta cuota extraordinaria (reglamento, art. 42)."],
+    ["El fondo llega al 50 % del presupuesto de gastos del año", "Se informa a la Asamblea, que puede suspender el cobro de la cuota del fondo; mientras no lo decida, se sigue facturando."],
+    ["La Asamblea destina al fondo los ingresos por explotación de zonas comunes o el superávit", "Se aplica lo previsto en la política 16 (explotación) o el literal c del art. 79 (superávit), con el acta que lo aprueba."],
+    ["La Asamblea decide repartir el fondo (70 % de los coeficientes, reglamento art. 80)", "Con el acta: débito 3305, crédito cuenta por pagar a cada propietario según su coeficiente; se paga o se cruza con su cuenta de cobro, con autorización escrita."]
+  ],
+  "4": [
+    ["Se constituye o renueva una inversión", "Con la instrucción del Administrador según los lineamientos del Consejo o la Asamblea: débito inversión, crédito banco; se archiva el título o la constancia de la entidad."],
+    ["Vence una inversión", "Se registra el capital y los rendimientos recibidos en el banco o la renovación, conciliando con el extracto."],
+    ["La entidad presenta problemas financieros o el valor de la unidad cae", "Contabilidad evalúa el deterioro o la pérdida de valor, la reconoce en resultados e informa al Consejo para decidir el traslado de los recursos."]
+  ],
+  "5": [
+    ["Facturación del mes", "Día 1: débito 13050501, crédito 41701001 (expensas) y 41701009 (cuota del fondo), por cada inmueble según su coeficiente."],
+    ["El propietario paga dentro de los primeros 15 días", "Recibo de caja por lo pagado y descuento por pronto pago: débito 41750101, crédito 13050501."],
+    ["El propietario no paga en el mes", "Al cierre de cada mes se causan los intereses de mora sobre lo vencido: débito 13050503, crédito ingreso por intereses de mora (4210)."],
+    ["Llega un pago de un propietario con deuda", "Se imputa en este orden: sanciones, intereses de mora y luego cuotas, empezando por la más antigua (reglamento, art. 42.3)."],
+    ["El propietario paga más de lo que debe", "El exceso queda como saldo a favor (280505) y se aplica en la cuenta de cobro del mes siguiente, salvo que pida la devolución por escrito."],
+    ["Se identifica una consignación que estaba por identificar", "Débito 13059501, crédito cuenta por cobrar del inmueble, con el soporte de Cartera; si el propietario pagó dentro del plazo, conserva el descuento por pronto pago."],
+    ["Se detecta un cobro errado (doble cobro, coeficiente equivocado)", "Nota crédito al propietario por lo cobrado de más (débito ingreso del año o, si es de años anteriores y no material, gasto del año; crédito cuenta por cobrar), corrección de la base de facturación y comunicación escrita al propietario."],
+    ["Se impone una sanción", "Cuando la resolución queda en firme: débito 13050506 o 13050507, crédito 41701003 o 41701005."],
+    ["El propietario propone un acuerdo de pago", "El Administrador lo firma por escrito con plazos; los intereses se siguen causando salvo condonación aprobada por la Asamblea. El cobro jurídico se suspende mientras se cumpla."],
+    ["Se pide condonar intereses o sanciones", "Solo con aprobación de la Asamblea: débito al ingreso correspondiente (o gasto, si es de años anteriores), crédito cuenta por cobrar."],
+    ["La mora supera dos meses", "El Administrador inicia el cobro jurídico sin necesidad de autorización (reglamento, art. 42.2); los honorarios del abogado son a cargo del deudor y se cargan a su cuenta."],
+    ["Se vende un inmueble con deuda", "La deuda sigue con el inmueble: el nuevo propietario responde solidariamente (reglamento, art. 44). Se actualiza el tercero y se mantiene el saldo; el paz y salvo solo se expide con el pago total."]
+  ],
+  "6": [
+    ["Cierre de mes: hay unidades con más de 360 días de mora sin acuerdo o en insolvencia o sucesión", "Contabilidad estima lo que no se recuperaría (con el concepto del abogado y el valor del inmueble) y reconoce el deterioro: débito gasto por deterioro, crédito 1399; deja el análisis por unidad."],
+    ["Una deuda deteriorada se paga o se firma un acuerdo que se cumple", "Se revierte el deterioro: débito 1399, crédito recuperaciones (4250)."],
+    ["El abogado conceptúa que la deuda es irrecuperable", "Se presenta a la Asamblea la propuesta de castigo con el concepto. Aprobado: débito 1399, crédito cuenta por cobrar, y el saldo pasa a cuentas de orden para seguir su cobro."]
+  ],
+  "7": [
+    ["Se entrega un anticipo a un proveedor", "Solo con contrato u orden aprobada y dentro de las autorizaciones de la política 11: débito 1330, crédito banco."],
+    ["El proveedor entrega la factura o el acta de recibo", "Débito gasto o activo, crédito proveedor (2205); y cruce del anticipo: débito 2205, crédito 1330."],
+    ["El anticipo no se legaliza en el mes siguiente", "Contabilidad lo reporta en el informe de saldos pendientes y el Administrador requiere al proveedor por escrito la factura o el reintegro."],
+    ["El servicio no se prestó o se canceló el contrato", "Se pide el reintegro por escrito. Si no se devuelve, se traslada al abogado; si es irrecuperable, se aplica la política 6."],
+    ["Ocurre un siniestro cubierto por una póliza", "Se presenta la reclamación. La indemnización se reconoce solo cuando sea prácticamente cierta (débito cuenta por cobrar a la aseguradora, crédito ingreso por indemnizaciones); la reparación del bien común es gasto (Ley 675, art. 15)."]
+  ],
+  "8": [
+    ["Compra de manillas", "Débito 14 por el costo sin IVA descontable, crédito proveedor."],
+    ["Se vende o entrega una manilla", "Se reconoce el ingreso (política 16) y el costo: débito costo de ventas, crédito 14."],
+    ["El conteo físico no coincide con el saldo", "Se investiga la diferencia. Faltante sin justificar: gasto y reporte al Administrador (o cuenta por cobrar al responsable). Sobrante: ajuste contra el costo."],
+    ["Manillas dañadas o que ya no se usan", "Se dan de baja con acta firmada por el Administrador: débito gasto, crédito 14."]
+  ],
+  "9": [
+    ["Se paga una póliza o un servicio por varios meses", "Débito 1705, crédito banco o proveedor; amortización mensual: débito gasto (5130 seguros u otro), crédito 1705."],
+    ["Se cancela la póliza antes de tiempo", "La prima devuelta se abona a 1705 y el saldo no amortizado restante se lleva al gasto."]
+  ],
+  "10": [
+    ["Compra de un bien de 2 SMMLV o más para la administración", "Débito 15, crédito proveedor; se asigna la vida útil de la política y se deprecia desde el mes en que está listo para usarse."],
+    ["Compra de un bien de menos de 2 SMMLV", "Se lleva al gasto y se incluye en el inventario administrativo."],
+    ["Obra, reparación o compra de equipos en una zona común (piscina, ascensor, planta eléctrica)", "Es gasto del período: los bienes comunes no se reconocen como activo; si el bien es nuevo, se registra en cuentas de orden y en el inventario de bienes comunes."],
+    ["Mejora que alarga la vida o aumenta la capacidad de un activo de la copropiedad", "Se suma al costo del activo y se deprecia por la vida restante; el mantenimiento rutinario es gasto."],
+    ["Un activo se daña, se pierde o se vuelve obsoleto", "Baja: débito depreciación acumulada (1592) y gasto por la diferencia, crédito 15; la reclamación al seguro se registra aparte (política 7)."],
+    ["La Asamblea desafecta un bien común no esencial (Ley 675, art. 46)", "Con la escritura de desafectación se reconoce el activo por su costo o valor razonable y desde ahí se le aplica esta política."],
+    ["Se recibe un bien en donación", "Se reconoce por su valor razonable contra ingreso, con el documento de donación."]
+  ],
+  "11": [
+    ["Se recibió el servicio y la factura no ha llegado al cierre", "Se causa la estimación: débito gasto, crédito costos y gastos por pagar (2335); se reversa cuando llega la factura."],
+    ["Llega una factura de un mes ya cerrado", "Se registra en el mes en que se recibe con la fecha del servicio en la descripción; si es de un año ya cerrado, se aplica la política 20."],
+    ["Se necesita contratar algo que no está en el presupuesto", "Antes de contratar: más de 5 SMMLV, autorización del Consejo; actos no previstos de más de 15 SMMLV, de la Asamblea (reglamento, arts. 72 num. 22 y 67 num. 14). Sin la autorización no se causa ni se paga."],
+    ["Se paga dos veces una factura", "Débito cuenta por cobrar al proveedor (1380), crédito banco; se cruza con su siguiente factura o se pide el reintegro."]
+  ],
+  "12": [
+    ["Venta de manillas o ingreso por explotación", "Se factura con IVA: débito banco o cuenta por cobrar, crédito ingreso por la base y 2408 por el IVA."],
+    ["Vencimiento de las declaraciones (IVA, retención, ICA)", "Se presentan y pagan en los plazos; antes de presentar se compara lo declarado con la contabilidad y se corrige lo que no cuadre."],
+    ["Cierre del año", "Se calcula la renta gravable de las actividades de explotación con el prorrateo de costos y gastos y se registra el impuesto: débito 5405, crédito 2404."],
+    ["La DIAN impone sanción o cobra intereses", "Se registra como gasto no deducible y se informa al Consejo con la causa."]
+  ],
+  "13": [
+    ["Llega una demanda, reclamación o cobro de un tercero que se discute", "El Administrador lo informa a Contabilidad con el concepto del abogado. Probable: se reconoce la provisión (débito gasto de su naturaleza, crédito 2695). Posible: solo se revela. Remota: no se registra."],
+    ["Se conoce la sentencia o se firma un acuerdo", "La provisión se reclasifica a cuenta por pagar; la diferencia con lo estimado va al resultado del período."],
+    ["Se paga una reclamación que no estaba provisionada", "Se registra en el gasto de su naturaleza en el período en que se conoce la decisión y se revela en notas; no se trata como error de años anteriores."]
+  ],
+  "14": [
+    ["La Asamblea decreta una cuota extraordinaria para cubrir un déficit o gastos ordinarios", "Al causarse: débito cuenta por cobrar, crédito ingreso por cuotas extraordinarias."],
+    ["La Asamblea decreta una cuota extraordinaria para una obra o proyecto", "Al causarse: débito cuenta por cobrar, crédito pasivo con destinación específica (2810); el recaudo se maneja en cuenta separada; a medida que se registran los gastos del proyecto: débito 2810, crédito ingreso."],
+    ["Termina el proyecto y sobran recursos", "La Asamblea decide si se devuelven, pasan al fondo de imprevistos o se destinan a otro fin; se registra según el acta."],
+    ["Un concesionario o arrendatario paga por anticipado", "Débito banco, crédito ingresos recibidos por anticipado (2705); cada mes se lleva al ingreso lo que corresponde."]
+  ],
+  "15": [
+    ["Cierre del ejercicio", "El resultado se traslada: la parte del fondo a 3305 (política 3) y el resto a 3705 (excedente) o contra 3705 (déficit)."],
+    ["La Asamblea decide absorber excedentes en el presupuesto siguiente", "Se registra en el presupuesto como fuente de financiación; contablemente siguen en 3705 hasta que el resultado del año los consuma."],
+    ["Se pide un registro directo al patrimonio", "Solo con comprobante de cierre, acta de la Asamblea o corrección de un error material (política 20); cualquier otro caso va a resultados."]
+  ],
+  "16": [
+    ["Se anula una factura de manillas o se devuelve el dinero", "Nota crédito electrónica que reversa el ingreso y el IVA; la devolución se paga con egreso."],
+    ["Un tercero quiere explotar una zona común sin contrato", "No se permite: se formaliza el contrato, aprobado por el órgano competente, antes de facturar."],
+    ["La Asamblea destina los ingresos por explotación al fondo", "Se aplica lo previsto en el reconocimiento de esta política, desde la vigencia que indique el acta."],
+    ["Ingresos de ejercicios anteriores no registrados", "Se aplica la política 20."]
+  ],
+  "17": [
+    ["Un rubro supera lo presupuestado", "Se verifica si hay saldo en otros rubros y se explica en el informe mensual; si se requiere más presupuesto, el Consejo lo evalúa y, si corresponde, se lleva a la Asamblea (fondo o cuota extraordinaria)."],
+    ["Gasto urgente para la seguridad o la conservación", "El Administrador lo atiende (reglamento, art. 72 nums. 12 y 13), lo informa de inmediato al Consejo y obtiene la autorización de la Asamblea si no hay partida suficiente."]
+  ],
+  "18": [
+    ["Se toma en arriendo un equipo o software", "Contrato firmado y gasto mensual por el canon."],
+    ["Se entrega en arriendo o concesión un espacio común", "Contrato aprobado, factura mensual con IVA si aplica e ingreso por explotación (política 16)."]
+  ],
+  "19": [
+    ["La copropiedad contrata personal directo", "Afiliación a seguridad social, nómina mensual y causación de prestaciones; se actualiza esta política con los detalles."]
+  ],
+  "20": [
+    ["Se encuentra un error material de un año ya aprobado", "Se corrige contra excedentes acumulados (3705), se reexpresan las cifras comparativas y se revela en notas; se informa al Consejo y al Revisor Fiscal."],
+    ["Se encuentra un error no material de años anteriores", "Se corrige en el resultado del período, en la cuenta de su naturaleza, y se explica en notas."],
+    ["Cambia una estimación (vida útil, deterioro, provisión)", "Se aplica desde el período del cambio, sin modificar años anteriores, y se revela."]
+  ],
+  "21": [
+    ["Después del 31 de diciembre llega una sentencia sobre un proceso que ya existía", "Se ajustan los estados financieros del año antes de autorizarlos."],
+    ["Después del cierre ocurre un hecho nuevo importante (siniestro, demanda nueva)", "No se ajustan las cifras; se revela en notas su naturaleza y efecto estimado."]
+  ],
+  "22": [
+    ["Se recibe una operación sin soporte", "No se registra hasta tener el soporte; Contabilidad lo solicita por escrito al Administrador."],
+    ["Se necesita una cuenta contable nueva", "La crea el Contador con su descripción y se informa al Revisor Fiscal."],
+    ["Se pierden libros o soportes", "Se denuncia la pérdida, se informa al Consejo y se reconstruyen con los respaldos de World Office y de las entidades."]
+  ]
+};
 var POL_EST = { ok: ["Cumple", "chip-ok"], alerta: ["Revisar", "chip-warn"], desv: ["No cumple", "chip-err"], info: ["Informativo", "chip-gris"], nd: ["Sin datos", "chip-gris"] };
 var polH = Ve.createElement;
 
@@ -9439,12 +9579,14 @@ async function polValidar(ses, entidad, anio, mes, avance) {
 function polDocManual(entidad) {
   let b = [], p = (t, e = "normal") => b.push({ tipo: "parrafo", estilo: e, texto: t });
   p("PRESENTACIÓN", "h2");
-  p("Este manual reemplaza el manual de políticas contables de 2022. Actualiza el marco normativo (NIIF para las Pymes, Grupo 2, Anexo 2 del DUR 2420 de 2015), incorpora las disposiciones del reglamento de propiedad horizontal (E.P. 753 de 2023) y de la Ley 675 de 2001, y recoge la orientación del CTCP para propiedades horizontales (DOT 15, actualizado en 2024). Cada política fija el alcance, el reconocimiento, la medición, la presentación, los controles con sus plazos, las cuentas que afecta y su fundamento.");
+  p("Este manual reemplaza el manual de políticas contables de 2022. Actualiza el marco normativo (NIIF para las Pymes, Grupo 2, Anexo 2 del DUR 2420 de 2015), incorpora las disposiciones del reglamento de propiedad horizontal (E.P. 753 de 2023) y de la Ley 675 de 2001, y recoge la orientación del CTCP para propiedades horizontales (DOT 15, actualizado en 2024). Cada política fija el alcance, el reconocimiento, la medición, la presentación, los controles con sus plazos, las cuentas que afecta, su fundamento y, para las situaciones que se presentan en la práctica, el paso a seguir.");
   p("HALLAZGOS DEL MANUAL ANTERIOR", "h2");
   b.push({ tipo: "tabla", cabecera: !0, columnas: [{ titulo: "TEMA", ancho: 22, alin: "left" }, { titulo: "HALLAZGO", ancho: 78, alin: "left" }], filas: POL_HALLAZGOS.map(x => ({ estilo: "detalle", celdas: [or(x[0]), or(x[1])] })) });
   for (const x of POL) {
     p(`POLÍTICA ${x.n}. ${x.t.toUpperCase()}`, "h2");
     [["Alcance", x.alc], ["Reconocimiento", x.rec], ["Medición", x.med], ["Presentación y revelación", x.pres], ["Control y plazos", x.ctrl], ["Cuentas", x.ctas], ["Fundamento", x.fund.join("; ")]].forEach(([k, v]) => p(`${k}. ${v}`));
+    let S = POL_SIT[x.n] ?? [];
+    S.length && (p("Situaciones y qué se hace", "h3"), b.push({ tipo: "tabla", cabecera: !0, columnas: [{ titulo: "SITUACIÓN", ancho: 36, alin: "left" }, { titulo: "QUÉ SE HACE", ancho: 64, alin: "left" }], filas: S.map(r => ({ estilo: "detalle", celdas: [or(r[0]), or(r[1])] })) }));
   }
   b.push({ tipo: "firmas" });
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
@@ -9512,7 +9654,7 @@ function PolSeccion({ vista, ses, notificar, entidad, soloLectura }) {
     h("section", { className: "panel" },
       h("div", { className: "panel-tit" }, h("h2", null, "Manual de políticas contables"), h("div", { className: "acciones" }, h("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: () => pdf("Manual_politicas_contables.pdf", polDocManual(entidad)) }, gen ? "Generando…" : "Descargar PDF"), h("button", { type: "button", className: "btn btn-sm", disabled: gen, onClick: () => pdf("Manual_politicas_contables.docx", polDocManual(entidad)) }, "Descargar Word"))),
       h("p", { className: "sub" }, POL_VERSION),
-      h("p", null, "Reemplaza el manual de 2022. Marco: NIIF para las Pymes (Grupo 2, Anexo 2 del DUR 2420 de 2015), Ley 675 de 2001, reglamento de propiedad horizontal (E.P. 753 de 2023) y DOT 15 del CTCP actualizado en 2024. Cada política dice cómo se reconoce, mide y presenta cada partida y qué controles y plazos aplica.")),
+      h("p", null, "Reemplaza el manual de 2022. Marco: NIIF para las Pymes (Grupo 2, Anexo 2 del DUR 2420 de 2015), Ley 675 de 2001, reglamento de propiedad horizontal (E.P. 753 de 2023) y DOT 15 del CTCP actualizado en 2024. Cada política dice cómo se reconoce, mide y presenta cada partida, qué controles y plazos aplica y qué se hace en cada situación que se presente.")),
     h("section", { className: "panel" }, h("h2", null, "Hallazgos del manual anterior"),
       h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, h("thead", null, h("tr", null, h("th", null, "Tema"), h("th", null, "Hallazgo"))),
         h("tbody", null, POL_HALLAZGOS.map((x, i) => h("tr", { key: i }, h("td", null, h("b", null, x[0])), h("td", null, x[1]))))))),
@@ -9520,7 +9662,10 @@ function PolSeccion({ vista, ses, notificar, entidad, soloLectura }) {
       POL.map(x => h("details", { key: x.n, className: "espacio", style: { borderTop: "1px solid var(--linea, #ddd)", paddingTop: 8 } },
         h("summary", { style: { cursor: "pointer", fontWeight: 700 } }, `${x.n}. ${x.t}`, h("span", { className: "tenue", style: { fontWeight: 400 } }, `  · cuentas ${x.ctas}`)),
         [["Alcance", x.alc], ["Reconocimiento", x.rec], ["Medición", x.med], ["Presentación y revelación", x.pres], ["Control y plazos", x.ctrl]].map(([k, v]) => h("p", { key: k }, h("b", null, k + ". "), v)),
-        h("p", { className: "tenue" }, h("b", null, "Fundamento: "), x.fund.join(" · "))))));
+        h("p", { className: "tenue" }, h("b", null, "Fundamento: "), x.fund.join(" · ")),
+        (POL_SIT[x.n] ?? []).length > 0 && h(Ve.Fragment, null, h("h3", { className: "ef-sub" }, "Situaciones y qué se hace"),
+          h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" }, h("thead", null, h("tr", null, h("th", { style: { width: "36%" } }, "Situación"), h("th", null, "Qué se hace"))),
+            h("tbody", null, POL_SIT[x.n].map((r, i) => h("tr", { key: i }, h("td", null, h("b", null, r[0])), h("td", null, r[1])))))))))));
 }
 
 /* =================== Portal de consulta interactivo (v2) =================== */
