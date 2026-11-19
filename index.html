@@ -4976,7 +4976,7 @@ function VxSeccion({ vista, ses, notificar, soloLectura, ir, entidad }) {
 
 function VxCarga({ ses, notificar, soloLectura, ir, idx, recargar }) {
   let [nuevos, setNuevos] = Ve.useState([]), [errs, setErrs] = Ve.useState([]), [sobre, setSobre] = Ve.useState(!1),
-    [leyendo, setLeyendo] = Ve.useState(!1), [guardando, setGuardando] = Ve.useState(null), [quitando, setQuitando] = Ve.useState(null);
+    [leyendo, setLeyendo] = Ve.useState(!1), [guardando, setGuardando] = Ve.useState(null), [quitando, setQuitando] = Ve.useState(null), [conservar, setConservar] = Ve.useState({});
   let inp = Ve.useRef(null);
   let leer = async files => {
     setLeyendo(!0);
@@ -4996,7 +4996,8 @@ function VxCarga({ ses, notificar, soloLectura, ir, idx, recargar }) {
         setGuardando({ libro: L.etiqueta, n: 0, t: 1, i: hechos + 1, total });
         await vxGuardar(ses.store, L, ses.userId, (n, t) => setGuardando({ libro: L.etiqueta, n, t, i: hechos + 1, total }));
         /* un libro que cubre por completo a otro ya guardado lo reemplaza (p. ej. el acumulado ene-oct reemplaza al ene-sep) */
-        for (const o of cruces(L)) if (o.desde >= L.desde && o.hasta <= L.hasta) { await vxEliminar(ses.store, o); reemp++; }
+        /* los que se cruzan en parte también se quitan, salvo que el usuario marque conservarlos */
+        for (const o of cruces(L)) if ((o.desde >= L.desde && o.hasta <= L.hasta) || !conservar[o.id]) { await vxEliminar(ses.store, o); reemp++; }
         hechos++;
       }
       setNuevos([]);
@@ -5042,7 +5043,11 @@ function VxCarga({ ses, notificar, soloLectura, ir, idx, recargar }) {
               vxH("td", null, vxH("b", null, L.etiqueta), vxH("div", { className: "tenue" }, vxIsoFd(L.desde), " al ", vxIsoFd(L.hasta)),
                 ex && vxH("div", { className: "tenue" }, "actualiza el libro ya guardado"),
                 reemp.length > 0 && vxH("div", { className: "tenue" }, "reemplaza a: ", reemp.map(o => o.etiqueta).join(", ")),
-                parc.length > 0 && vxH("div", { className: "vx-aviso-t" }, "se cruza con: ", parc.map(o => o.etiqueta).join(", "), " (habr\xE1 movimientos repetidos)")),
+                parc.map(o => { let fd = d => vxIsoFd(d), contiene = o.desde <= L.desde && o.hasta >= L.hasta, q = !conservar[o.id];
+                  return vxH("div", { key: o.id, className: "vx-aviso-t", style: { marginTop: 4 } },
+                    contiene ? `Ya está guardado «${o.etiqueta}» (${fd(o.desde)} al ${fd(o.hasta)}${o.cargadoEn ? ", cargado el " + fd(o.cargadoEn.slice(0, 10)) : ""}), que incluye estos mismos meses. Si quedan los dos, la app sigue usando «${o.etiqueta}» para esos meses y no este.`
+                      : `Se cruza con «${o.etiqueta}» (${fd(o.desde)} al ${fd(o.hasta)}). En los meses comunes la app usa el libro que llega a la fecha más reciente.`,
+                    vxH("label", { style: { display: "block", marginTop: 2, fontWeight: 600 } }, vxH("input", { type: "checkbox", checked: q, onChange: e => setConservar(c => ({ ...c, [o.id]: !e.target.checked })) }), ` Quitar «${o.etiqueta}» y usar este libro`)); })),
               vxH("td", { className: "tenue" }, L.archivo),
               vxH("td", { className: "a-right num" }, L.enc.cuentas.length.toLocaleString("es-CO")),
               vxH("td", { className: "a-right num" }, L.enc.movs.length.toLocaleString("es-CO")),
