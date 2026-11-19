@@ -9048,47 +9048,43 @@ async function pdCalcular(ses, entidad, anio, mes, avance) {
   return R;
 }
 
-/* secciones del informe: solo saldos pendientes, por qué están pendientes y qué se hace (y cuándo).
+/* informe de una página: una fila por saldo pendiente, con el porqué y lo que se hace el mes siguiente.
    La misma estructura alimenta la pantalla y el PDF. */
 function pdSecciones(R) {
-  let P = aclP, S = [], sum = L => L.reduce((a, x) => a + (x.v || 0), 0), corte = `${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`;
-  let sigM = fiMeses[R.mes % 12].toLowerCase() + (R.mes === 12 ? ` de ${R.anio + 1}` : ""), en = `en ${sigM}`;
-  let B = R.bancos ?? [], A = R.anticipos ?? { rec: [], ent: [], otr: [] }, cxi = R.cxi ?? [];
-  /* partidas conciliatorias: una fila por partida, con su razón y la acción del mes siguiente */
-  let man = b => /MANILLA/i.test(b.n);
-  let razon = { entSin: "Entró al banco y no tiene recibo de caja", salSin: "Salió del banco y no está registrado", wompi: "Pagos Wompi abonados sin todos sus recibos", difv: "El banco y los libros tienen valores distintos", debSin: "Registrado en libros, no aparece en el banco", credSin: "Pago registrado que el banco aún no debita" };
-  let accion = (g, b) => ({ entSin: man(b) ? `Facturar la venta ${en}` : `Identificar el pagador y abonar a su cuenta de cobro ${en}`, salSin: `Registrar el egreso o la nota bancaria ${en}`, wompi: `Registrar los recibos de Wompi que faltan ${en}`, difv: `Ajustar la diferencia ${en}`, debSin: `Confirmar con el extracto de ${sigM}; si no llegó, reversar el recibo`, credSin: `Verificar que el banco lo debite ${en}` })[g] ?? `Depurar ${en}`;
-  let pc = B.flatMap(b => [...(b.part ?? []).map(p => ({ f: p.f, cta: b.n, d: p.d, v: p.v, por: razon[p.g] ?? "", acc: accion(p.g, b) })),
-    ...((b.fees ?? []).length ? [{ f: "", cta: b.n, d: "Gastos e intereses bancarios del mes (GMF, comisiones, IVA)", v: sum(b.fees), por: "Cobrados por el banco y no registrados", acc: `Registrar la nota bancaria ${en}` }] : [])]);
-  /* anticipos y cuentas por legalizar: una fila por tercero */
-  let ant = (t, por, acc) => A[t].flatMap(c => c.ters.filter(o => !/consignaciones a nombre de la copropiedad/.test(o.ter)).map(o => ({ ter: o.ter, cta: `${c.cod} ${c.nom}`, v: o.s, desde: o.ant ? `antes de ${R.anio}` : o.ult ? pdFechaN(o.ult) : "", por: o.ant ? por + " (más de un año)" : por, acc })));
-  let ae = ant("ent", "Anticipo entregado sin la factura que lo legalice", `Legalizar con la factura o el acta de recibo ${en}; si no se recibió el servicio, pedir el reintegro`);
-  let ar = ant("rec", "Pago recibido por anticipado o de más", `Aplicar a la cuenta de cobro de ${sigM} o devolver al tercero`);
-  let ao = ant("otr", "Saldo en cuenta transitoria o por legalizar", `Depurar o reclasificar con su soporte ${en}`);
-  let cols = (c1, w1) => [[c1, w1, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 25, "left"], ["QUÉ SE HACE", 62 - w1, "left"]];
-  /* resumen */
-  let res = [["Anticipos a proveedores por legalizar", ae.length, sum(ae), `Legalizar ${en}`], ["Partidas conciliatorias bancarias", pc.length, sum(pc), `Abonar, facturar o registrar ${en}`], ["Consignaciones por identificar", cxi.length, sum(cxi), "Identificar con el propietario y abonar"],
-    ...(ar.length ? [["Anticipos y saldos a favor recibidos", ar.length, sum(ar), `Aplicar ${en} o devolver`]] : []), ...(ao.length ? [["Otras cuentas por legalizar", ao.length, sum(ao), `Depurar ${en}`]] : [])];
-  S.push({ id: "res", h: "RESUMEN", p: [`Saldos pendientes al ${corte}, por qué siguen pendientes y qué se hace con ellos. El plazo para depurarlos es ${sigM}.`],
-    t: [{ cols: [["CONCEPTO", 40, "left"], ["PARTIDAS", 10, "right", "n"], ["SALDO", 16, "right"], ["QUÉ SE HACE", 34, "left"]], filas: res }] });
-  ae.length && S.push({ id: "ae", h: "ANTICIPOS A PROVEEDORES", p: [`Dinero entregado a proveedores antes de recibir la factura (cuenta 1330): ${P(sum(ae))}.`],
-    t: [{ cols: [["PROVEEDOR", 24, "left"], ["DESDE", 10, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 22, "left"], ["QUÉ SE HACE", 31, "left"]], filas: ae.map(x => [x.ter, x.desde, x.v, x.por, x.acc]), total: ["TOTAL", "", sum(ae), "", ""] }] });
-  S.push({ id: "pc", h: "PARTIDAS CONCILIATORIAS BANCARIAS", p: [pc.length ? `Diferencias entre el extracto y los libros que quedaron pendientes en la conciliación del último mes de cada cuenta: ${P(sum(pc))} (valor neto).` : "No hay partidas conciliatorias pendientes.",
-    ...B.filter(b => b.sin || (b.mes && b.mes < R.ym)).map(b => b.sin ? `${b.n}: sin conciliación cargada.` : `${b.n}: conciliada solo hasta ${b.mes}.`)],
-    t: pc.length ? [{ cols: [["FECHA", 9, "left"], ["CUENTA", 14, "left"], ["DETALLE", 23, "left"], ["VALOR", 12, "right"], ["POR QUÉ ESTÁ PENDIENTE", 18, "left"], ["QUÉ SE HACE", 24, "left"]], filas: pc.map(x => [cmFd(x.f), x.cta, x.d, x.v, x.por, x.acc]), total: ["TOTAL", "", "", sum(pc), "", ""] }] : [] });
-  S.push({ id: "cxi", h: "CONSIGNACIONES POR IDENTIFICAR", p: [R.cxi == null ? "No se pudieron calcular: revise que los libros auxiliares estén cargados." : cxi.length ? `Pagos que llegaron al banco sin decir de qué inmueble son (cuenta 1305): ${cxi.length} por ${P(sum(cxi))}. Al lado de cada uno va el posible pagador; Cartera lo confirma con el propietario y Contabilidad abona el pago a su cuenta de cobro.` : "No hay consignaciones por identificar."],
-    t: cxi.length ? [{ cols: [["FECHA", 10, "left"], ["VALOR", 12, "right"], ["POSIBLE PAGADOR", 18, "left"], ["PISTA", 40, "left"], ["ESTADO", 20, "left"]], filas: cxi.map(x => [x.si ? "Saldo inicial" : pdFechaN(x.f), x.v, x.duenos || "Sin pista", x.pista || "", x.est]), total: ["TOTAL", sum(cxi), "", "", ""] }] : [] });
-  ar.length && S.push({ id: "ar", h: "ANTICIPOS Y SALDOS A FAVOR RECIBIDOS", p: [`Pagos recibidos por anticipado o de más (cuenta 28): ${P(sum(ar))}.`],
-    t: [{ cols: [["TERCERO", 24, "left"], ["DESDE", 10, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 22, "left"], ["QUÉ SE HACE", 31, "left"]], filas: ar.map(x => [x.ter, x.desde, x.v, x.por, x.acc]), total: ["TOTAL", "", sum(ar), "", ""] }] });
-  ao.length && S.push({ id: "ao", h: "OTRAS CUENTAS POR LEGALIZAR", p: [`Saldos en cuentas transitorias o por legalizar: ${P(sum(ao))}.`],
-    t: [{ cols: [["TERCERO / CUENTA", 30, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 22, "left"], ["QUÉ SE HACE", 35, "left"]], filas: ao.map(x => [`${x.ter} · ${x.cta}`, x.v, x.por, x.acc]), total: ["TOTAL", sum(ao), "", ""] }] });
-  return S.map((s, i) => ({ ...s, h: `${i + 1}. ${s.h}` }));
+  let sum = L => L.reduce((a, x) => a + (x.v || 0), 0), sigM = fiMeses[R.mes % 12].toLowerCase() + (R.mes === 12 ? ` de ${R.anio + 1}` : "");
+  let B = R.bancos ?? [], A = R.anticipos ?? { rec: [], ent: [], otr: [] }, cxi = R.cxi ?? [], F = [];
+  let ters = (t, sinPH) => A[t].flatMap(c => c.ters).filter(o => !sinPH || !/consignaciones a nombre de la copropiedad/.test(o.ter)).map(o => ({ v: o.s, ant: o.ant }));
+  let pl = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+  let ae = ters("ent");
+  ae.length && F.push(["Anticipos a proveedores", Math.abs(sum(ae)), `${pl(ae.length, "proveedor recibió", "proveedores recibieron")} anticipo y aún no ${ae.length === 1 ? "entrega" : "entregan"} factura${ae.some(o => o.ant) ? ` (${ae.filter(o => o.ant).length} con más de un año)` : ""}`, "Legalizar con la factura de cada proveedor"]);
+  for (const b of B) {
+    let man = /MANILLA/i.test(b.n), G = {};
+    for (const p of b.part ?? []) (G[p.g] ??= []).push(p);
+    let txt = {
+      entSin: n => man ? [`${pl(n, "venta pagada", "ventas pagadas")} sin factura`, "Facturarlas"] : [`${pl(n, "pago entró", "pagos entraron")} al banco sin recibo de caja`, "Hacer el recibo y abonar a la cuenta de cobro"],
+      salSin: n => [`${pl(n, "pago salió", "pagos salieron")} del banco y no ${n === 1 ? "está registrado" : "están registrados"}`, "Registrar el egreso o la nota bancaria"],
+      debSin: n => [`${pl(n, "recibo registrado no aparece", "recibos registrados no aparecen")} en el banco`, "Confirmar con el extracto; si no llegó, reversar el recibo"],
+      credSin: n => [`${pl(n, "pago registrado", "pagos registrados")} que el banco aún no ha debitado`, "Verificar que el banco lo debite"],
+      wompi: () => ["Pagos por Wompi sin todos sus recibos", "Registrar los recibos que faltan"],
+      difv: n => [`${pl(n, "movimiento tiene", "movimientos tienen")} valor distinto en banco y libros`, "Ajustar la diferencia"] };
+    for (const g of ["entSin", "salSin", "debSin", "credSin", "wompi", "difv"]) if (G[g]) { let [por, acc] = txt[g](G[g].length); F.push([b.n, Math.abs(sum(G[g])), por, acc]); }
+    (b.fees ?? []).length && F.push([b.n, Math.abs(sum(b.fees)), "Gastos bancarios del mes sin registrar", "Registrar la nota bancaria"]);
+  }
+  if (cxi.length) { let con = cxi.filter(x => x.duenos).length; F.push(["Consignaciones por identificar", sum(cxi), `${pl(cxi.length, "pago", "pagos")} sin saber de qué apto${con ? `; ${con} ${con === 1 ? "tiene" : "tienen"} posible pagador` : ""}`, "Cartera confirma con el propietario (ver informe de consignaciones por identificar)"]); }
+  let ar = ters("rec", !0);
+  ar.length && F.push(["Saldos a favor de propietarios", Math.abs(sum(ar)), `${pl(ar.length, "propietario o tercero pagó", "propietarios o terceros pagaron")} de más o por anticipado`, `Aplicar en la cuenta de cobro de ${sigM}`]);
+  let ao = ters("otr");
+  ao.length && F.push(["Otras cuentas por legalizar", Math.abs(sum(ao)), `${pl(ao.length, "saldo", "saldos")} en cuentas transitorias`, "Depurar o reclasificar con su soporte"]);
+  let notas = B.filter(b => b.sin || (b.mes && b.mes < R.ym)).map(b => b.sin ? `${b.n}: sin conciliación cargada.` : `${b.n}: conciliada solo hasta ${b.mes}.`);
+  return [{ id: "res", h: "", p: [],
+    t: [{ cols: [["CUENTA", 22, "left"], ["SALDO", 14, "right"], ["POR QUÉ ESTÁ PENDIENTE", 34, "left"], [`QUÉ SE HACE EN ${sigM.toUpperCase()}`, 30, "left"]], filas: F.length ? F : [["Sin saldos pendientes", null, "", ""]], total: F.length ? ["TOTAL", F.reduce((a, r) => a + r[1], 0), "", ""] : null }],
+    nota: notas.length ? "Nota: " + notas.join(" ") : "" }];
 }
 
 function pdDoc(R, entidad) {
   let b = [], S = pdSecciones(R), num = (v, bold) => v == null ? or("") : er(v, bold ? { bold: !0 } : {});
   for (const s of S) {
-    b.push({ tipo: "parrafo", estilo: "h2", texto: s.h });
+    s.h && b.push({ tipo: "parrafo", estilo: "h2", texto: s.h });
     s.p.forEach(t => b.push({ tipo: "parrafo", estilo: "normal", texto: t }));
     for (const t of s.t) {
       t.etq && b.push({ tipo: "parrafo", estilo: "h3", texto: t.etq });
@@ -9097,10 +9093,9 @@ function pdDoc(R, entidad) {
     }
     s.nota && b.push({ tipo: "parrafo", estilo: "normal", texto: s.nota });
   }
-  R.avisos?.length && (b.push({ tipo: "parrafo", estilo: "h3", texto: "Observaciones del cálculo" }), R.avisos.forEach(t => b.push({ tipo: "parrafo", estilo: "vineta", texto: t })));
   b.push({ tipo: "firmas" });
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
-    secciones: [{ id: "pendientes", nombre: "Partidas pendientes", titulo: "SALDOS PENDIENTES POR DEPURAR", subtitulos: [`Corte al ${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`], orientacion: "landscape", bloques: b }],
+    secciones: [{ id: "pendientes", nombre: "Partidas pendientes", titulo: "SALDOS PENDIENTES", subtitulos: [`Al ${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`], orientacion: "landscape", bloques: b }],
     leyendas: ["Cifras Expresadas en Pesos Colombianos (COP$)"] };
 }
 
@@ -9132,7 +9127,7 @@ function PdSeccion({ ses, notificar, entidad, soloLectura }) {
   return h(Ve.Fragment, null,
     h("section", { className: "panel" },
       h("div", { className: "panel-tit" }, h("h2", null, "Partidas pendientes por depurar"), R && h("div", { className: "acciones" }, h("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: descargar }, gen ? "Generando…" : "Descargar PDF"))),
-      h("p", { className: "sub" }, "Saldos pendientes al corte, por qué siguen pendientes y qué se hace con ellos en el mes siguiente: anticipos a proveedores, partidas conciliatorias bancarias, consignaciones por identificar con su posible pagador y saldos a favor recibidos."),
+      h("p", { className: "sub" }, "Saldos pendientes al corte, por qué están pendientes y qué se hace el mes siguiente."),
       h("div", { className: "fila" },
         h("label", { className: "campo" }, h("span", null, "Año"), h("select", { value: anio, onChange: e => { setAnio(+e.target.value); setMes(0); } }, [hoy.getFullYear(), hoy.getFullYear() - 1].map(a => h("option", { key: a, value: a }, a)))),
         h("label", { className: "campo" }, h("span", null, "Corte a"), h("select", { value: mes, onChange: e => setMes(+e.target.value) }, [h("option", { key: 0, value: 0 }, esEditor ? "Último mes cargado" : "Último publicado"), ...fiMeses.map((m, i) => h("option", { key: i + 1, value: i + 1 }, m))])),
@@ -9141,7 +9136,7 @@ function PdSeccion({ ses, notificar, entidad, soloLectura }) {
       err && h("div", { className: "aviso aviso-adv espacio" }, h("p", null, err)),
       R && h("p", { className: "tenue" }, `Corte al ${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio} · calculado ${new Date(R.calculado).toLocaleString("es-CO")}${R.por ? " por " + R.por : ""}${esEditor ? " · publicado para Consejo, Administración y Revisoría" : ""}.`),
       R?.avisos?.length > 0 && h("div", { className: "aviso aviso-adv espacio" }, R.avisos.map((t, i) => h("p", { key: i }, t)))),
-    ...S.map(s => h("section", { className: "panel", key: s.id }, h("h2", null, (t => t.charAt(0) + t.slice(1).toLowerCase())(s.h.replace(/^\d+\.\s*/, ""))),
+    ...S.map(s => h("section", { className: "panel", key: s.id }, s.h && h("h2", null, (t => t.charAt(0) + t.slice(1).toLowerCase())(s.h.replace(/^\d+\.\s*/, ""))),
       s.p.map((t, i) => h("p", { key: i, className: i ? "tenue" : "sub" }, t)),
       s.t.map((t, i) => h("div", { key: i, className: "espacio" }, t.etq && h("h3", { className: "ef-sub" }, t.etq),
         h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos" },
