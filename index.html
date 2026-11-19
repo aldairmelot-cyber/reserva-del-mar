@@ -4223,13 +4223,7 @@ function fiDoc(r, entidad) {
     { estilo: "totalDoble", celdas: [or("PATRIMONIO DEL FONDO DESPU\xC9S DE LOS ABONOS", { bold: !0 }), or(""), er(r.patrimonioDespues, { bold: !0 })] }] });
   p(`Fiducia despu\xE9s del traslado: ${aclP(r.fiduciaDespues)}. Patrimonio del fondo despu\xE9s de los abonos: ${aclP(r.patrimonioDespues)}. Diferencia: ${aclP(r.fiduciaDespues - r.patrimonioDespues)}.${r.otrosDep.length ? ` El ajuste de a\xF1os anteriores incluye ${r.otrosDep.map(x => `${fiDocL(x.doc)} del ${fiFecha(x.f)} por ${aclP(x.d)}`).join("; ")}${Math.abs(r.difInicial) >= 1 ? ` y la diferencia que tra\xEDa la fiducia al 1 de enero (${aclP(r.difInicial)})` : ""}.` : ""}`);
   if (r.descSI && r.yaLiqT >= 1) p(`No se cuentan ${aclP(r.yaLiqT)} recaudados de la cartera que ya estaba al 1 de enero: se liquidaron al fondo en el a\xF1o en que se causaron.`);
-  let n = 5;
-  if (r.noRec.length) {
-    h(`${n++}. MOVIMIENTOS QUE NO SON RECAUDO`);
-    b.push({ tipo: "tabla", columnas: [{ titulo: "FECHA", ancho: 11, alin: "left" }, { titulo: "DOCUMENTO", ancho: 13, alin: "left" }, { titulo: "CONCEPTO", ancho: 20, alin: "left" }, { titulo: "DETALLE", ancho: 42, alin: "left" }, { titulo: "VALOR", ancho: 14, alin: "right" }],
-      filas: [...r.noRec.map(x => ({ estilo: "detalle", celdas: [or(fiFecha(x.f)), or(fiDocL(x.doc)), or(x.concepto), or(`${x.ter} \xB7 ${x.nota}`.slice(0, 140)), er(x.c - x.d)] })), tot("TOTAL", r.noRecTotal, 4)], cabecera: !0 });
-  }
-  h(`${n}. HALLAZGOS`);
+  h("5. HALLAZGOS");
   fiHallazgos(r).forEach(x => b.push({ tipo: "parrafo", estilo: "vineta", texto: x }));
   b.push({ tipo: "firmas" });
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
