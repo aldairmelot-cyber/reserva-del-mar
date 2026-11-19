@@ -9466,7 +9466,7 @@ function PolSeccion({ vista, ses, notificar, entidad, soloLectura }) {
   let h = polH, hoy = new Date(), esEditor = !efConsulta();
   let [gen, setGen] = Ve.useState(!1), [anio, setAnio] = Ve.useState(hoy.getFullYear()), [mes, setMes] = Ve.useState(0), [R, setR] = Ve.useState(null), [prog, setProg] = Ve.useState(""), [err, setErr] = Ve.useState("");
   let chip = k => h("span", { className: "chip " + POL_EST[k][1] }, POL_EST[k][0]);
-  let pdf = async (nombre, doc) => { setGen(!0); try { await BL(ses, nombre, await en(doc), notificar); } catch (e) { notificar("error", e.message || String(e)); } setGen(!1); };
+  let pdf = async (nombre, doc) => { setGen(!0); try { await BL(ses, nombre, /\.docx$/.test(nombre) ? await Ls(doc) : await en(doc), notificar); } catch (e) { notificar("error", e.message || String(e)); } setGen(!1); };
   Ve.useEffect(() => {
     if (vista !== "pol_val") return; let vivo = !0;
     (async () => {
@@ -9492,7 +9492,7 @@ function PolSeccion({ vista, ses, notificar, entidad, soloLectura }) {
     let V = R?.V ?? [], n = k => V.filter(v => v.est === k).length;
     return h(Ve.Fragment, null,
       h("section", { className: "panel" },
-        h("div", { className: "panel-tit" }, h("h2", null, "Validación contra la contabilidad"), R && h("div", { className: "acciones" }, h("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: () => pdf(`Validacion_politicas_${R.ym}.pdf`, polDocVal(R, entidad)) }, gen ? "Generando…" : "Descargar PDF"))),
+        h("div", { className: "panel-tit" }, h("h2", null, "Validación contra la contabilidad"), R && h("div", { className: "acciones" }, h("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: () => pdf(`Validacion_politicas_${R.ym}.pdf`, polDocVal(R, entidad)) }, gen ? "Generando…" : "Descargar PDF"), h("button", { type: "button", className: "btn btn-sm", disabled: gen, onClick: () => pdf(`Validacion_politicas_${R.ym}.docx`, polDocVal(R, entidad)) }, "Descargar Word"))),
         h("p", { className: "sub" }, "Compara el balance, el libro auxiliar y las conciliaciones con el manual de políticas contables. Cada control indica la política, si se cumple y qué se hace."),
         h("div", { className: "fila" },
           h("label", { className: "campo" }, h("span", null, "Año"), h("select", { value: anio, onChange: e => { setAnio(+e.target.value); setMes(0); } }, [hoy.getFullYear(), hoy.getFullYear() - 1].map(a => h("option", { key: a, value: a }, a)))),
@@ -9510,7 +9510,7 @@ function PolSeccion({ vista, ses, notificar, entidad, soloLectura }) {
   }
   return h(Ve.Fragment, null,
     h("section", { className: "panel" },
-      h("div", { className: "panel-tit" }, h("h2", null, "Manual de políticas contables"), h("div", { className: "acciones" }, h("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: () => pdf("Manual_politicas_contables.pdf", polDocManual(entidad)) }, gen ? "Generando…" : "Descargar PDF"))),
+      h("div", { className: "panel-tit" }, h("h2", null, "Manual de políticas contables"), h("div", { className: "acciones" }, h("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: () => pdf("Manual_politicas_contables.pdf", polDocManual(entidad)) }, gen ? "Generando…" : "Descargar PDF"), h("button", { type: "button", className: "btn btn-sm", disabled: gen, onClick: () => pdf("Manual_politicas_contables.docx", polDocManual(entidad)) }, "Descargar Word"))),
       h("p", { className: "sub" }, POL_VERSION),
       h("p", null, "Reemplaza el manual de 2022. Marco: NIIF para las Pymes (Grupo 2, Anexo 2 del DUR 2420 de 2015), Ley 675 de 2001, reglamento de propiedad horizontal (E.P. 753 de 2023) y DOT 15 del CTCP actualizado en 2024. Cada política dice cómo se reconoce, mide y presenta cada partida, qué controles y plazos aplica y con qué validación de la app se comprueba.")),
     h("section", { className: "panel" }, h("h2", null, "Hallazgos del manual anterior"),
