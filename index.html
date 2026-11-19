@@ -9025,8 +9025,8 @@ async function pdCalcular(ses, entidad, anio, mes, avance) {
     let H = await cxLeer(ses, entidad?.entidad || "", avance), P = cxPendientes(H.pool), L = cxPistas(P.pend, P.pares, H);
     let gest = {}; try { for (const d of await ses.store.list("cxi_gest")) d.data?.k && (gest[d.data.k] = d.data); } catch { }
     R.cxi = L.map(x => ({ x, fc: x.fo && x.fo <= x.f ? x.fo : x.f })).filter(o => o.fc <= fin).sort((a, b) => a.fc - b.fc).map(({ x, fc }) => {
-      let g = gest[x.k], est = !g ? "Pendiente" : g.registrada ? "Registrada en World Office (falta recargar el libro)" : g.estado === "resuelta" ? `Identificada por cartera: ${g.unidad} (falta registrar)` : "En gestión de cartera";
-      return { f: fc, doc: x.doc, v: x.v, nota: String(x.nota || "").replace(/\s+/g, " ").slice(0, 120), duenos: x.duenos.map(t => cpmUnidad(t).unidad).join(" o "), est, si: !!x.si };
+      let g = gest[x.k], est = !g ? "Por identificar" : g.registrada ? "Registrada (falta recargar el libro)" : g.estado === "resuelta" ? `Identificada: ${g.unidad}, falta abonar` : "Cartera la está gestionando";
+      return { f: fc, doc: x.doc, v: x.v, nota: String(x.nota || "").replace(/\s+/g, " ").slice(0, 120), duenos: x.duenos.map(t => { let u = cpmUnidad(t); return `${u.unidad}${u.prop ? " – " + u.prop : ""}`; }).join(" o "), pista: String(x.corto || "").slice(0, 140), est, si: !!x.si };
     });
     R.cxiSin = P.sinAsociar.length;
   } catch (e) { R.cxi = null; avisos.push("Consignaciones por identificar: " + (e?.message ?? e)); }
@@ -9045,89 +9045,44 @@ async function pdCalcular(ses, entidad, anio, mes, avance) {
     R.anticipos[t].push({ cod, nom, saldo: Math.round(sf), ters, dif: Math.round(Math.abs(sf) - Math.abs(sumT)) });
   }
 
-  /* 4. fondo de imprevistos */
-  try {
-    let ppto = {}; for (let k = 1; k <= m; k++) { let p = await ses.store.get(`presupuesto/${anio}-${String(k).padStart(2, "0")}`); if (p) ppto[k] = p; }
-    let cfgF = await ses.store.get(`fondo_cfg/${anio}`).catch(() => null) ?? {};
-    let f = fiCalcular({ anio, mes: m, bal, aux, ppto, cfg: cfgF });
-    R.fondo = { pendiente: Math.round(f.pendiente), trasPost: Math.round(f.trasPost), pendienteHoy: Math.round(f.pendienteHoy), incrementos: Math.round(f.incrementos), ajusteAnterior: Math.round(f.ajusteAnterior), fondoSF: Math.round(f.fondoSF), debeEstar: Math.round(f.debeEstar) };
-  } catch (e) { R.fondo = null; avisos.push("Fondo de imprevistos: " + (e?.message ?? e)); }
-
-  /* 5. movimientos contables relevantes del año */
-  let porDoc = new Map();
-  for (const r of aux) { if (!r.f) continue; let k = fiDocL(r.doc) + "|" + r.f; porDoc.has(k) || porDoc.set(k, []); porDoc.get(k).push(r); }
-  R.ajustes = [];
-  for (const [k, L] of porDoc) {
-    let doc = fiDocL(L[0].doc), tipo = fiTipoDoc(L[0].doc);
-    if (tipo === "FV") continue;
-    let rel = /DEPU/i.test(doc) || L.some(r => PD_REL.test(r.nota));
-    if (!rel || L.every(r => /IDENTIFICACI/i.test(r.nota))) continue;
-    let nota = (L.find(r => PD_REL.test(r.nota)) ?? L[0]).nota, ters = [...new Set(L.map(r => r.ter).filter(Boolean))];
-    R.ajustes.push({ f: L[0].f, doc, nota: String(nota).replace(/\s+/g, " ").slice(0, 150), ter: ters.slice(0, 2).join("; ") + (ters.length > 2 ? ` y ${ters.length - 2} más` : ""), ctas: [...new Set(L.map(r => r.cta))].slice(0, 4).join(", "), v: Math.round(L.reduce((a, r) => a + r.d, 0)) });
-  }
-  R.ajustes.sort((a, b) => a.f - b.f);
-  R.ajustesN = R.ajustes.length;
-  R.ajustes.length > 200 && (avisos.push(`Hay ${R.ajustes.length} comprobantes de ajuste en el año; se listan los 200 de mayor valor.`), R.ajustes = R.ajustes.sort((a, b) => b.v - a.v).slice(0, 200).sort((a, b) => a.f - b.f));
-  R.exAnt = aux.filter(r => r.f && ppEsExAnt(r.cta)).map(r => ({ f: r.f, doc: fiDocL(r.doc), cta: r.cta, ncta: r.ncta, ter: r.ter, nota: String(r.nota).replace(/\s+/g, " ").slice(0, 150), v: Math.round(/^4/.test(r.cta) ? r.c - r.d : r.d - r.c) })).filter(r => Math.abs(r.v) >= 1).sort((a, b) => a.f - b.f);
   return R;
 }
 
-/* secciones del informe: la misma estructura alimenta la pantalla y el PDF */
+/* secciones del informe: solo saldos pendientes, por qué están pendientes y qué se hace (y cuándo).
+   La misma estructura alimenta la pantalla y el PDF. */
 function pdSecciones(R) {
-  let P = aclP, S = [], sum = (L, k = "v") => L.reduce((a, x) => a + (x[k] || 0), 0), corte = `${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`;
-  let B = R.bancos ?? [], part = B.flatMap(b => (b.part ?? []).map(p => ({ ...p, cta: b.n }))), fees = B.flatMap(b => (b.fees ?? []).map(q => ({ ...q, cta: b.n })));
-  let A = R.anticipos ?? { rec: [], ent: [], otr: [] }, sA = t => A[t].reduce((a, c) => a + c.saldo, 0), nA = t => A[t].reduce((a, c) => a + c.ters.length, 0);
-  let cxi = R.cxi ?? [], F = R.fondo;
+  let P = aclP, S = [], sum = L => L.reduce((a, x) => a + (x.v || 0), 0), corte = `${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`;
+  let sigM = fiMeses[R.mes % 12].toLowerCase() + (R.mes === 12 ? ` de ${R.anio + 1}` : ""), en = `en ${sigM}`;
+  let B = R.bancos ?? [], A = R.anticipos ?? { rec: [], ent: [], otr: [] }, cxi = R.cxi ?? [];
+  /* partidas conciliatorias: una fila por partida, con su razón y la acción del mes siguiente */
+  let man = b => /MANILLA/i.test(b.n);
+  let razon = { entSin: "Entró al banco y no tiene recibo de caja", salSin: "Salió del banco y no está registrado", wompi: "Pagos Wompi abonados sin todos sus recibos", difv: "El banco y los libros tienen valores distintos", debSin: "Registrado en libros, no aparece en el banco", credSin: "Pago registrado que el banco aún no debita" };
+  let accion = (g, b) => ({ entSin: man(b) ? `Facturar la venta ${en}` : `Identificar el pagador y abonar a su cuenta de cobro ${en}`, salSin: `Registrar el egreso o la nota bancaria ${en}`, wompi: `Registrar los recibos de Wompi que faltan ${en}`, difv: `Ajustar la diferencia ${en}`, debSin: `Confirmar con el extracto de ${sigM}; si no llegó, reversar el recibo`, credSin: `Verificar que el banco lo debite ${en}` })[g] ?? `Depurar ${en}`;
+  let pc = B.flatMap(b => [...(b.part ?? []).map(p => ({ f: p.f, cta: b.n, d: p.d, v: p.v, por: razon[p.g] ?? "", acc: accion(p.g, b) })),
+    ...((b.fees ?? []).length ? [{ f: "", cta: b.n, d: "Gastos e intereses bancarios del mes (GMF, comisiones, IVA)", v: sum(b.fees), por: "Cobrados por el banco y no registrados", acc: `Registrar la nota bancaria ${en}` }] : [])]);
+  /* anticipos y cuentas por legalizar: una fila por tercero */
+  let ant = (t, por, acc) => A[t].flatMap(c => c.ters.filter(o => !/consignaciones a nombre de la copropiedad/.test(o.ter)).map(o => ({ ter: o.ter, cta: `${c.cod} ${c.nom}`, v: o.s, desde: o.ant ? `antes de ${R.anio}` : o.ult ? pdFechaN(o.ult) : "", por: o.ant ? por + " (más de un año)" : por, acc })));
+  let ae = ant("ent", "Anticipo entregado sin la factura que lo legalice", `Legalizar con la factura o el acta de recibo ${en}; si no se recibió el servicio, pedir el reintegro`);
+  let ar = ant("rec", "Pago recibido por anticipado o de más", `Aplicar a la cuenta de cobro de ${sigM} o devolver al tercero`);
+  let ao = ant("otr", "Saldo en cuenta transitoria o por legalizar", `Depurar o reclasificar con su soporte ${en}`);
+  let cols = (c1, w1) => [[c1, w1, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 25, "left"], ["QUÉ SE HACE", 62 - w1, "left"]];
   /* resumen */
-  S.push({ id: "res", h: "1. RESUMEN DE PARTIDAS PENDIENTES", p: [`Partidas pendientes de depuración, identificación, legalización o registro al ${corte}, tomadas de las conciliaciones bancarias, el balance de prueba y el libro auxiliar cargados en la aplicación. Cada sección indica el origen de la partida y la gestión requerida para depurarla.`],
-    t: [{ cols: [["CONCEPTO", 52, "left"], ["CANTIDAD", 14, "right", "n"], ["VALOR", 18, "right"], ["RESPONSABLE", 16, "left"]], filas: [
-      ["Partidas conciliatorias bancarias pendientes", part.length, sum(part.map(p => ({ v: Math.abs(p.v) }))), "Contabilidad"],
-      ["Gastos e ingresos bancarios por registrar (nota bancaria)", fees.length, sum(fees), "Contabilidad"],
-      ["Consignaciones por identificar (1305)", cxi.length, sum(cxi), "Cartera / Contabilidad"],
-      ["Anticipos y saldos recibidos (28)", nA("rec"), sA("rec"), "Contabilidad / Cartera"],
-      ["Anticipos entregados por legalizar (1330)", nA("ent"), sA("ent"), "Administración"],
-      ["Otras cuentas por legalizar o depurar", nA("otr"), sA("otr"), "Contabilidad"],
-      ...(F ? [["Fondo de imprevistos: pendiente por trasladar a la fiducia", null, Math.max(0, F.pendienteHoy), "Administración"], ["Fondo de imprevistos: abonos por registrar en la cuenta 3305", null, F.incrementos + F.ajusteAnterior, "Contabilidad"]] : []),
-      ["Comprobantes de ajuste, reversión o depuración del año", R.ajustesN ?? (R.ajustes ?? []).length, sum(R.ajustes ?? []), "Contabilidad"],
-      ["Ingresos y gastos de ejercicios anteriores registrados en el año", (R.exAnt ?? []).length, sum(R.exAnt ?? []), "Contabilidad"]] }],
-    nota: "Valor de las partidas conciliatorias: suma de los valores absolutos (entradas y salidas)." });
-  /* conciliaciones */
-  let tb = [{ etq: "Estado de la conciliación por cuenta", cols: [["CUENTA", 30, "left"], ["MES", 10, "left"], ["SALDO BANCO", 15, "right"], ["SALDO LIBROS", 15, "right"], ["PARTIDAS", 10, "right", "n"], ["SIN EXPLICAR", 20, "right"]],
-    filas: B.map(b => b.sin ? [b.n, "Sin cargar", null, null, null, null] : b.error ? [b.n, b.mes, null, null, null, null] : [b.n, b.mes, b.banco, b.libro, (b.part ?? []).length, b.residuo ?? null]) }];
-  for (const b of B.filter(b => (b.part ?? []).length)) tb.push({ etq: `${b.n} · ${b.mes}`, cols: [["FECHA", 10, "left"], ["TIPO", 20, "left"], ["DETALLE", 34, "left"], ["GESTIÓN REQUERIDA", 22, "left"], ["VALOR", 14, "right"]],
-    filas: b.part.map(p => [cmFd(p.f), PD_GRUPO_TXT[p.g] ?? p.g, p.d + (p.n ? ` · Nota: ${p.n}` : ""), p.a, p.v]), total: ["TOTAL NETO", "", "", "", sum(b.part)] });
-  if (fees.length) tb.push({ etq: "Gastos e ingresos bancarios por registrar", cols: [["CUENTA", 26, "left"], ["CONCEPTO", 50, "left"], ["MOVIMIENTOS", 10, "right", "n"], ["VALOR", 14, "right"]], filas: fees.map(q => [q.cta, q.d, q.n, q.v]), total: ["TOTAL", "", "", sum(fees)] });
-  S.push({ id: "banco", h: "2. PARTIDAS CONCILIATORIAS BANCARIAS", p: ["Corresponden a las diferencias entre el extracto bancario y el libro auxiliar de cada cuenta que siguen en estado pendiente en la conciliación (Conciliación bancaria → banco frente a libros). Las partidas marcadas como registradas o justificadas no se incluyen. Se toma, para cada cuenta, el último mes conciliado hasta el corte.",
-    ...B.filter(b => b.sin).map(b => `${b.n}: no tiene conciliación cargada hasta el corte.`), ...B.filter(b => b.error).map(b => `${b.n}: no se pudo leer la conciliación de ${b.mes} (${b.error}).`),
-    ...B.filter(b => !b.sin && !b.error && b.mes < R.ym).map(b => `${b.n}: la última conciliación cargada es de ${b.mes}; falta conciliar los meses siguientes hasta el corte.`),
-    ...B.filter(b => b.residuo != null && Math.abs(b.residuo) >= 1).map(b => `${b.n}: después de las partidas queda una diferencia sin explicar de ${P(b.residuo)}; debe revisarse el saldo inicial o movimientos sin cruzar.`)], t: tb });
-  /* consignaciones */
-  S.push({ id: "cxi", h: "3. CONSIGNACIONES POR IDENTIFICAR (CUENTA 1305)", p: [R.cxi == null ? "No se pudo calcular: revise que los libros auxiliares estén cargados." : `Abonos recibidos en las cuentas bancarias que no tienen identificado el inmueble que pagó y permanecen en la cuenta 13059501 (y en la 28050501 a nombre de la copropiedad). Se incluyen las consignaciones con fecha hasta el corte: ${cxi.length} por ${P(sum(cxi))}. La identificación la gestiona Cartera con el propietario; Contabilidad registra el recibo de caja con el soporte.${R.cxiSin ? ` Además, ${R.cxiSin} identificación(es) registradas no encuentran la consignación que descargan y deben revisarse.` : ""}`],
-    t: cxi.length ? [{ cols: [["FECHA", 9, "left"], ["DOCUMENTO", 11, "left"], ["DETALLE DEL BANCO", 32, "left"], ["POSIBLE DUEÑO", 15, "left"], ["ESTADO", 20, "left"], ["VALOR", 13, "right"]], filas: cxi.map(x => [x.si ? "Saldo inicial" : pdFechaN(x.f), x.doc, x.nota, x.duenos || "—", x.est, x.v]), total: ["TOTAL", "", "", "", "", sum(cxi)] }] : [] });
-  /* anticipos */
-  let tablaAnt = (t, nat) => A[t].map(c => ({ etq: `${c.cod} ${c.nom} · saldo ${P(c.saldo)}`, cols: [["TERCERO", 52, "left"], ["ÚLTIMO MOVIMIENTO", 16, "left"], ["ANTIGÜEDAD", 16, "left"], ["SALDO", 16, "right"]],
-    filas: [...c.ters.map(o => [o.ter, o.ult ? pdFechaN(o.ult) : "—", o.ant ? `Viene de antes de ${R.anio}` : `Del ${R.anio}`, o.s]), ...(Math.abs(c.dif) >= 1 ? [["Diferencia con el balance (saldo sin detalle por tercero en el libro cargado)", "", "", c.dif]] : [])], total: ["TOTAL", "", "", c.saldo] }));
-  S.push({ id: "ant", h: "4. ANTICIPOS Y CUENTAS POR LEGALIZAR", p: [
-    "Saldos al corte de las cuentas de anticipos y de las cuentas transitorias, con el detalle por tercero tomado del libro auxiliar del año (incluido su saldo inicial). Un saldo que viene de años anteriores sin movimiento indica una partida que debe depurarse: aplicarse a la cuenta de cobro, devolverse, legalizarse con la factura o reclasificarse, con el soporte correspondiente.",
-    A.rec.length ? `Anticipos y saldos recibidos (28): ${P(sA("rec"))}. Corresponden a pagos recibidos por anticipado o en exceso; deben aplicarse a las cuentas de cobro siguientes del tercero o devolverse.` : "Anticipos recibidos (28): sin saldo al corte.",
-    A.ent.length ? `Anticipos entregados (1330): ${P(sA("ent"))}. Deben legalizarse con la factura o el acta de recibo del bien o servicio, o reintegrarse.` : "Anticipos entregados (1330): sin saldo al corte.",
-    A.otr.length ? `Otras cuentas por legalizar o depurar: ${P(sA("otr"))}.` : "Otras cuentas por legalizar (1365, 1380 y cuentas transitorias): sin saldo al corte."],
-    t: [...tablaAnt("rec"), ...tablaAnt("ent"), ...tablaAnt("otr")] });
-  /* fondo */
-  if (F) S.push({ id: "fondo", h: "5. FONDO DE IMPREVISTOS", p: [`Según la auditoría del fondo de imprevistos (art. 79 del reglamento y art. 35 de la Ley 675 de 2001), el fondo debe tener ${P(F.debeEstar)} frente a un saldo contable de ${P(F.fondoSF)} en la cuenta 3305.`],
-    t: [{ cols: [["CONCEPTO", 64, "left"], ["RESPONSABLE", 18, "left"], ["VALOR", 18, "right"]], filas: [
-      ["Pendiente por trasladar a la fiducia al corte", "Administración", Math.max(0, F.pendiente)],
-      ...(F.trasPost ? [["Menos: traslados realizados después del corte", "", -F.trasPost], ["Pendiente por trasladar hoy", "Administración", Math.max(0, F.pendienteHoy)]] : []),
-      ["Abonos del año por registrar en la cuenta 3305 (1 %, intereses, sanciones y rendimientos)", "Contabilidad", F.incrementos],
-      ...(Math.abs(F.ajusteAnterior) >= 1 ? [["Ajuste de años anteriores contra excedentes acumulados (3705)", "Contabilidad", F.ajusteAnterior]] : [])] }] });
-  /* movimientos relevantes */
-  let aj = R.ajustes ?? [], ea = R.exAnt ?? [];
-  S.push({ id: "mov", h: `${F ? 6 : 5}. MOVIMIENTOS CONTABLES RELEVANTES DEL AÑO`, p: [
-    `Comprobantes registrados entre el 1 de enero y el corte que corresponden a ajustes, reversiones, reclasificaciones, correcciones o depuraciones de saldos (${R.ajustesN ?? aj.length} comprobantes). Cada uno debe contar con su soporte y la explicación del ajuste; los que afectan cartera de propietarios deben estar informados al propietario.`,
-    ea.length ? `Ingresos y gastos de ejercicios anteriores registrados en el año: ${ea.length} movimientos por ${P(sum(ea))}. Afectan el resultado del ejercicio sin corresponder a su operación y se revelan en las notas a los estados financieros.` : "No hay ingresos ni gastos de ejercicios anteriores registrados en el año."],
-    t: [...(aj.length ? [{ etq: "Ajustes, reversiones y depuraciones", cols: [["FECHA", 9, "left"], ["COMPROBANTE", 12, "left"], ["DETALLE", 37, "left"], ["TERCERO", 20, "left"], ["CUENTAS", 10, "left"], ["VALOR", 12, "right"]], filas: aj.map(x => [pdFechaN(x.f), x.doc, x.nota, x.ter, x.ctas, x.v]), total: ["TOTAL", "", "", "", "", sum(aj)] }] : []),
-      ...(ea.length ? [{ etq: "Ingresos y gastos de ejercicios anteriores", cols: [["FECHA", 9, "left"], ["COMPROBANTE", 12, "left"], ["CUENTA", 18, "left"], ["TERCERO", 20, "left"], ["DETALLE", 29, "left"], ["VALOR", 12, "right"]], filas: ea.map(x => [pdFechaN(x.f), x.doc, `${x.cta} ${x.ncta}`.trim(), x.ter, x.nota, x.v]), total: ["TOTAL", "", "", "", "", sum(ea)] }] : [])] });
-  return S;
+  let res = [["Anticipos a proveedores por legalizar", ae.length, sum(ae), `Legalizar ${en}`], ["Partidas conciliatorias bancarias", pc.length, sum(pc), `Abonar, facturar o registrar ${en}`], ["Consignaciones por identificar", cxi.length, sum(cxi), "Identificar con el propietario y abonar"],
+    ...(ar.length ? [["Anticipos y saldos a favor recibidos", ar.length, sum(ar), `Aplicar ${en} o devolver`]] : []), ...(ao.length ? [["Otras cuentas por legalizar", ao.length, sum(ao), `Depurar ${en}`]] : [])];
+  S.push({ id: "res", h: "RESUMEN", p: [`Saldos pendientes al ${corte}, por qué siguen pendientes y qué se hace con ellos. El plazo para depurarlos es ${sigM}.`],
+    t: [{ cols: [["CONCEPTO", 40, "left"], ["PARTIDAS", 10, "right", "n"], ["SALDO", 16, "right"], ["QUÉ SE HACE", 34, "left"]], filas: res }] });
+  ae.length && S.push({ id: "ae", h: "ANTICIPOS A PROVEEDORES", p: [`Dinero entregado a proveedores antes de recibir la factura (cuenta 1330): ${P(sum(ae))}.`],
+    t: [{ cols: [["PROVEEDOR", 24, "left"], ["DESDE", 10, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 22, "left"], ["QUÉ SE HACE", 31, "left"]], filas: ae.map(x => [x.ter, x.desde, x.v, x.por, x.acc]), total: ["TOTAL", "", sum(ae), "", ""] }] });
+  S.push({ id: "pc", h: "PARTIDAS CONCILIATORIAS BANCARIAS", p: [pc.length ? `Diferencias entre el extracto y los libros que quedaron pendientes en la conciliación del último mes de cada cuenta: ${P(sum(pc))} (valor neto).` : "No hay partidas conciliatorias pendientes.",
+    ...B.filter(b => b.sin || (b.mes && b.mes < R.ym)).map(b => b.sin ? `${b.n}: sin conciliación cargada.` : `${b.n}: conciliada solo hasta ${b.mes}.`)],
+    t: pc.length ? [{ cols: [["FECHA", 9, "left"], ["CUENTA", 14, "left"], ["DETALLE", 23, "left"], ["VALOR", 12, "right"], ["POR QUÉ ESTÁ PENDIENTE", 18, "left"], ["QUÉ SE HACE", 24, "left"]], filas: pc.map(x => [cmFd(x.f), x.cta, x.d, x.v, x.por, x.acc]), total: ["TOTAL", "", "", sum(pc), "", ""] }] : [] });
+  S.push({ id: "cxi", h: "CONSIGNACIONES POR IDENTIFICAR", p: [R.cxi == null ? "No se pudieron calcular: revise que los libros auxiliares estén cargados." : cxi.length ? `Pagos que llegaron al banco sin decir de qué inmueble son (cuenta 1305): ${cxi.length} por ${P(sum(cxi))}. Al lado de cada uno va el posible pagador; Cartera lo confirma con el propietario y Contabilidad abona el pago a su cuenta de cobro.` : "No hay consignaciones por identificar."],
+    t: cxi.length ? [{ cols: [["FECHA", 10, "left"], ["VALOR", 12, "right"], ["POSIBLE PAGADOR", 18, "left"], ["PISTA", 40, "left"], ["ESTADO", 20, "left"]], filas: cxi.map(x => [x.si ? "Saldo inicial" : pdFechaN(x.f), x.v, x.duenos || "Sin pista", x.pista || "", x.est]), total: ["TOTAL", sum(cxi), "", "", ""] }] : [] });
+  ar.length && S.push({ id: "ar", h: "ANTICIPOS Y SALDOS A FAVOR RECIBIDOS", p: [`Pagos recibidos por anticipado o de más (cuenta 28): ${P(sum(ar))}.`],
+    t: [{ cols: [["TERCERO", 24, "left"], ["DESDE", 10, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 22, "left"], ["QUÉ SE HACE", 31, "left"]], filas: ar.map(x => [x.ter, x.desde, x.v, x.por, x.acc]), total: ["TOTAL", "", sum(ar), "", ""] }] });
+  ao.length && S.push({ id: "ao", h: "OTRAS CUENTAS POR LEGALIZAR", p: [`Saldos en cuentas transitorias o por legalizar: ${P(sum(ao))}.`],
+    t: [{ cols: [["TERCERO / CUENTA", 30, "left"], ["SALDO", 13, "right"], ["POR QUÉ ESTÁ PENDIENTE", 22, "left"], ["QUÉ SE HACE", 35, "left"]], filas: ao.map(x => [`${x.ter} · ${x.cta}`, x.v, x.por, x.acc]), total: ["TOTAL", sum(ao), "", ""] }] });
+  return S.map((s, i) => ({ ...s, h: `${i + 1}. ${s.h}` }));
 }
 
 function pdDoc(R, entidad) {
@@ -9145,7 +9100,7 @@ function pdDoc(R, entidad) {
   R.avisos?.length && (b.push({ tipo: "parrafo", estilo: "h3", texto: "Observaciones del cálculo" }), R.avisos.forEach(t => b.push({ tipo: "parrafo", estilo: "vineta", texto: t })));
   b.push({ tipo: "firmas" });
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
-    secciones: [{ id: "pendientes", nombre: "Partidas pendientes", titulo: "PARTIDAS PENDIENTES POR DEPURAR", subtitulos: [`Corte al ${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`, "Conciliaciones bancarias, consignaciones por identificar, anticipos y movimientos contables"], orientacion: "landscape", bloques: b }],
+    secciones: [{ id: "pendientes", nombre: "Partidas pendientes", titulo: "SALDOS PENDIENTES POR DEPURAR", subtitulos: [`Corte al ${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`], orientacion: "landscape", bloques: b }],
     leyendas: ["Cifras Expresadas en Pesos Colombianos (COP$)"] };
 }
 
@@ -9177,7 +9132,7 @@ function PdSeccion({ ses, notificar, entidad, soloLectura }) {
   return h(Ve.Fragment, null,
     h("section", { className: "panel" },
       h("div", { className: "panel-tit" }, h("h2", null, "Partidas pendientes por depurar"), R && h("div", { className: "acciones" }, h("button", { type: "button", className: "btn btn-primario btn-sm", disabled: gen, onClick: descargar }, gen ? "Generando…" : "Descargar PDF"))),
-      h("p", { className: "sub" }, "Consolida al corte las partidas conciliatorias bancarias, las consignaciones por identificar, los anticipos y cuentas por legalizar, lo pendiente del fondo de imprevistos y los movimientos contables relevantes del año (ajustes, reversiones, depuraciones y ejercicios anteriores). Se calcula con el balance, el libro auxiliar y las conciliaciones cargadas."),
+      h("p", { className: "sub" }, "Saldos pendientes al corte, por qué siguen pendientes y qué se hace con ellos en el mes siguiente: anticipos a proveedores, partidas conciliatorias bancarias, consignaciones por identificar con su posible pagador y saldos a favor recibidos."),
       h("div", { className: "fila" },
         h("label", { className: "campo" }, h("span", null, "Año"), h("select", { value: anio, onChange: e => { setAnio(+e.target.value); setMes(0); } }, [hoy.getFullYear(), hoy.getFullYear() - 1].map(a => h("option", { key: a, value: a }, a)))),
         h("label", { className: "campo" }, h("span", null, "Corte a"), h("select", { value: mes, onChange: e => setMes(+e.target.value) }, [h("option", { key: 0, value: 0 }, esEditor ? "Último mes cargado" : "Último publicado"), ...fiMeses.map((m, i) => h("option", { key: i + 1, value: i + 1 }, m))])),
