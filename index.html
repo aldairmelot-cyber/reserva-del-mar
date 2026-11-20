@@ -4069,6 +4069,13 @@ var fiFecha = f => { let s = String(f); return `${s.slice(6, 8)}/${s.slice(4, 6)
 var fiNumF = iso => Number(String(iso || "").replace(/-/g, "").slice(0, 8)) || 0;
 var fiDocL = d => String(d || "").replace(/^\([^)]*\)\s*/, "");
 var fiEstado = v => Math.abs(v) < 1 ? "Al d\xEDa" : v > 0 ? "Pendiente" : "Trasladado de m\xE1s";
+function fiCierreTxt(r, fmt) {
+  let base = r.saldoInicial + r.incrementos, pct = base > 0 ? (r.trasladado / base * 100).toLocaleString("es-CO", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : null, ult = r.M[r.M.length - 1], mesC = fiMeses[r.mes - 1].toLowerCase(), sig = r.mes < 12 ? fiMeses[r.mes].toLowerCase() : "enero del a\xF1o siguiente";
+  let t = `Al ${fiFin(r.anio, r.mes)} de ${mesC} de ${r.anio} se han trasladado ${fmt(r.trasladado)} de ${fmt(base)} acumulados (saldo inicial m\xE1s lo causado en el a\xF1o)${pct ? `, equivalente al ${pct} %` : ""}. `;
+  if (Math.abs(r.pendiente) < 1) return t + "El fondo est\xE1 al d\xEDa: no hay saldo por trasladar.";
+  if (r.pendiente < 0) return t + `Se traslad\xF3 de m\xE1s ${fmt(-r.pendiente)}, que se descuenta del pr\xF3ximo traslado.`;
+  return t + `El saldo por trasladar al corte es de ${fmt(r.pendiente)}` + (ult && r.pendiente <= ult.total + 0.5 ? `, que corresponde a lo causado en ${mesC} y se traslada en ${sig}.` : ".");
+}
 
 function fiCalcular({ anio, mes, bal, aux, ppto, cfg }) {
   cfg = cfg || {};
@@ -4198,11 +4205,12 @@ function fiDoc(r, entidad) {
     tot("SALDO QUE DEBE TENER EL FONDO", r.debeEstar)] });
   fiNotaExplot(r, h, p, b, tot);
   h("3. TRASLADOS MES A MES");
-  p("Saldo anterior: lo que quedaba pendiente (positivo) o trasladado de m\xE1s (negativo) del mes anterior. Saldo por trasladar = saldo anterior + total a trasladar del mes − trasladado en el mes. Los rendimientos se abonan en la misma fiducia, por eso cuentan como trasladados en el mes en que se causan.");
-  let cols = [{ titulo: "MES", ancho: 8.5, alin: "left" }, { titulo: "SALDO\nANTERIOR", ancho: 9, alin: "right" }, { titulo: "1% GASTO\nPRESUP.", ancho: 9, alin: "right" }, ...FI_CFG.conceptos.map(c => ({ titulo: c[2], ancho: 10, alin: "right" })), { titulo: "RENDIMIENTOS\nFIDUCIA", ancho: 9.5, alin: "right" }, { titulo: "TOTAL DEL\nMES", ancho: 9, alin: "right" }, { titulo: "TRASLADADO", ancho: 9, alin: "right" }, { titulo: "SALDO POR\nTRASLADAR", ancho: 9.5, alin: "right" }, { titulo: "ESTADO", ancho: 7, alin: "left" }];
-  let fm = r.M.map(x => ({ estilo: "detalle", celdas: [or(fiMeses[x.m - 1]), er(x.ant), er(x.uno), ...x.c.map(v => er(v)), er(x.rend), er(x.total), er(x.trasladado), er(x.saldo, { bold: !0, ...rojo(x.saldo) }), or(fiEstado(x.saldo))] }));
-  fm.push({ estilo: "totalDoble", celdas: [or("TOTAL", { bold: !0 }), er(r.saldoInicial, { bold: !0 }), er(r.uno, { bold: !0 }), ...r.conc.map(v => er(v, { bold: !0 })), er(r.rendT, { bold: !0 }), er(r.incrementos, { bold: !0 }), er(r.trasladado, { bold: !0 }), er(r.pendiente, { bold: !0 }), or(fiEstado(r.pendiente), { bold: !0 })] });
+  p("El saldo acumulado por trasladar refleja, a cada corte mensual, la diferencia entre los recursos causados con destino al fondo de imprevistos y los efectivamente trasladados: saldo anterior + total del mes − trasladado en el mes. No corresponde a partidas pendientes de cada mes, sino al arrastre acumulado que se va depurando con los traslados siguientes; el valor determinante es el saldo al corte. Los rendimientos se abonan en la misma fiducia, por eso cuentan como trasladados en el mes en que se causan.");
+  let cols = [{ titulo: "MES", ancho: 10.5, alin: "left" }, { titulo: "SALDO\nANTERIOR", ancho: 9, alin: "right" }, { titulo: "1% GASTO\nPRESUP.", ancho: 9, alin: "right" }, ...FI_CFG.conceptos.map(c => ({ titulo: c[2], ancho: 10, alin: "right" })), { titulo: "RENDIMIENTOS\nFIDUCIA", ancho: 10.5, alin: "right" }, { titulo: "TOTAL DEL\nMES", ancho: 10, alin: "right" }, { titulo: "TRASLADADO", ancho: 10, alin: "right" }, { titulo: "SALDO ACUM.\nPOR TRASLADAR", ancho: 11.5, alin: "right" }];
+  let fm = r.M.map(x => ({ estilo: "detalle", celdas: [or(fiMeses[x.m - 1]), er(x.ant), er(x.uno), ...x.c.map(v => er(v)), er(x.rend), er(x.total), er(x.trasladado), er(x.saldo)] }));
+  fm.push({ estilo: "totalDoble", celdas: [or("TOTAL", { bold: !0 }), er(r.saldoInicial, { bold: !0 }), er(r.uno, { bold: !0 }), ...r.conc.map(v => er(v, { bold: !0 })), er(r.rendT, { bold: !0 }), er(r.incrementos, { bold: !0 }), er(r.trasladado, { bold: !0 }), er(r.pendiente, { bold: !0 })] });
   b.push({ tipo: "tabla", columnas: cols, filas: fm, cabecera: !0 });
+  p(fiCierreTxt(r, aclP));
   let T = r.M.flatMap(x => x.tras).concat(r.posteriores);
   if (T.length) {
     b.push({ tipo: "parrafo", texto: "Traslados realizados", estilo: "h3" });
@@ -4302,14 +4310,15 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
         r.posteriores.length > 0 ? aH("div", { className: "kpi" }, aH("span", null, r.pendienteHoy < 0 ? "Trasladado de m\xE1s hoy" : "Pendiente hoy"), aH("b", null, P(Math.abs(r.pendienteHoy))), aH("small", null, `con ${P(r.trasPost)} trasladados despu\xE9s del corte`))
           : aH("div", { className: "kpi" }, aH("span", null, "Inversi\xF3n del fondo"), aH("b", null, P(r.inversion)), aH("small", null, r.invCtas.map(c => c.nombre).join(", "))))),
     r && aH("section", { className: "panel" }, aH("h2", null, "Traslados mes a mes"),
-      aH("p", { className: "sub" }, "Cada mes suma lo que se debe trasladar (1% del gasto presupuestado, lo recaudado de intereses y sanciones y los rendimientos de la fiducia), resta lo trasladado y arrastra el saldo al mes siguiente. Saldo positivo = pendiente por trasladar; negativo = trasladado de m\xE1s. Los rendimientos se abonan en la misma fiducia, por eso cuentan como trasladados en el mes en que se causan."),
+      aH("p", { className: "sub" }, "Cada mes suma lo que se debe trasladar (1% del gasto presupuestado, lo recaudado de intereses y sanciones y los rendimientos de la fiducia), resta lo trasladado y arrastra el saldo al mes siguiente. El saldo de cada mes es acumulado (no es una partida pendiente de ese mes): lo que cuenta es el saldo al corte. Positivo = por trasladar; negativo = trasladado de m\xE1s. Los rendimientos se abonan en la misma fiducia, por eso cuentan como trasladados en el mes en que se causan."),
       aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
-        aH("thead", null, aH("tr", null, ["Mes", "Saldo anterior", "1% gasto", ...FI_CFG.conceptos.map(c => c[1]), "Rendimientos fiducia", "Total del mes", "Trasladado", "Saldo por trasladar", "Estado"].map((t, i) => th(t, i, i > 0 && i < 10)))),
+        aH("thead", null, aH("tr", null, ["Mes", "Saldo anterior", "1% gasto", ...FI_CFG.conceptos.map(c => c[1]), "Rendimientos fiducia", "Total del mes", "Trasladado", "Saldo acumulado por trasladar"].map((t, i) => th(t, i, i > 0)))),
         aH("tbody", null, r.M.map(x => aH("tr", { key: x.m },
           aH("td", null, fiMeses[x.m - 1], x.det.length > 0 && aH("div", null, aH("button", { type: "button", className: "enlace", onClick: () => setVerMes(verMes === x.m ? 0 : x.m) }, verMes === x.m ? "Ocultar recaudo" : "Ver recaudo"))), num(x.ant), num(x.uno), ...x.c.map((v, k) => aH(Ve.Fragment, { key: k }, num(v))), num(x.rend), num(x.total, 1),
           aH("td", { className: "a-right num" }, P(x.trasladado), x.rend >= 1 && aH("div", { className: "tenue" }, `rendimientos ${P(x.rend)}`), x.tras.map((t, j) => aH("div", { key: j, className: "tenue" }, `${fiFecha(t.f)}${t.doc ? " \xB7 " + t.doc : ""}${t.origen !== "Contabilidad" ? " \xB7 a mano" : ""}`))),
-          num(x.saldo, 1, Math.abs(x.saldo) >= 1 ? "err" : ""), aH("td", null, chip(x.saldo))))),
-        aH("tfoot", null, aH("tr", null, aH("td", null, aH("b", null, "Total")), num(r.saldoInicial, 1), num(r.uno, 1), ...r.conc.map((v, k) => aH(Ve.Fragment, { key: k }, num(v, 1))), num(r.rendT, 1), num(r.incrementos, 1), num(r.trasladado, 1), num(r.pendiente, 1), aH("td", null, chip(r.pendiente)))))),
+          num(x.saldo)))),
+        aH("tfoot", null, aH("tr", null, aH("td", null, aH("b", null, "Total")), num(r.saldoInicial, 1), num(r.uno, 1), ...r.conc.map((v, k) => aH(Ve.Fragment, { key: k }, num(v, 1))), num(r.rendT, 1), num(r.incrementos, 1), num(r.trasladado, 1), num(r.pendiente, 1))))),
+      aH("p", { className: "espacio" }, chip(r.pendiente), " ", fiCierreTxt(r, P)),
       verMes > 0 && r.M[verMes - 1] && (() => { let x = r.M[verMes - 1];
         return aH("div", { className: "espacio" }, aH("h3", { className: "ef-sub" }, `Recaudo de ${fiMeses[verMes - 1].toLowerCase()} de ${r.anio}: ${x.det.length} movimiento(s)`),
           aH("div", { className: "tabla-scroll" }, aH("table", { className: "t-datos" },
