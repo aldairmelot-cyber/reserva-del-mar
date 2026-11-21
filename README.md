@@ -36,6 +36,15 @@ En **Cartera → Cuentas de cobro** el editor carga los PDF de las cuentas de co
 
 El perfil **Cartera** (en **Datos → Usuarios y perfiles**) solo ve el módulo de Cartera: cartera de propietarios, cartera por edades y cuentas de cobro para descargar. No carga ni modifica nada.
 
+## Carteleras para publicar
+
+En **Cartera → Carteleras para publicar** salen dos carteleras en hoja A3, llenas solas con la información de la plataforma:
+
+- **Estado de cartera:** las unidades con cuotas vencidas al corte de la cartera cargada, agrupadas por antigüedad (un año o más, 6 a 11, 3 a 5 y 1 a 2 meses en mora, contados desde el primer mes vencido). Cada casilla muestra la unidad (sin nombre del propietario), desde cuándo debe y el total a pagar al corte.
+- **Consignaciones por identificar:** la lista que publica contabilidad en Consignaciones por identificar, sin las que cartera ya resolvió ni las que contabilidad ya registró, agrupadas por año, con fecha, valor y recibo de caja. Por defecto no salen el saldo inicial, los ajustes (NC) ni los abonos de datáfono.
+
+Se pueden desmarcar unidades o consignaciones (por ejemplo, con acuerdo de pago) y editar los textos (aviso, pasos, cuenta bancaria, firma). El editor los guarda en `config/carteleras`; los demás perfiles pueden cambiarlos solo para su impresión. **Imprimir o guardar en PDF** abre la cartelera lista para imprimir (A3 vertical, sin márgenes, con gráficos de fondo); si no cabe en una hoja, se compacta sola.
+
 ## Recaudo de expensas (recibos de caja)
 
 En **Conciliación bancaria → Recaudo de expensas** se carga el movimiento del banco de expensas (PDF de Bancolombia, cuenta 51748523433). La app identifica qué apartamento hizo cada abono y arma la relación en Excel para hacer los recibos de caja en World Office. Para identificar usa, en este orden:
