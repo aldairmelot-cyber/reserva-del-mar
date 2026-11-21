@@ -30,7 +30,7 @@
     "cman_raw", "cman_idx", "cman_seg", "cman_cfg", "cbl_raw", "cbl_idx", "cbl_seg",
     "dianv", "dianv_aux", "dianv_cfg", "dianv_idx", "dianv_notas",
     "verif_idx", "verif_raw", "fondo_cfg", "rph", "rph_pdf", "comunicados", "comunicados_pdf", "fv_idx", "fv_pdf", "cartera_mov", "archivos_cargados", "_archivos", "_archivos_partes", "_usuarios", "_roles", "firmas",
-    "cxi_seg", "cxi_pub", "cxi_gest", "cxi_sop",
+    "cxi_seg", "cxi_pub", "cxi_gest", "cxi_sop", "cr_inf",
   ];
 
   /* ------------------------------------------------------------------ perfiles */
@@ -40,9 +40,10 @@
   let perfil = { rol: "editor", nombre: "", email: "" };
   function fijarPerfil(p) { perfil = p; window.EFPH_PERFIL = Object.freeze({ ...p, etiqueta: PERFILES[p.rol] || p.rol }); }
   const esEditor = () => perfil.rol === "editor";
-  /* cartera escribe su gestión de las consignaciones por identificar (las reglas de Firestore lo limitan a su correo) */
+  /* cartera escribe su gestión de las consignaciones por identificar (las reglas de Firestore lo limitan a su correo)
+     y su informe mensual de recaudo (cr_inf: observaciones, comentarios y casos especiales) */
   const puedeEscribir = (ruta) => esEditor() || String(ruta).startsWith("_usuarios/") || (!!perfil.firma && String(ruta).startsWith("firmas/"))
-    || (perfil.rol === "cartera" && /^(cxi_gest|cxi_sop)\//.test(String(ruta)));
+    || (perfil.rol === "cartera" && /^(cxi_gest|cxi_sop|cr_inf)\//.test(String(ruta)));
   const sinPermiso = () => { const e = new Error("Su perfil es de solo consulta."); e.code = "not_granted"; return e; };
   const negado = (e) => !!e && (e.code === "permission-denied" || e.code === "not_granted");
   if (MODO === "local") {
