@@ -9007,7 +9007,20 @@ var CR_HIST = {
   "2026-07": { r: [11352530, 15501881, 14276800, 4196738], e: 83787974 }, "2026-08": { r: [11492158, 18324245, 18477955, 798000], e: 85378606 },
   "2026-09": { r: [14937163, 15352634, 19249858, 2550243], e: 99289377 }
 };
-var CR_CFG_DEF = { elaborado: "", cargo: "Asistente administrativa y de cartera", admin: "Administración PH Services S.A.S." };
+var CR_PRESETS = ["Notificado por escrito", "Notificado por llamada telefónica", "Notificado por WhatsApp", "Notificado con cartera vencida", "Cobro prejurídico", "Traslado a cobro jurídico", "Compromiso de pago", "Realiza pago parcial", "Realiza el pago en el mes siguiente", "Restricción de zonas comunes no esenciales", "Rechaza los saldos facturados", "Estado de cuenta en revisión", "Concepto de arriendo de depósito"];
+var CR_CFG_DEF = { elaborado: "", cargo: "Asistente administrativa y de cartera", admin: "Administración PH Services S.A.S.", presets: CR_PRESETS };
+/* observación de una unidad: { p: [observaciones de la lista], t: "texto libre" } (o texto, en los meses guardados antes) */
+var crObsNorm = v => typeof v === "string" ? { p: [], t: v } : { p: Array.isArray(v?.p) ? v.p : [], t: v?.t || "" };
+var crObsTxt = v => { let o = crObsNorm(v); return [...o.p, String(o.t).trim()].filter(Boolean).join(" · "); };
+function CrObsCelda({ v, presets, onChange }) {
+  let o = crObsNorm(v), h = crH, toggle = p => onChange({ ...o, p: o.p.includes(p) ? o.p.filter(x => x !== p) : [...o.p, p] });
+  let lista = [...presets, ...o.p.filter(p => !presets.includes(p))];
+  return h("div", { className: "cr-obsc" },
+    h("details", null,
+      h("summary", null, o.p.length ? o.p.join(" · ") : h("span", { className: "tenue" }, "Elegir observaciones…")),
+      h("div", { className: "cr-obs-lista" }, ...lista.map(p => h("label", { key: p }, h("input", { type: "checkbox", checked: o.p.includes(p), onChange: () => toggle(p) }), p)))),
+    h("input", { className: "cr-obs", value: o.t, placeholder: "Algo en particular (opcional)", onChange: e => onChange({ ...o, t: e.target.value }) }));
+}
 var crMesMas = (ym, d) => { let y = +ym.slice(0, 4), m = +ym.slice(5, 7) + d; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return `${y}-${String(m).padStart(2, "0")}`; };
 var crFinMes = ym => `${ym}-${String(new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate()).padStart(2, "0")}`;
 var crP = v => "$" + pe(Math.round(v || 0), "0");
@@ -9064,7 +9077,7 @@ function crCalcular(ym, T0, T1, reg) {
   return { U, main, rangos, T: tot(main), esp: { juridico: U.filter(x => x.tipo === "juridico"), revision: U.filter(x => x.tipo === "revision"), acuerdo: U.filter(x => x.tipo === "acuerdo") }, tot,
     pagaron: main.filter(x => x.rec >= x.esp - .5).length, abonaron: main.filter(x => x.rec > .5 && x.rec < x.esp - .5).length, sinPago: main.filter(x => x.rec <= .5).length };
 }
-var crObs = (x, obs) => { let n = String(obs?.[x.unidad] ?? "").trim(); return n ? `${n} | ${x.auto}` : x.auto; };
+var crObs = (x, obs) => { let n = crObsTxt(obs?.[x.unidad]); return n ? `${n} | ${x.auto}` : x.auto; };
 
 /* ---------- textos automáticos (redacción técnica) ---------- */
 function crTextos(C, ym, hist) {
@@ -9119,7 +9132,7 @@ function crDoc(C, ym, ini, fin, hist, dat, cfg, mcfg) {
   b.push({ tipo: "tabla", cabecera: !1, columnas: [{ titulo: "", ancho: 30, alin: "left" }, { titulo: "", ancho: 70, alin: "left" }], filas: [
     ["PERÍODO DE ANÁLISIS", `Del 1 al ${+crFinMes(ym).slice(8)} de ${crMesLargo(ym)}${fin > crFinMes(ym) ? ` y avances al ${finTxt}` : ""}`],
     ["FECHA DE ELABORACIÓN", cbFechaLarga(hoy)],
-    ["ELABORADO POR", [cfg.elaborado, cfg.cargo].filter(Boolean).join(" · ").toUpperCase() || "CARTERA"],
+    ["ELABORADO POR", [cfg.elaborado, cfg.cargo].filter(Boolean).join(" · ").toUpperCase() || "ASISTENTE ADMINISTRATIVA Y DE CARTERA"],
     ["BASE DEL CÁLCULO", `Cartera vencida al 1 de ${crMesLargo(ym)} (corte del ${iniTxt}); recaudo según la cartera con corte al ${finTxt}`]
   ].map(([a, v]) => ({ estilo: "detalle", celdas: [txt(a, { bold: !0 }), txt(v)] })) });
   /* 1. informe ejecutivo */
@@ -9146,7 +9159,7 @@ function crDoc(C, ym, ini, fin, hist, dat, cfg, mcfg) {
   b.push(par(auto.c12), ...coment("c12"));
   /* 1.3 cobro jurídico */
   b.push(h2("1.3. GESTIÓN DE CARTERA EN PROCESO EJECUTIVO · SEGUIMIENTO AL COBRO DE FIRMAS JURÍDICAS"));
-  C.esp.juridico.length && b.push({ tipo: "tabla", cabecera: !0, columnas: colsU("FIRMA · RADICADO · OBSERVACIONES"), filas: [...C.esp.juridico.map(x => ({ estilo: "detalle", celdas: fila3(x, [x.reg?.firma, x.reg?.radicado && "Rad. " + x.reg.radicado, x.reg?.nota, String(obs[x.unidad] ?? "").trim() || x.auto].filter(Boolean).join(" | ")) })), totFila(C.esp.juridico, "TOTALES")] });
+  C.esp.juridico.length && b.push({ tipo: "tabla", cabecera: !0, columnas: colsU("FIRMA · RADICADO · OBSERVACIONES"), filas: [...C.esp.juridico.map(x => ({ estilo: "detalle", celdas: fila3(x, [x.reg?.firma, x.reg?.radicado && "Rad. " + x.reg.radicado, x.reg?.nota, crObsTxt(obs[x.unidad]) || x.auto].filter(Boolean).join(" | ")) })), totFila(C.esp.juridico, "TOTALES")] });
   b.push(par(auto.c13), ...coment("c13"));
   /* 1.4 mes a mes */
   b.push(h2(`1.4. SEGUIMIENTO DEL RECAUDO DE CARTERA DE 30-60-90 DÍAS · MES A MES · AÑO ${ym.slice(0, 4)}`));
@@ -9180,6 +9193,21 @@ var CR_CSS = `.cr-tabla td,.cr-tabla th{vertical-align:top}
 .cr-grupo td{background:var(--acento-suave,#f6eedf);font-weight:700}
 .cr-sub td{font-weight:700;border-top:1px solid var(--linea-fuerte,#ccc)}
 .cr-auto{font-size:12.5px;color:var(--suave,#63676f);margin-top:2px}
+.cr-obsc{display:grid;gap:4px;min-width:240px}
+.cr-obsc details{border:1px solid var(--linea-fuerte,#ccc);border-radius:6px;background:var(--hoja,#fff)}
+.cr-obsc summary{cursor:pointer;padding:5px 8px;font-size:13.5px;list-style:none}
+.cr-obsc summary::-webkit-details-marker{display:none}
+.cr-obsc summary::after{content:" ▾";color:var(--suave,#63676f)}
+.cr-obsc details[open] summary{border-bottom:1px solid var(--linea,#e4e1db)}
+.cr-obs-lista{display:grid;gap:2px;padding:6px 8px;max-height:260px;overflow:auto}
+.cr-obs-lista label{display:flex;gap:7px;align-items:flex-start;font-size:13.5px;cursor:pointer;padding:2px 0}
+.cr-obs-lista input{margin-top:2px}
+.cr-lote{position:sticky;top:0;z-index:2;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--acento-suave,#f6eedf);border:1px solid var(--linea,#e4e1db);border-radius:8px;padding:8px 10px;margin:10px 0}
+.cr-lote select{font:inherit;font-size:13.5px;padding:4px 6px;border:1px solid var(--linea-fuerte,#ccc);border-radius:6px;background:var(--hoja,#fff);color:inherit}
+.cr-marc td{background:var(--acento-suave,#f6eedf)}
+.cr-pres{display:flex;gap:6px;flex-wrap:wrap}
+.cr-pres span{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--linea-fuerte,#ccc);border-radius:999px;padding:3px 10px;font-size:13px;background:var(--hoja,#fff)}
+.cr-pres button{border:0;background:none;cursor:pointer;color:var(--suave,#63676f);padding:0;font-size:12px}
 .cr-txt{background:var(--acento-suave,#f6eedf);border-radius:8px;padding:10px 12px;font-size:14px;line-height:1.5;margin:8px 0}
 .cr-com{width:100%;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--linea-fuerte,#ccc);border-radius:8px;background:var(--hoja,#fff);color:inherit}
 .cr-filtros{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
@@ -9194,14 +9222,14 @@ function CrPantalla({ ses, config, notificar, cortes, cargar, ir }) {
   let porMes = Ve.useMemo(() => new Map(orden.map(c => [Hr(c.corte), c])), [orden]);
   let meses = Ve.useMemo(() => { let ult = [...porMes.keys()].sort().pop(); return [...porMes.keys()].map(k => crMesMas(k, 1)).filter(k => ult && k <= ult).sort().reverse(); }, [porMes]);
   let [ym, setYm] = Ve.useState(""), [fin, setFin] = Ve.useState(""), [datos, setDatos] = Ve.useState({}), [reg, setReg] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null);
-  let [dat, setDat] = Ve.useState(null), [guard, setGuard] = Ve.useState(""), [hist, setHist] = Ve.useState([]), [oc, setOc] = Ve.useState(null), [verCfg, setVerCfg] = Ve.useState(!1), [nuevo, setNuevo] = Ve.useState({ unidad: "", tipo: "juridico" });
+  let [dat, setDat] = Ve.useState(null), [guard, setGuard] = Ve.useState(""), [hist, setHist] = Ve.useState([]), [oc, setOc] = Ve.useState(null), [verCfg, setVerCfg] = Ve.useState(!1), [nuevo, setNuevo] = Ve.useState({ unidad: "", tipo: "juridico" }), [marc, setMarc] = Ve.useState([]), [lote, setLote] = Ve.useState(""), [nuevoP, setNuevoP] = Ve.useState("");
   let cache = Ve.useRef({});
   let leer = async k => { if (cache.current[k] !== void 0) return cache.current[k]; let r = await cargar(k); let T = r?.clientes ? Zl(r.clientes) : null; cache.current[k] = T; return T; };
   Ve.useEffect(() => { if (!ym && meses.length) setYm(meses[0]); }, [meses.length]);
   Ve.useEffect(() => {
     let j = d => d?.j ? JSON.parse(d.j) : null;
     ses.store.get("cr_inf/reg").then(d => setReg(j(d) || {})).catch(() => setReg({}));
-    ses.store.get("cr_inf/cfg").then(d => setCfg({ ...CR_CFG_DEF, elaborado: window.EFPH_PERFIL?.nombre || "", ...(j(d) || {}) })).catch(() => setCfg({ ...CR_CFG_DEF }));
+    ses.store.get("cr_inf/cfg").then(d => setCfg({ ...CR_CFG_DEF, ...(j(d) || {}) })).catch(() => setCfg({ ...CR_CFG_DEF }));
   }, [ses]);
   /* datos del mes: observaciones y comentarios (las observaciones se traen del mes anterior si el mes no tiene) */
   Ve.useEffect(() => {
@@ -9225,6 +9253,9 @@ function CrPantalla({ ses, config, notificar, cortes, cargar, ir }) {
   let k0 = crMesMas(ym, -1), T0 = datos[k0], T1 = fin ? datos[Hr(fin)] : void 0, c0 = porMes.get(k0);
   let C = T0 && T1 ? crCalcular(ym, T0, T1, reg) : null;
   let cambios = JSON.stringify({ obs: dat.obs || {}, com: dat.com || {}, fin }) !== guard;
+  let presets = cfg.presets?.length ? cfg.presets : CR_PRESETS;
+  let lotePara = (quitar) => { if (!lote || !marc.length) return; setDat(d => { let O = { ...(d.obs || {}) }; for (const u of marc) { let o = crObsNorm(O[u]); O[u] = { ...o, p: quitar ? o.p.filter(x => x !== lote) : o.p.includes(lote) ? o.p : [...o.p, lote] }; } return { ...d, obs: O }; }); };
+  let marcar = (us, si) => setMarc(M => si ? [...new Set([...M, ...us])] : M.filter(u => !us.includes(u)));
   let setObs = (u, v) => setDat(d => ({ ...d, obs: { ...(d.obs || {}), [u]: v } })), setCom = (k, v) => setDat(d => ({ ...d, com: { ...(d.com || {}), [k]: v } }));
   let guardarReg = async R => { setReg(R); try { await ses.store.set("cr_inf/reg", { j: JSON.stringify(R) }); } catch (e) { notificar("error", "No se pudo guardar el caso: " + (e?.message ?? e) + ". Si es el perfil de Cartera, falta publicar en Firebase las reglas nuevas."); } };
   let setRegU = (u, campos) => { let R = { ...reg }; campos === null ? delete R[u] : R[u] = { ...(R[u] || {}), ...campos }; guardarReg(R); };
@@ -9237,10 +9268,11 @@ function CrPantalla({ ses, config, notificar, cortes, cargar, ir }) {
   let fueraFin = c0 && c0.corte < crFinMes(k0);
   let unidades = C ? [...new Set([...C.U.map(x => x.unidad)])].sort() : [];
   let tablaU = (L, conTipo) => h("div", { className: "tabla-scroll" }, h("table", { className: "t-datos cr-tabla" },
-    h("thead", null, h("tr", null, ...["Unidad", "Observación de cartera", "Esperado", "Recaudado", "Pendiente", puede && conTipo ? "Caso especial" : null].filter(Boolean).map((t, i) => h("th", { key: i, className: i >= 2 && i <= 4 ? "a-right" : "" }, t)))),
-    h("tbody", null, ...L.map(x => h("tr", { key: x.unidad },
+    h("thead", null, h("tr", null, puede && h("th", { style: { width: 28 } }, h("input", { type: "checkbox", "aria-label": "Marcar todas", checked: L.length > 0 && L.every(x => marc.includes(x.unidad)), onChange: e => marcar(L.map(x => x.unidad), e.target.checked) })), ...["Unidad", "Observación de cartera", "Esperado", "Recaudado", "Pendiente", puede && conTipo ? "Caso especial" : null].filter(Boolean).map((t, i) => h("th", { key: i, className: i >= 2 && i <= 4 ? "a-right" : "" }, t)))),
+    h("tbody", null, ...L.map(x => h("tr", { key: x.unidad, className: marc.includes(x.unidad) ? "cr-marc" : "" },
+      puede && h("td", null, h("input", { type: "checkbox", "aria-label": "Marcar " + x.unidad, checked: marc.includes(x.unidad), onChange: e => marcar([x.unidad], e.target.checked) })),
       h("td", null, h("b", null, x.torre ? `${x.inm} · ${x.torre}` : x.inm), h("div", { className: "tenue", style: { fontSize: 12.5 } }, x.desde ? `debe desde ${cbMesTxt(x.desde)}` : "")),
-      h("td", null, puede ? h("input", { className: "cr-obs", value: dat.obs?.[x.unidad] ?? "", placeholder: "Ej.: Notificado por escrito y llamada", onChange: e => setObs(x.unidad, e.target.value) }) : h("span", null, dat.obs?.[x.unidad] || ""), h("div", { className: "cr-auto" }, x.auto)),
+      h("td", null, puede ? h(CrObsCelda, { v: dat.obs?.[x.unidad], presets, onChange: v => setObs(x.unidad, v) }) : h("span", null, crObsTxt(dat.obs?.[x.unidad])), h("div", { className: "cr-auto" }, "Pago en el período: ", x.auto)),
       h("td", { className: "a-right num" }, pe(Math.round(x.esp), "0")), h("td", { className: "a-right num" }, pe(Math.round(x.rec), "0")), h("td", { className: "a-right num" + (x.pend > .5 ? " err" : "") }, pe(Math.round(x.pend), "0")),
       puede && conTipo ? h("td", null, h("select", { value: x.tipo || "", onChange: e => setRegU(x.unidad, e.target.value ? { tipo: e.target.value } : null), "aria-label": "Caso especial de " + x.unidad }, h("option", { value: "" }, "—"), ...Object.entries(CR_TIPOS).map(([k, t]) => h("option", { key: k, value: k }, t)))) : null)))));
   let comentario = (k, titulo) => h("div", { style: { marginTop: 10 } },
@@ -9279,7 +9311,13 @@ function CrPantalla({ ses, config, notificar, cortes, cargar, ir }) {
           comentario("c11", "el numeral 1.1")),
         h("section", { className: "panel" },
           h("h2", null, "1. Unidades con cartera vencida"),
-          h("p", { className: "sub" }, "Escriba la gestión de cada unidad (notificación, llamada, cobro prejurídico…). Lo que pagó en el período se agrega solo. Con «Caso especial» la unidad pasa a revisión contable, cobro jurídico o acuerdo de pago."),
+          h("p", { className: "sub" }, "En cada unidad elija las observaciones de la lista y, si hace falta, escriba algo en particular. Para poner la misma observación a varias, márquelas con el chulo de la izquierda y use la barra. Lo que pagó en el período se agrega solo. Con «Caso especial» la unidad pasa a revisión contable, cobro jurídico o acuerdo de pago."),
+          puede && h("div", { className: "cr-lote" },
+            h("b", null, marc.length ? `${marc.length} ${marc.length === 1 ? "unidad marcada" : "unidades marcadas"}` : "Marque unidades para aplicarles una observación"),
+            h("select", { value: lote, onChange: e => setLote(e.target.value), "aria-label": "Observación para las marcadas" }, h("option", { value: "" }, "Elegir observación…"), ...presets.map(p => h("option", { key: p, value: p }, p))),
+            h("button", { type: "button", className: "btn btn-sm btn-primario", disabled: !lote || !marc.length, onClick: () => lotePara(!1) }, "Agregar a las marcadas"),
+            h("button", { type: "button", className: "btn btn-sm", disabled: !lote || !marc.length, onClick: () => lotePara(!0) }, "Quitar de las marcadas"),
+            h("button", { type: "button", className: "btn btn-sm", disabled: !marc.length, onClick: () => setMarc([]) }, "Desmarcar todo")),
           ...C.rangos.filter(R => R.L.length).map(R => h("div", { key: R.b, style: { marginTop: 14 } },
             h("h3", { style: { margin: "0 0 6px" } }, `${R.t} · ${R.n} ${R.n === 1 ? "unidad" : "unidades"} · pendiente ${crP(R.pend)}`),
             tablaU(R.L, !0))),
@@ -9314,7 +9352,14 @@ function CrPantalla({ ses, config, notificar, cortes, cargar, ir }) {
           h("button", { type: "button", className: "btn btn-sm", onClick: () => setVerCfg(!verCfg), style: { marginTop: 8 } }, verCfg ? "Ocultar datos del informe" : "Datos del informe (elaborado por, cargo, administración)"),
           verCfg && h("div", { className: "cr-filtros", style: { marginTop: 10 } },
             ...[["elaborado", "Elaborado por"], ["cargo", "Cargo"], ["admin", "Administración"]].map(([k, t]) => h("label", { key: k }, t, h("input", { value: cfg[k] || "", disabled: !puede, onChange: e => setCfg({ ...cfg, [k]: e.target.value }) }))),
-            puede && h("button", { type: "button", className: "btn btn-primario", onClick: guardarCfg }, "Guardar datos")))));
+            puede && h("button", { type: "button", className: "btn btn-primario", onClick: guardarCfg }, "Guardar datos")),
+          verCfg && h("div", { style: { marginTop: 12 } },
+            h("h3", { style: { margin: "0 0 6px" } }, "Observaciones de la lista"),
+            h("div", { className: "cr-pres" }, ...presets.map(p => h("span", { key: p }, p, puede && h("button", { type: "button", title: "Quitar de la lista", "aria-label": "Quitar " + p, onClick: () => setCfg({ ...cfg, presets: presets.filter(x => x !== p) }) }, "✕")))),
+            puede && h("div", { className: "cr-filtros", style: { marginTop: 8 } },
+              h("label", null, "Nueva observación", h("input", { value: nuevoP, placeholder: "Ej.: Visita a la unidad", onChange: e => setNuevoP(e.target.value) })),
+              h("button", { type: "button", className: "btn", disabled: !nuevoP.trim() || presets.includes(nuevoP.trim()), onClick: () => { setCfg({ ...cfg, presets: [...presets, nuevoP.trim()] }); setNuevoP(""); } }, "Agregar a la lista"),
+              h("span", { className: "tenue", style: { fontSize: 13 } }, "Después haga clic en «Guardar datos»."))))));
 }
 
 /* =================== PAGOS DE PROPIETARIOS (Cartera) =================== */
