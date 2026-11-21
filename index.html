@@ -8678,7 +8678,7 @@ var CT_DEF = {
   mor_p2: "**Pague** en Bancolombia, cuenta No. 517-485234-33, a nombre de la Agrupación Reserva del Mar P.H., con la referencia de su cuenta de cobro.",
   mor_p3: "**Envíe el soporte** con el número de su unidad, o pida un acuerdo de pago antes del cobro jurídico.",
   mor_pie: "Si pagó después del {corte}, su pago se verá en el próximo corte.",
-  cxi_aviso: "Estos dineros llegaron a la cuenta de la copropiedad sin que el banco nos indicara quién los consignó; por eso **no se han podido abonar a ninguna unidad** y su dueño puede aparecer con un saldo pendiente que ya pagó. Cada casilla muestra la **fecha** y el **valor exacto** de la consignación, y el número del recibo de caja (RC) con que la registró la contabilidad. Revise sus comprobantes: si alguna fecha y valor coinciden con un pago suyo, avísenos.",
+  cxi_aviso: "Estos dineros llegaron a la cuenta de la copropiedad sin que el banco nos indicara de qué unidad son; por eso **no se han podido abonar a ninguna unidad** y su dueño puede aparecer con un saldo pendiente que ya pagó. Cada casilla muestra la **fecha**, el **valor exacto** y **lo que dice el banco** de la transacción (referencia, descripción o nombre de quien transfirió). Revise sus comprobantes: si alguna fecha y valor coinciden con un pago suyo, avísenos.",
   cxi_p1: "**Busque el comprobante** (recibo del banco, pantallazo de la transferencia o del extracto) con la misma fecha y valor.",
   cxi_p2: "**Envíelo a la administración**, en la oficina o por correo, indicando el número de su apartamento o local.",
   cxi_p3: "**Lo abonamos a su cuenta** y le confirmamos el nuevo saldo. Si no recuerda el pago, consulte su extracto bancario de esas fechas.",
@@ -8690,6 +8690,11 @@ var CT_DEF = {
   incluirDat: !1,
   minMeses: 1
 };
+var CT_AVISO_RC = "Estos dineros llegaron a la cuenta de la copropiedad sin que el banco nos indicara quién los consignó; por eso **no se han podido abonar a ninguna unidad** y su dueño puede aparecer con un saldo pendiente que ya pagó. Cada casilla muestra la **fecha** y el **valor exacto** de la consignación, y el número del recibo de caja (RC) con que la registró la contabilidad. Revise sus comprobantes: si alguna fecha y valor coinciden con un pago suyo, avísenos.";
+/* lo que dice el banco de la consignación: la nota sin fechas ni rótulos contables */
+var ctBancoTodo = n => cxN(n).replace(/\(?\b\d{1,2}\s*[-\/.]\s*\d{1,3}\s*[-\/.]\s*\d{2,4}\b\)?/g, " ").replace(/\b(CONSIGNACION(ES)?|PARTIDAS?|VALORES?|INGRESOS?|PAGOS?)\s+(POR|SIN)\s+IDENTIFICAR\b/g, " ").replace(/\bPOR IDENTIFICAR\b/g, " ").replace(/\s+/g, " ").replace(/^[\s\-–·:.,;]+|[\s\-–·:.,;]+$/g, "").trim();
+/* versión corta para la casilla: sin las palabras genéricas, para que se vean el nombre y la referencia */
+var ctBanco = n => { let t = ctBancoTodo(n), c = t.replace(/\b(PAGOS?|DE|DEL|PROV|PROVEEDOR(ES)?|TERC|TERCEROS?|INTERBANC(ARIO)?|TRANSF(ERENCIA)?S?|DESDE|ABONOS?|CONSIG(NACION)?|CTA|CUENTA|SUC|SUCURSAL|VIRTUAL|ACH|EN|LINEA|POR|CON|A|LA|EL)\b/g, " ").replace(/\s+/g, " ").replace(/^[\s\-–·:.,;]+|[\s\-–·:.,;]+$/g, "").trim(); return (c.length >= 3 ? c : t) || "Sin descripción del banco"; };
 var CT_TAM = { auto: 6, grande: 2, xgrande: 0 };
 var CT_MES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 var ctEsc = t => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -8758,6 +8763,7 @@ h1{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-s
 .c .u em{font-style:normal;font-size:.62em;font-weight:600;margin-left:.6mm}
 .c .d{font-size:min(var(--fd,3.4mm),16.5cqi);opacity:.92;white-space:nowrap;margin:.3mm 0}
 .c .v{font-weight:700;font-size:min(var(--fv,4.6mm),18.5cqi);white-space:nowrap}
+.c .d.b{white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.12;font-size:min(var(--fd,3.4mm),13.5cqi);word-break:break-word;opacity:.95}
 .c .v.g{font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:min(var(--fvg,6.4mm),19.5cqi)}
 .c .u.f{font-size:min(var(--fu,7mm),20.5cqi)}
 .m1{background:#2b2e37;color:#fff}.m2{background:#8a5d21;color:#fff}.m3{background:#c08a45;color:#fff}.m4{background:#f6eedf;color:#262a33;border:.3mm solid #e2cfa9}
@@ -8844,7 +8850,7 @@ function ctHtmlCxi(L, txt, logo, hastaTxt) {
   let tot = L.reduce((s, x) => s + x.v, 0), anioDe = x => String(x.f).slice(0, 4);
   let anios = [...new Set(L.map(anioDe))].sort((a, b) => b.localeCompare(a)), hoyA = String(new Date().getFullYear());
   let tarjeta = (x, tono) => { let f = String(x.f), d = f.slice(6, 8), m = CT_MES3[+f.slice(4, 6) - 1];
-    return `<div class="c ${tono}"><div class="u f">${d} ${m} <small>${f.slice(0, 4)}</small></div><div class="v g">${ctPesos(x.v)}</div><div class="d">${ctEsc(x.doc)}</div></div>`; };
+    return `<div class="c ${tono}"><div class="u f">${d} ${m} <small>${f.slice(0, 4)}</small></div><div class="v g">${ctPesos(x.v)}</div><div class="d b">${ctEsc(ctBanco(x.nota))}</div></div>`; };
   let cuerpo = `<div class="hoja">
 ${ctEncabezado(txt, logo, "¿Reconoce alguno<br>de estos pagos?", `Consignaciones recibidas en la cuenta de la copropiedad<br>que todavía no sabemos de qué unidad son<br>${ctEsc(ctMesPub())}`, [[String(L.length), L.length === 1 ? "consignación" : "consignaciones"], [ctPesos(tot), "sin aplicar"]])}
 <main class="cuerpo"><div class="aviso">${ctRico(txt.cxi_aviso)}</div>
@@ -8894,7 +8900,7 @@ function CtPantalla({ ses, config, notificar, soloLectura, cortes, cargar, ir })
   let [verTextos, setVerTextos] = Ve.useState(!1), [qU, setQU] = Ve.useState("");
   Ve.useEffect(() => { if (!sel && orden.length) setSel(orden[orden.length - 1].corte); }, [orden.length]);
   Ve.useEffect(() => {
-    ses.store.get("config/carteleras").then(d => { let g = d?.j ? JSON.parse(d.j) : null, t = { ...CT_DEF, ...(g || {}) }; setTxt(t); setGuardado(JSON.stringify(t)); }).catch(() => { setTxt({ ...CT_DEF }); setGuardado(JSON.stringify(CT_DEF)); });
+    ses.store.get("config/carteleras").then(d => { let g = d?.j ? JSON.parse(d.j) : null; g && g.cxi_aviso === CT_AVISO_RC && delete g.cxi_aviso; let t = { ...CT_DEF, ...(g || {}) }; setTxt(t); setGuardado(JSON.stringify(t)); }).catch(() => { setTxt({ ...CT_DEF }); setGuardado(JSON.stringify(CT_DEF)); });
     ses.store.get("cxi_pub/lista").then(d => setPub(d?.j ? JSON.parse(d.j) : null)).catch(() => setPub(null));
     ses.store.list("cxi_gest").then(L => setGest(Object.fromEntries(L.map(d => [d.data.k, d.data])))).catch(() => setGest({}));
     esEditor && ses.store.get("cxi_seg/estado").then(d => setSeg(d?.items ?? {})).catch(() => { });
@@ -8943,7 +8949,7 @@ function CtPantalla({ ses, config, notificar, soloLectura, cortes, cargar, ir })
     h("input", { type: "search", placeholder: "Buscar valor, recibo o fecha…", value: qU, onChange: e => setQU(e.target.value), style: { width: "100%", marginBottom: 8 } }),
     h("div", { className: "ct-lista" }, ...C.filter(x => !qN || cxN(`${x.doc} ${x.v} ${cbFecha(cxF(x.f))} ${x.nota}`).replace(/[$.]/g, "").includes(qN.replace(/[$.]/g, ""))).map(x => { let fuera = !!txt.excluirC[x.k] || !incluye(x);
       return h("label", { key: x.k, className: fuera ? "fuera" : "", title: x.nota }, h("input", { type: "checkbox", checked: !fuera, disabled: !incluye(x), onChange: () => alterna("excluirC", x.k) }),
-        h("span", null, h("b", null, `${cbFecha(cxF(x.f))} · ${ctPesos(x.v)}`), h("br"), h("span", { className: "tenue" }, x.doc + (x.tipo !== "ok" ? ` · ${tipoTxt[x.tipo]}` : x.est === "gestion" ? " · en gestión" : "")))); })));
+        h("span", null, h("b", null, `${cbFecha(cxF(x.f))} · ${ctPesos(x.v)}`), h("br"), h("span", null, ctBancoTodo(x.nota) || "Sin descripción del banco"), (x.tipo !== "ok" || x.est === "gestion") && h("br"), (x.tipo !== "ok" || x.est === "gestion") && h("span", { className: "tenue" }, x.tipo !== "ok" ? tipoTxt[x.tipo] : "en gestión"))); })));
   let campos = h("div", { className: "ct-campos" },
     h("label", null, h("span", null, "Encabezado (sobre el título)"), h("input", { value: txt.encabezado, onChange: e => set("encabezado", e.target.value) })),
     ...CT_TXT_CAMPOS[tab].map(([k, t, filas]) => h("label", { key: k }, h("span", null, t), filas > 1 ? h("textarea", { rows: filas, value: txt[k], onChange: e => set(k, e.target.value) }) : h("input", { value: txt[k], onChange: e => set(k, e.target.value) }))),
