@@ -10,6 +10,7 @@ rules_version = '2';
 //      cartera  → solo el módulo de Cartera: cartera, cuentas de cobro (fv_idx, fv_pdf) y la configuración (logo, NIT).
 //                 En consignaciones por identificar lee la lista que publica contabilidad (cxi_pub) y ESCRIBE su gestión:
 //                 en gestión / resuelta con la unidad, el soporte y la explicación (cxi_gest, cxi_sop).
+//                 En el informe de recaudo ESCRIBE observaciones, comentarios y casos especiales (cr_inf).
 //      revisor  → lo de admin + verificación contable, auditoría del fondo de imprevistos (usa el libro auxiliar), verificación DIAN y verificación de manillas (banco, Plink y Siigo).
 // Pegue este texto en Firebase → Firestore Database → Reglas y pulse Publicar.
 service cloud.firestore {
@@ -37,7 +38,7 @@ service cloud.firestore {
       return ['retencion', 'retencion_pdf', 'iva', 'ica', 'prorrateo_cfg', 'prorrateo_mes'];
     }
     function cartera() {
-      return ['cartera', 'cartera_c', 'cartera_p', 'cartera_mov'];
+      return ['cartera', 'cartera_c', 'cartera_p', 'cartera_mov', 'cr_inf'];
     }
     function facturas() {
       return ['fv_idx', 'fv_pdf'];
@@ -102,6 +103,10 @@ service cloud.firestore {
     }
     match /cxi_sop/{id} {
       allow create, delete: if cxiCartera();
+    }
+    // Informe mensual de recaudo de cartera: cartera escribe observaciones, comentarios y casos especiales.
+    match /cr_inf/{id} {
+      allow create, update: if cxiCartera();
     }
     // Todo lo demás: lectura según el perfil, escritura solo del editor.
     match /{col}/{doc=**} {

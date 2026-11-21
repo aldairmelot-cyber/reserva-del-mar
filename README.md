@@ -45,6 +45,16 @@ En **Cartera → Carteleras para publicar** salen dos carteleras en hoja A3, lle
 
 Se pueden desmarcar unidades o consignaciones (por ejemplo, con acuerdo de pago) y editar los textos (aviso, pasos, cuenta bancaria, firma). El editor los guarda en `config/carteleras`; los demás perfiles pueden cambiarlos solo para su impresión. **Imprimir o guardar en PDF** abre la cartelera lista para imprimir (A3 vertical, sin márgenes, con gráficos de fondo); si no cabe en una hoja, se compacta sola.
 
+## Informe de recaudo de cartera
+
+En **Cartera → Informe de recaudo** sale el informe mensual que emite Cartera, calculado con los cortes de cartera cargados:
+
+- **Total esperado:** lo vencido de cada unidad al primer día del mes analizado, con la cartera del mes anterior (la edad se mide a ese día; cada cuenta de cobro vence el último día de su mes).
+- **Total pendiente:** lo que sigue sin pagar de esas mismas cuentas de cobro en el corte elegido (el del mes, o uno posterior para incluir avances). **Recaudado** = esperado − pendiente.
+- Numerales: 1. unidades por rango de edades con su observación; 1.1 recaudo por rango y % de cumplimiento; 1.2 revisión contable; 1.3 cobro jurídico (firma y radicado); 1.4 mes a mes del año (los meses sin cortes cargados toman las cifras del informe anterior); 1.5 gestión general. Cada numeral trae un texto automático y los comentarios de Cartera.
+- Cartera escribe las observaciones por unidad (se traen del mes anterior), sus comentarios y marca los casos especiales (revisión contable, cobro jurídico, acuerdo de pago). Se guarda en `cr_inf`; el perfil Cartera puede escribir allí (ver `firestore.rules`).
+- Se descarga en PDF, Word o Excel.
+
 ## Recaudo de expensas (recibos de caja)
 
 En **Conciliación bancaria → Recaudo de expensas** se carga el movimiento del banco de expensas (PDF de Bancolombia, cuenta 51748523433). La app identifica qué apartamento hizo cada abono y arma la relación en Excel para hacer los recibos de caja en World Office. Para identificar usa, en este orden:
