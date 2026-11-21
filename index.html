@@ -8690,6 +8690,7 @@ var CT_DEF = {
   incluirDat: !1,
   minMeses: 1
 };
+var CT_TAM = { auto: 6, grande: 2, xgrande: 0 };
 var CT_MES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 var ctEsc = t => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 var ctRico = t => ctEsc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
@@ -8752,13 +8753,13 @@ h1{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-s
 .gtit small{font-size:3.6mm;color:#63676f}
 .grid{display:grid;grid-template-columns:repeat(var(--cols,8),1fr);gap:var(--gap,2.2mm)}
 .c{border-radius:1.6mm;padding:var(--pad,2.2mm 2.6mm);break-inside:avoid;page-break-inside:avoid;line-height:1.15;min-width:0;container-type:inline-size}
-.c .u{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-size:min(var(--fu,6.4mm),21cqi);white-space:nowrap;line-height:1.1}
+.c .u{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-size:min(var(--fu,7mm),21.5cqi);white-space:nowrap;line-height:1.08}
 .c .u small{font-size:.5em;font-weight:700;letter-spacing:.02em}
 .c .u em{font-style:normal;font-size:.62em;font-weight:600;margin-left:.6mm}
-.c .d{font-size:min(var(--fd,3.1mm),15.5cqi);opacity:.92;white-space:nowrap}
-.c .v{font-weight:700;font-size:min(var(--fv,4.1mm),18.5cqi);white-space:nowrap}
-.c .v.g{font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:min(var(--fvg,6mm),21cqi)}
-.c .u.f{font-size:min(var(--fu,6.4mm),21cqi)}
+.c .d{font-size:min(var(--fd,3.4mm),16.5cqi);opacity:.92;white-space:nowrap;margin:.3mm 0}
+.c .v{font-weight:700;font-size:min(var(--fv,4.6mm),18.5cqi);white-space:nowrap}
+.c .v.g{font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:min(var(--fvg,6.4mm),19.5cqi)}
+.c .u.f{font-size:min(var(--fu,7mm),20.5cqi)}
 .m1{background:#2b2e37;color:#fff}.m2{background:#8a5d21;color:#fff}.m3{background:#c08a45;color:#fff}.m4{background:#f6eedf;color:#262a33;border:.3mm solid #e2cfa9}
 .y1{background:#2b2e37;color:#fff}.y2{background:#5a5e6b;color:#fff}.y3{background:#c08a45;color:#fff}.y4{background:#f6eedf;color:#262a33;border:.3mm solid #e2cfa9}.y5{background:#fff;color:#262a33;border:.3mm solid #c6c1b8}
 i.m1{background:#2b2e37}i.m2{background:#8a5d21}i.m3{background:#c08a45}i.m4{background:#f6eedf;border:.3mm solid #c08a45}
@@ -8774,22 +8775,30 @@ i.y1{background:#2b2e37}i.y2{background:#5a5e6b}i.y3{background:#c08a45}i.y4{bac
 .paso b{font-weight:700}
 .firma{display:flex;justify-content:space-between;gap:6mm;border-top:.3mm solid #e4e1db;margin-top:4mm;padding-top:2.6mm;font-size:3.3mm;color:#63676f}
 .firma b{color:#262a33}
-.d1{--cols:9;--fu:5.8mm;--fv:3.8mm;--fvg:5.4mm;--fd:2.9mm}
-.d2{--cols:10;--fu:5.2mm;--fv:3.5mm;--fvg:4.9mm;--fd:2.7mm;--pad:1.8mm 2.2mm}
-.d3{--cols:12;--fu:4.4mm;--fv:3.1mm;--fvg:4.2mm;--fd:2.45mm;--pad:1.5mm 1.8mm;--gap:1.8mm}
-.d4{--cols:14;--fu:3.8mm;--fv:2.8mm;--fvg:3.6mm;--fd:2.2mm;--pad:1.3mm 1.5mm;--gap:1.5mm}
-.d5{--cols:16;--fu:3.3mm;--fv:2.5mm;--fvg:3.2mm;--fd:2mm;--pad:1.1mm 1.3mm;--gap:1.3mm}
+.d1{--cols:9;--fu:6.4mm;--fv:4.3mm;--fvg:5.8mm;--fd:3.2mm}
+.d2{--cols:10;--fu:6mm;--fv:4.1mm;--fvg:5.4mm;--fd:3mm;--pad:1.8mm 2.2mm}
+.d2b{--cols:11;--fu:5.7mm;--fv:3.9mm;--fvg:5.1mm;--fd:2.9mm;--pad:1.6mm 2mm;--gap:2mm}
+.d3{--cols:12;--fu:5.3mm;--fv:3.7mm;--fvg:4.8mm;--fd:2.8mm;--pad:1.5mm 1.8mm;--gap:1.8mm}
+.d4{--cols:14;--fu:4.6mm;--fv:3.3mm;--fvg:4.2mm;--fd:2.5mm;--pad:1.3mm 1.5mm;--gap:1.5mm}
+.d5{--cols:16;--fu:4mm;--fv:2.9mm;--fvg:3.7mm;--fd:2.2mm;--pad:1.1mm 1.3mm;--gap:1.3mm}
+.d2 .enc,.d2b .enc,.d3 .enc,.d4 .enc,.d5 .enc{padding:8mm 13mm 6mm}
+.d2 .logo img,.d2b .logo img,.d3 .logo img,.d4 .logo img,.d5 .logo img{height:15mm}
+.d2 .logo,.d2b .logo,.d3 .logo,.d4 .logo,.d5 .logo{margin-bottom:3mm}
+.d2 h1,.d2b h1,.d3 h1,.d4 h1,.d5 h1{font-size:12.5mm}
+.d2 .bajada,.d2b .bajada,.d3 .bajada,.d4 .bajada,.d5 .bajada{font-size:4.2mm;margin-top:2.5mm}
+.d3 .aviso,.d4 .aviso,.d5 .aviso{font-size:3.3mm;padding:3mm 4mm;margin-bottom:3mm}
+.d3 .grupo,.d4 .grupo,.d5 .grupo{margin-top:2.6mm}
 @media print{html,body{background:#fff}.hoja{margin:0}}
 @media screen{.hoja{box-shadow:0 2px 14px rgba(0,0,0,.18)}}
 `;
 /* compacta la cartelera hasta que quepa en una hoja A3; si no cabe ni compacta, sigue en otra hoja */
 var CT_AJUSTE = `<script>
 (function(){
-  var H=document.querySelector(".hoja"),alto=420*96/25.4,dens=["","d1","d2","d3","d4","d5"];
+  var H=document.querySelector(".hoja"),alto=420*96/25.4,dens=["","d1","d2","d2b","d3","d4","d5"];
   function mide(){H.style.minHeight="0";var h=H.scrollHeight;H.style.minHeight="";return h;}
   function ajusta(){
-    var i=0;for(;i<dens.length;i++){dens.forEach(function(d){d&&H.classList.remove(d)});dens[i]&&H.classList.add(dens[i]);if(mide()<=alto-2)break;}
-    if(i>=dens.length){H.classList.add("d5");H.style.minHeight="auto";}
+    var M=window.CT_MAXD==null?dens.length-1:Math.min(window.CT_MAXD,dens.length-1),i=0;for(;i<=M;i++){dens.forEach(function(d){d&&H.classList.remove(d)});dens[i]&&H.classList.add(dens[i]);if(mide()<=alto-2)break;}
+    if(i>M){H.style.minHeight="auto";}
     document.body.setAttribute("data-listo","1");
     window.parent&&window.parent!==window&&window.parent.postMessage({ctAlto:document.documentElement.scrollHeight},"*");
   }
@@ -8797,11 +8806,11 @@ var CT_AJUSTE = `<script>
   (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(function(){setTimeout(listo,60)});
 })();
 <\/script>`;
-function ctDocumento(titulo, cuerpoHtml) {
+function ctDocumento(titulo, cuerpoHtml, maxd) {
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${ctEsc(titulo)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<style>${CT_CSS}</style></head><body>${cuerpoHtml}${CT_AJUSTE}</body></html>`;
+<style>${CT_CSS}</style></head><body>${cuerpoHtml}<script>window.CT_MAXD=${maxd == null ? 6 : maxd};<\/script>${CT_AJUSTE}</body></html>`;
 }
 function ctEncabezado(txt, logo, titulo, bajada, kpis) {
   return `<header class="enc"><div>
@@ -8829,7 +8838,7 @@ ${grupos.length ? grupos.map(g => `<section class="grupo"><div class="gtit"><h2>
 </main>
 ${ctPie(txt, "¿Su unidad aparece aquí? Póngase al día", txt.mor_cierre, [txt.mor_p1, txt.mor_p2, txt.mor_p3], String(txt.mor_pie || "").replace("{corte}", fecha))}
 </div>`;
-  return ctDocumento(`Estado de cartera · corte ${fecha}`, cuerpo);
+  return ctDocumento(`Estado de cartera · corte ${fecha}`, cuerpo, CT_TAM[txt.tam_mor] ?? 6);
 }
 function ctHtmlCxi(L, txt, logo, hastaTxt) {
   let tot = L.reduce((s, x) => s + x.v, 0), anioDe = x => String(x.f).slice(0, 4);
@@ -8845,7 +8854,7 @@ ${anios.length ? anios.map((a, i) => { let G = L.filter(x => anioDe(x) === a), t
 </main>
 ${ctPie(txt, "¿Una de estas es suya? Así la abonamos", "Mientras no se identifiquen, estos pagos no se pueden aplicar a ninguna cuenta.", [txt.cxi_p1, txt.cxi_p2, txt.cxi_p3], txt.cxi_pie + (hastaTxt ? ` · ${hastaTxt}` : ""))}
 </div>`;
-  return ctDocumento(`Consignaciones por identificar · ${ctMesPub()}`, cuerpo);
+  return ctDocumento(`Consignaciones por identificar · ${ctMesPub()}`, cuerpo, CT_TAM[txt.tam_cxi] ?? 6);
 }
 
 /* vista previa: la misma página A3 dentro de un iframe, escalada al ancho disponible */
@@ -8957,12 +8966,14 @@ function CtPantalla({ ses, config, notificar, soloLectura, cortes, cargar, ir })
       h("button", { type: "button", className: "btn", disabled: !listo || !!oc, onClick: bajarHtml }, oc === "h" ? "Generando…" : "Descargar página (HTML)"),
       h("button", { type: "button", className: "btn", onClick: () => setVerTextos(!verTextos) }, verTextos ? "Ocultar textos" : "Editar textos"),
       tab === "mor" ? h("button", { type: "button", className: "btn", onClick: () => ir("cobranza") }, "Ir a Cartera de propietarios") : h("button", { type: "button", className: "btn", onClick: () => ir("cxi") }, "Ir a Consignaciones por identificar"),
+      h("select", { "aria-label": "Tamaño de las casillas", value: txt["tam_" + tab] || "auto", onChange: e => set("tam_" + tab, e.target.value), title: "Con casillas más grandes la cartelera puede pasar a una segunda hoja" },
+        h("option", { value: "auto" }, "Casillas: automático (una hoja)"), h("option", { value: "grande" }, "Casillas grandes"), h("option", { value: "xgrande" }, "Casillas muy grandes")),
       h("span", { style: { flex: 1 } }),
       esEditor ? h("button", { type: "button", className: "btn" + (cambios ? " btn-primario" : ""), disabled: !cambios || !!oc, onClick: guardar }, oc === "g" ? "Guardando…" : cambios ? "Guardar textos y exclusiones" : "Guardado ✓")
         : cambios && h("span", { className: "tenue", style: { fontSize: 13 } }, "Sus cambios aplican solo a esta impresión.")),
     h("div", { className: "ct-dos" },
       h("div", null, listo ? h(CtVista, { key: tab, html }) : h("section", { className: "panel vacio" }, h("p", { className: "sub" }, vacio)),
-        h("p", { className: "pie" }, "En el cuadro de impresión elija tamaño A3, orientación vertical, márgenes «Ninguno» y active «Gráficos de fondo». Si no hay impresora A3, imprima en carta u oficio con «Ajustar al tamaño de la página». Si la información no cabe en una hoja, la cartelera se compacta sola; con mucha información sigue en una segunda hoja.")),
+        h("p", { className: "pie" }, "En el cuadro de impresión elija tamaño A3, orientación vertical, márgenes «Ninguno» y active «Gráficos de fondo». Si no hay impresora A3, imprima en carta u oficio con «Ajustar al tamaño de la página». En «automático» la cartelera se compacta para caber en una hoja; con «casillas grandes» o «muy grandes» las letras se ven mejor y, si no cabe, sigue en una segunda hoja.")),
       h("section", { className: "panel", style: { margin: 0 } },
         verTextos ? h(Ve.Fragment, null, h("h3", { style: { marginTop: 0 } }, "Textos de la cartelera"), campos)
           : h(Ve.Fragment, null, h("h3", { style: { marginTop: 0 } }, tab === "mor" ? "Qué unidades salen" : "Qué consignaciones salen"), tab === "mor" ? panelMor : panelCxi))));
