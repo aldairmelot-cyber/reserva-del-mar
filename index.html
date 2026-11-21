@@ -8729,27 +8729,27 @@ function ctConsignaciones(pub, gest, seg) {
 var CT_CSS = `
 @page{size:A3 portrait;margin:0}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{background:#d9dbe0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{font-family:"Source Sans 3","Segoe UI",Arial,sans-serif;color:#1d2433}
-.hoja{width:297mm;min-height:420mm;margin:0 auto;background:#f7f5f0;display:flex;flex-direction:column;overflow:hidden}
-.enc{background:#1f2c4c;color:#fff;padding:12mm 13mm 9mm;display:flex;justify-content:space-between;align-items:flex-end;gap:10mm}
+html,body{background:#d9d7d2;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:"Source Sans 3","Segoe UI",Arial,sans-serif;color:#262a33}
+.hoja{width:297mm;min-height:420mm;margin:0 auto;background:#f3f2ef;display:flex;flex-direction:column;overflow:hidden}
+.enc{background:#2b2e37;color:#fff;border-bottom:1.6mm solid #c08a45;padding:12mm 13mm 9mm;display:flex;justify-content:space-between;align-items:flex-end;gap:10mm}
 .logo{background:#fff;border-radius:3mm;padding:2.4mm 4mm;display:inline-flex;align-items:center;gap:3mm;margin-bottom:5mm}
 .logo img{height:22mm;width:auto;display:block}
-.eyebrow{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;letter-spacing:.16em;font-size:3.5mm;opacity:.95;margin-bottom:3mm}
+.eyebrow{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;letter-spacing:.16em;font-size:3.5mm;color:#c08a45;margin-bottom:3mm}
 h1{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-size:16mm;line-height:1;letter-spacing:-.01em}
-.bajada{font-size:5mm;line-height:1.35;margin-top:4mm;opacity:.95}
+.bajada{font-size:5mm;line-height:1.35;margin-top:4mm;color:#d9d7d2}
 .kpis{display:flex;gap:4mm;flex-shrink:0}
-.kpi{background:rgba(255,255,255,.12);border-radius:3mm;padding:4mm 5mm;min-width:32mm}
+.kpi{background:#3b3f4b;border-radius:3mm;padding:4mm 5mm;min-width:32mm;border-top:.8mm solid #c08a45}
 .kpi b{display:block;font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:10mm;line-height:1;font-weight:700;white-space:nowrap}
-.kpi span{display:block;font-size:3.6mm;margin-top:2mm;opacity:.9;line-height:1.2}
+.kpi span{display:block;font-size:3.6mm;margin-top:2mm;color:#d9d7d2;line-height:1.2}
 .cuerpo{padding:6mm 13mm 4mm;flex:1}
-.aviso{background:#fff;border:.3mm solid #e2ded5;border-radius:2.5mm;padding:4mm 5mm;font-size:3.7mm;line-height:1.5;margin-bottom:5mm}
+.aviso{background:#fff;border:.3mm solid #e4e1db;border-left:1.2mm solid #c08a45;border-radius:2.5mm;padding:4mm 5mm;font-size:3.7mm;line-height:1.5;margin-bottom:5mm}
 .aviso b{font-weight:700}
 .grupo{margin-top:4mm}
-.gtit{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:.6mm solid #1f2c4c;padding-bottom:1.4mm;margin-bottom:2.4mm;break-after:avoid;page-break-after:avoid}
-.gtit h2{font-size:5.6mm;font-weight:600;display:flex;align-items:center;gap:2.6mm}
+.gtit{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:.6mm solid #3e424f;padding-bottom:1.4mm;margin-bottom:2.4mm;break-after:avoid;page-break-after:avoid}
+.gtit h2{font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:5.6mm;font-weight:700;color:#262a33;display:flex;align-items:center;gap:2.6mm}
 .gtit h2 i{width:4.2mm;height:4.2mm;border-radius:.8mm;display:inline-block}
-.gtit small{font-size:3.6mm;color:#2c3446}
+.gtit small{font-size:3.6mm;color:#63676f}
 .grid{display:grid;grid-template-columns:repeat(var(--cols,8),1fr);gap:var(--gap,2.2mm)}
 .c{border-radius:1.6mm;padding:var(--pad,2.2mm 2.6mm);break-inside:avoid;page-break-inside:avoid;line-height:1.15;min-width:0;container-type:inline-size}
 .c .u{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-size:min(var(--fu,6.4mm),21cqi);white-space:nowrap;line-height:1.1}
@@ -8759,21 +8759,21 @@ h1{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-s
 .c .v{font-weight:700;font-size:min(var(--fv,4.1mm),18.5cqi);white-space:nowrap}
 .c .v.g{font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:min(var(--fvg,6mm),21cqi)}
 .c .u.f{font-size:min(var(--fu,6.4mm),21cqi)}
-.m1{background:#7d1f1c;color:#fff}.m2{background:#c4461d;color:#fff}.m3{background:#efb238;color:#2a2210}.m4{background:#fbedc2;color:#2a2210;border:.3mm solid #ecd690}
-.y1{background:#1f2c4c;color:#fff}.y2{background:#3b5585;color:#fff}.y3{background:#efb238;color:#2a2210}.y4{background:#fbedc2;color:#2a2210;border:.3mm solid #ecd690}.y5{background:#fff;color:#2a2210;border:.3mm solid #d9d3c6}
-i.m1{background:#7d1f1c}i.m2{background:#c4461d}i.m3{background:#efb238}i.m4{background:#fbedc2;border:.3mm solid #d9be6a}
-i.y1{background:#1f2c4c}i.y2{background:#3b5585}i.y3{background:#efb238}i.y4{background:#fbedc2;border:.3mm solid #d9be6a}i.y5{background:#fff;border:.3mm solid #b9b2a3}
-.vacio{background:#fff;border:.3mm dashed #c9c3b6;border-radius:2.5mm;padding:10mm;text-align:center;font-size:5mm;color:#4a5160;margin-top:6mm}
-.pie{border-top:1.2mm solid #1f2c4c;padding:5mm 13mm 6mm;background:#f7f5f0;break-inside:avoid;page-break-inside:avoid}
+.m1{background:#2b2e37;color:#fff}.m2{background:#8a5d21;color:#fff}.m3{background:#c08a45;color:#fff}.m4{background:#f6eedf;color:#262a33;border:.3mm solid #e2cfa9}
+.y1{background:#2b2e37;color:#fff}.y2{background:#5a5e6b;color:#fff}.y3{background:#c08a45;color:#fff}.y4{background:#f6eedf;color:#262a33;border:.3mm solid #e2cfa9}.y5{background:#fff;color:#262a33;border:.3mm solid #c6c1b8}
+i.m1{background:#2b2e37}i.m2{background:#8a5d21}i.m3{background:#c08a45}i.m4{background:#f6eedf;border:.3mm solid #c08a45}
+i.y1{background:#2b2e37}i.y2{background:#5a5e6b}i.y3{background:#c08a45}i.y4{background:#f6eedf;border:.3mm solid #c08a45}i.y5{background:#fff;border:.3mm solid #c6c1b8}
+.vacio{background:#fff;border:.3mm dashed #c6c1b8;border-radius:2.5mm;padding:10mm;text-align:center;font-size:5mm;color:#63676f;margin-top:6mm}
+.pie{border-top:1.2mm solid #c08a45;padding:5mm 13mm 6mm;background:#fff;break-inside:avoid;page-break-inside:avoid}
 .pie-tit{display:flex;gap:8mm;align-items:flex-start;margin-bottom:4mm}
-.pie h3{font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:6.2mm;font-weight:700;line-height:1.15;flex:0 0 auto}
-.pie .cierre{font-size:3.6mm;color:#3a4252;line-height:1.4;padding-top:1mm}
+.pie h3{font-family:"Josefin Sans","Century Gothic",sans-serif;font-size:6.2mm;font-weight:700;line-height:1.15;flex:0 0 auto;color:#2b2e37}
+.pie .cierre{font-size:3.6mm;color:#63676f;line-height:1.4;padding-top:1mm}
 .pasos{display:grid;grid-template-columns:repeat(3,1fr);gap:7mm}
 .paso{display:flex;gap:2.6mm;font-size:3.7mm;line-height:1.45}
-.paso .n{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-size:8mm;line-height:.95;color:#c4461d}
+.paso .n{font-family:"Josefin Sans","Century Gothic",sans-serif;font-weight:700;font-size:8mm;line-height:.95;color:#c08a45}
 .paso b{font-weight:700}
-.firma{display:flex;justify-content:space-between;gap:6mm;border-top:.3mm solid #d6d1c6;margin-top:4mm;padding-top:2.6mm;font-size:3.3mm;color:#3a4252}
-.firma b{color:#1d2433}
+.firma{display:flex;justify-content:space-between;gap:6mm;border-top:.3mm solid #e4e1db;margin-top:4mm;padding-top:2.6mm;font-size:3.3mm;color:#63676f}
+.firma b{color:#262a33}
 .d1{--cols:9;--fu:5.8mm;--fv:3.8mm;--fvg:5.4mm;--fd:2.9mm}
 .d2{--cols:10;--fu:5.2mm;--fv:3.5mm;--fvg:4.9mm;--fd:2.7mm;--pad:1.8mm 2.2mm}
 .d3{--cols:12;--fu:4.4mm;--fv:3.1mm;--fvg:4.2mm;--fd:2.45mm;--pad:1.5mm 1.8mm;--gap:1.8mm}
@@ -8866,7 +8866,7 @@ var CT_TXT_CAMPOS = {
   mor: [["mor_aviso", "Aviso (debajo del encabezado)", 4], ["mor_cierre", "Frase junto al título del pie", 1], ["mor_p1", "Paso 1", 2], ["mor_p2", "Paso 2 (dónde pagar)", 2], ["mor_p3", "Paso 3", 2], ["mor_pie", "Nota al pie ({corte} = fecha de corte)", 1]],
   cxi: [["cxi_aviso", "Aviso (debajo del encabezado)", 4], ["cxi_p1", "Paso 1", 2], ["cxi_p2", "Paso 2 (a dónde enviar el soporte)", 2], ["cxi_p3", "Paso 3", 2], ["cxi_pie", "Nota al pie (cuenta bancaria)", 1]]
 };
-var CT_CSS_APP = `.ct-vista{position:relative;overflow:hidden;border:1px solid var(--linea,#ddd);border-radius:10px;background:#d9dbe0}
+var CT_CSS_APP = `.ct-vista{position:relative;overflow:hidden;border:1px solid var(--linea,#ddd);border-radius:10px;background:#d9d7d2}
 .ct-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;max-height:340px;overflow:auto;padding:2px}
 .ct-lista label{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--linea,#ddd);border-radius:8px;cursor:pointer;font-size:13.5px;line-height:1.3;background:var(--hoja,#fff)}
 .ct-lista label.fuera{opacity:.55;text-decoration:line-through}
