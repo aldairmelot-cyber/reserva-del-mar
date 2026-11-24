@@ -5838,8 +5838,11 @@ async function cmImpArmar(ses, B, c, imp) {
     for (const d of x0.docs) { let cta = String(d[7] || ""); if (/^2805/.test(cta)) { favorIni += d[4]; continue; } if (d[4] > .5) items.push({ k: cmImpTipo(cta), mes: String(d[2]).slice(0, 7), monto: d[4], pag: [], ini: !0, et: "saldo anterior" }); else if (d[4] < -.5) neg -= d[4]; }
     for (const it of items.sort((a, b) => a.mes.localeCompare(b.mes))) { let q = Math.min(it.monto, neg); it.monto -= q; neg -= q; }
     favorIni -= neg;
-  } else if (saldoIni > .5) items.push({ k: "cap", mes: prevYm, monto: saldoIni, pag: [], ini: !0, et: "saldo anterior" });
-  else if (saldoIni < -.5) favorIni = saldoIni;
+  } else {
+    if (x1) { let m28 = (a, b) => u.M.filter(x => x.f && x.f > a && x.f <= b && /^2805/.test(x.cta)).reduce((s, x) => s + x.db - x.cr, 0); favorIni = x1.docs.filter(d => /^2805/.test(String(d[7] || ""))).reduce((s, d) => s + d[4], 0) - m28(abre, fFin); }
+    else if (saldoIni < -.5) favorIni = saldoIni;
+    let capIni = saldoIni - favorIni; capIni > .5 && items.push({ k: "cap", mes: prevYm, monto: capIni, pag: [], ini: !0, et: "saldo anterior" });
+  }
   let porF = new Map();
   let facs = u.facs.filter(F => !F.fuera && enR(F.f)).sort((a, b) => a.f.localeCompare(b.f));
   let tot = { cap: 0, san: 0, int: 0 };
@@ -5911,7 +5914,7 @@ async function cmImpArmar(ses, B, c, imp) {
   if (!filas.length) b.push(`<p>En el período no se registraron pagos ni abonos a la cartera de la unidad.</p>`);
   else {
     let T = filas.reduce((s, x) => ({ imput: s.imput + x.imput, desc: s.desc + x.R.desc, san: s.san + x.sum.san, int: s.int + x.sum.int, cap: s.cap + x.sum.cap, fav: s.fav + x.R.antRec }), { imput: 0, desc: 0, san: 0, int: 0, cap: 0, fav: 0 });
-    b.push(`<table><thead><tr><th>Fecha</th><th>Recibo</th><th>Valor imputado</th><th>Descuento</th><th>A multas</th><th>A intereses</th><th>A cuotas</th><th>A saldo a favor</th><th>Cuentas de cobro</th></tr></thead><tbody>` +
+    b.push(`<table><thead><tr><th>Fecha</th><th>Recibo</th><th>Valor</th><th>Descuento</th><th>Multas</th><th>Intereses</th><th>Cuotas</th><th>A favor</th><th>Cuentas de cobro</th></tr></thead><tbody>` +
       filas.map(x => `<tr><td>${cbFecha(x.R.f)}</td><td>${cmEsc(x.R.doc)}</td><td>${$(x.imput)}</td><td>${$(x.R.desc)}</td><td>${$(x.sum.san)}</td><td>${$(x.sum.int)}</td><td>${$(x.sum.cap)}</td><td>${$(x.R.antRec)}</td><td>${cmEsc(x.ets.join(", ") + (x.R.antApl > .5 ? ` (con saldo a favor de ${cbPesos(x.R.antApl)})` : ""))}</td></tr>`).join("") +
       `<tr><td><strong>Totales</strong></td><td></td><td>${$b(T.imput)}</td><td>${$b(T.desc)}</td><td>${$b(T.san)}</td><td>${$b(T.int)}</td><td>${$b(T.cap)}</td><td>${$b(T.fav)}</td><td></td></tr></tbody></table>`);
     b.push(!nRC ? `<p>En el período no hubo recibos de caja; los movimientos de la tabla son cruces y ajustes contables.</p>` : !incumple.length
@@ -5923,11 +5926,11 @@ async function cmImpArmar(ses, B, c, imp) {
   if (!li.length) b.push(`<p>En el período la unidad no tuvo capital vencido, por lo que no se causaron intereses de mora.</p>`);
   else {
     let tI = li.reduce((s, x) => s + (x.inte ?? 0), 0), conCob = li.filter(x => x.cob != null), tC = conCob.reduce((s, x) => s + x.cob, 0);
-    b.push(`<table><thead><tr><th>Mes</th><th>Capital en mora al cierre</th><th>Tasa de usura EA certificada</th><th>Tasa mensual</th><th>Días en mora</th><th>Interés liquidado</th><th>Interés cobrado en la cuenta de cobro siguiente</th></tr></thead><tbody>` +
+    b.push(`<table><thead><tr><th>Mes</th><th>Capital en mora</th><th>Usura EA</th><th>Tasa mensual</th><th>Días</th><th>Interés liquidado</th><th>Interés cobrado</th></tr></thead><tbody>` +
       li.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$(x.cierre)}</td><td>${cmPct(x.ea)}</td><td>${cmPct(x.tm != null ? x.tm * 100 : null, 4)}</td><td>${x.dias}</td><td>${x.inte == null ? "sin tasa" : $(x.inte)}</td><td>${x.cob == null ? "no cargada" : $(x.cob)}</td></tr>`).join("") +
       `<tr><td><strong>Total intereses</strong></td><td></td><td></td><td></td><td></td><td>${$b(tI)}</td><td>${$b(tC)}</td></tr></tbody></table>`);
     let comp = li.filter(x => x.cob != null && x.inte != null), dif = comp.reduce((s, x) => s + x.cob - x.inte, 0);
-    b.push(`<p>El interés liquidado aplica la fórmula del numeral 2 sobre el capital vencido de cada día (cuotas, multas y sanciones; sin interés sobre interés). El interés de cada mes se cobra en la cuenta de cobro del mes siguiente.${comp.length ? Math.abs(dif) <= Math.max(100, comp.length * 50) ? ` En los meses comparables, lo cobrado coincide con lo liquidado (diferencia de ${$(dif)}, por redondeo).` : ` En los meses comparables, lo cobrado ${dif > 0 ? "supera" : "es inferior a"} lo liquidado en ${cbPesos(Math.abs(dif))}; conviene revisar la liquidación de esos meses.` : ""}${base.falta.length ? ` No se liquidó ${base.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
+    b.push(`<p>El interés liquidado aplica la fórmula del numeral 2 sobre el capital vencido de cada día (cuotas, multas y sanciones; sin interés sobre interés). El capital en mora es el del cierre de cada mes; el interés de cada mes se cobra en la cuenta de cobro del mes siguiente («Interés cobrado»).${comp.length ? Math.abs(dif) <= Math.max(100, comp.length * 50) ? ` En los meses comparables, lo cobrado coincide con lo liquidado (diferencia de ${$(dif)}, por redondeo).` : ` En los meses comparables, lo cobrado ${dif > 0 ? "supera" : "es inferior a"} lo liquidado en ${cbPesos(Math.abs(dif))}; conviene revisar la liquidación de esos meses.` : ""}${base.falta.length ? ` No se liquidó ${base.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
   }
   b.push(`<h3>4.3 Resumen del saldo</h3>`);
   b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` +
@@ -5936,7 +5939,6 @@ async function cmImpArmar(ses, B, c, imp) {
     `<tr><td><strong>Saldo a ${cbFechaLarga(hasta)}</strong></td><td><strong>${$s(saldoFin)}</strong></td></tr></tbody></table>`);
   b.push(`<p>Composición del saldo a ${cbFechaLarga(hasta)}:</p>`);
   b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` + compo.map(([t, v]) => `<tr><td>${t}</td><td>${$(v)}</td></tr>`).join("") + `<tr><td><strong>Total</strong></td><td><strong>${$s(saldoFin)}</strong></td></tr></tbody></table>`);
-  b.push(`<p>Fuente: libro auxiliar de World Office (cuentas 1305 y 28050501) cargado en la plataforma${ultMov?.hasta ? ` hasta el ${cbFecha(ultMov.hasta < hasta ? ultMov.hasta : hasta)}` : ""}; saldo anterior según ${iniDesc}; tasas de usura según las certificaciones de la Superintendencia Financiera (1,5 veces el interés bancario corriente, crédito de consumo y ordinario).</p>`);
   /* armar la carta */
   if (num) h = h.replace(new RegExp(`apartamento ${num}(?! de la torre)\\b`, "g"), uLarga);
   let i0 = h.indexOf("<h2>4. Informe de imputación"), i1 = i0 >= 0 ? h.indexOf("<p>Quedamos atentos", i0) : -1;
@@ -5951,6 +5953,7 @@ async function cmImpArmar(ses, B, c, imp) {
       h.includes("<strong>Copia:</strong>") || (h = h.replace("<p><strong>Anexos:</strong>", "<p><strong>Copia:</strong> Administración, Agrupación Reserva del Mar P.H.</p>\n<p><strong>Anexos:</strong>"));
     }
   }
+  h = h.replace(/<p><strong>Anexos:<\/strong>[\s\S]*?<\/p>\n?/, "");
   return { ...base, html: h, nombre, correo, coef, saldoFin, abre, fFin, cand: cand.map(x => x.unidad) };
 }
 /* panel sobre la carta: unidad, período, a quién va dirigida y tasas faltantes */
@@ -6062,7 +6065,7 @@ function cmDoc(c, entidad) {
       let th = [...el.querySelectorAll("thead th")].map(x => limpio(x)), n = th.length;
       let cel = [...el.querySelectorAll("tbody tr")].map(tr => [...tr.children].map(td => limpio(td)));
       let esDin = t => /^\(?-?\$\s?[\d.,]+\)?$/.test(t), num = th.map((_, k) => { let v = cel.map(r => r[k] ?? "").filter(Boolean); return v.length > 0 && v.filter(esDin).length >= v.length * .8; });
-      let palabra = k => Math.max(...[th[k], ...cel.map(r => r[k] ?? "")].map(t => Math.max(0, ...String(t).split(/\s+/).map(w => w.length)))) * 1.5;
+      let palabra = k => Math.max(th[k].length * 1.2 + 2, ...cel.map(r => { let t = String(r[k] ?? ""); return (t.length <= 12 ? t.length : Math.max(0, ...t.split(/\s+/).map(w => w.length))) * 1.4; }));
       let peso = th.map((t, k) => num[k] ? Math.max(16, palabra(k)) : Math.min(60, Math.max(t.length + 2, palabra(k), ...cel.map(r => (r[k] ?? "").length).sort((x, y) => y - x).slice(0, 3).map(v => Math.min(v, 90) * .55), 8)));
       let tot = peso.reduce((x, y) => x + y, 0), anchos = peso.map(p => p / tot * 100);
       b.push({ tipo: "tabla", cabecera: !0, columnas: th.map((t, k) => ({ titulo: t.toUpperCase(), ancho: anchos[k], alin: num[k] ? "right" : "left" })),
