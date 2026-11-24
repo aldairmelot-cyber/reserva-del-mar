@@ -5740,7 +5740,7 @@ var CM_INICIALES = [
     asunto: "Procedimiento de causación de intereses de mora e imputación de pagos · Apto 1607", estado: "Borrador",
     resumen: "Explica, con los artículos 35, 37.3, 39, 42.2, 42.3, 43 y 44.6 del RPH (E.P. 753 de 2023) y el art. 30 de la Ley 675, cómo se causan los intereses de mora (tasa de usura, desde el día siguiente al cierre del mes, sin interés sobre interés) y el orden de imputación de pagos (multas y sanciones, intereses, cuotas). La sección 4 (imputación de pagos, liquidación de intereses y saldo del apartamento 1607) se llena sola con los pagos de propietarios, la cartera y la base de propietarios cargados en la plataforma.",
     enlace: "https://claude.ai/artifact/RsEmfdezFRzXFsGVXQ7HWK", html: CM_CARTA_002,
-    imp: { apto: "1607", hasta: "2026-10-31", dirigida: "propietario", trato: "Señora" } },
+    imp: { apto: "1607", hasta: "2026-10-31", dirigida: "propietario", trato: "Señora" }, sinFirma: !0 },
   { id: "2026-004", anio: 2026, consecutivo: 4, fecha: "2026-11-13", tipo: "Solicitud",
     destinatario: "Administración · Agrupación Reserva del Mar P.H.", origen: "Iniciativa de Contabilidad (presupuesto 2027)",
     asunto: "Solicitud de propuestas económicas 2027 a proveedores con contrato de tarifa fija mensual", estado: "Emitido",
@@ -5795,8 +5795,10 @@ function cmImpCartera(ses, B, ym) {
 }
 /* unidades que coinciden con el número de apartamento de la comunicación (puede haber una por torre) */
 var cmImpCandidatas = (B, apto) => B.U.filter(u => String(u.n) === String(apto ?? "").replace(/\D/g, ""));
+/* Comunicación que remite el Departamento de Contabilidad sin firma: se quita el espacio de firma y se deja la nota al pie. */
+var cmQuitarFirma = h => !/<p class="firma">/.test(h) ? h : h.replace(/<p class="firma">[\s\S]*?<\/p>/, '<p><strong>Remite:</strong> Departamento de Contabilidad<br>CONSULTORÍA ESPECIALIZADA S.A.S. — NIT 900.373.959-2<br>Área de Contabilidad, Agrupación Reserva del Mar P.H.</p>') + "\n<p><em>Comunicación remitida por el Departamento de Contabilidad. No requiere firma.</em></p>";
 async function cmImpArmar(ses, B, c, imp) {
-  let avisos = [], h = c.html;
+  let avisos = [], h = c.sinFirma ? cmQuitarFirma(c.html) : c.html;
   let cand = cmImpCandidatas(B, imp.apto);
   let u = (imp.unidad && B.U.find(x => x.unidad === imp.unidad)) || cand[0] || null;
   if (!imp.unidad && cand.length > 1) avisos.push(`Hay ${cand.length} unidades con el número ${imp.apto} (${cand.map(x => x.unidad).join(", ")}). Se tomó ${u.unidad}; elija la correcta en «Unidad».`);
@@ -5842,7 +5844,7 @@ async function cmImpArmar(ses, B, c, imp) {
   let facs = u.facs.filter(F => !F.fuera && enR(F.f)).sort((a, b) => a.f.localeCompare(b.f));
   let tot = { cap: 0, san: 0, int: 0 };
   for (const F of facs) {
-    let mes = cmImpMesF(F), et = F.mesTxt ? F.mesTxt.toLowerCase() : cbMesTxt(mes);
+    let mes = cmImpMesF(F), et = cbMesTxt(mes);
     for (const k of ["cap", "san", "int"]) {
       let v = F.con.filter(x => cmImpTipo(x.cta) === k).reduce((s, x) => s + x.v, 0); if (Math.abs(v) < .5) continue;
       tot[k] += v; let it = { k, mes, monto: v, pag: [], F, et, f: F.f }; items.push(it); porF.set(F.doc + "|" + k, it);
@@ -5857,9 +5859,9 @@ async function cmImpArmar(ses, B, c, imp) {
     let pendAntes = esRC ? items.filter(it => it.k !== "cap" && (it.ini || it.f <= R.f)) : [];
     for (const a of R.apl) {
       let k = cmImpTipo(a.cta), Fit = a.F && porF.get(a.F.doc + "|" + k), v = a.v, usados = [];
-      let porMes = (x, y) => x.mes.localeCompare(y.mes), cola = [...(Fit ? [Fit] : []), ...items.filter(x => x.k === k && x !== Fit && (x.ini || x.f <= R.f)).sort(porMes), ...items.filter(x => x.k === k && x !== Fit && !(x.ini || x.f <= R.f)).sort(porMes)];
+      let porMes = (x, y) => x.mes.localeCompare(y.mes), cola = [...(Fit ? [Fit] : []), ...items.filter(x => x.k === k && x !== Fit && (x.ini || x.f <= R.f)).sort(porMes)];
       if (v > 0) for (const it of cola) { if (v <= .5) break; let q = Math.min(v, Math.max(0, resta(it))); if (q > .5) { it.pag.push({ f: R.f, v: q }); v -= q; usados.push(it); } }
-      if (Math.abs(v) > .5 && cola.length) { let it = Fit || usados[usados.length - 1] || cola[0]; it.pag.push({ f: R.f, v }); usados.includes(it) || usados.push(it); }
+      if (Math.abs(v) > .5) { let it = Fit || items.find(x => x.ini && x.k === k) || items.find(x => x.ini) || usados[usados.length - 1] || cola[0]; if (!it) { it = { k, mes: prevYm, monto: 0, pag: [], ini: !0, et: "saldo anterior" }; items.push(it); } it.pag.push({ f: R.f, v }); usados.includes(it) || usados.push(it); }
       sum[k] += a.v; usados.length ? usados.forEach(it => ets.add(it.et)) : ets.add((a.F?.mesTxt || "").toLowerCase() || "—");
     }
     let apl = sum.cap + sum.san + sum.int, imput = apl + R.antRec;
@@ -5899,18 +5901,18 @@ async function cmImpArmar(ses, B, c, imp) {
   !coef && avisos.push("La unidad no tiene coeficiente en la base de propietarios (Cartera → Base de propietarios).");
   !nombre && avisos.push("No se encontró el nombre del propietario en la base de propietarios ni en la cartera.");
   /* HTML de la sección 4 */
-  let $ = v => Math.abs(v) < .5 ? "—" : v < 0 ? "(" + cbPesos(-v) + ")" : cbPesos(v), $b = v => `<strong>${$(v)}</strong>`;
+  let $ = v => Math.abs(v) < .5 ? "—" : v < 0 ? "(" + cbPesos(-v) + ")" : cbPesos(v), $b = v => `<strong>${$(v)}</strong>`, $s = v => Math.abs(v) < .5 ? "$ 0" : $(v);
   let pIni = cmDiaSig(abre), perTxt = pIni.slice(0, 4) === hasta.slice(0, 4) ? `${cbFechaLarga(pIni).replace(/ de \d{4}$/, "")} al ${cbFechaLarga(hasta)}` : `${cbFechaLarga(pIni)} al ${cbFechaLarga(hasta)}`;
   let fCorta = f => { let p = f.split("-"); return `${+p[2]}-${CB_MESES[+p[1] - 1].slice(0, 3)}-${p[0]}`; };
   let b = [];
   b.push(`<h2>4. Informe de imputación de pagos — ${cmEsc(uTit)}</h2>`);
-  b.push(`<p><strong>Propietario:</strong> ${cmEsc(nombre || "—")} · <strong>Coeficiente:</strong> ${coef ?? "—"} · <strong>Período analizado:</strong> ${perTxt} · <strong>Saldo a ${fCorta(hasta)}:</strong> ${$(saldoFin)}</p>`);
+  b.push(`<p><strong>Propietario:</strong> ${cmEsc(nombre || "—")} · <strong>Coeficiente:</strong> ${coef ?? "—"} · <strong>Período analizado:</strong> ${perTxt} · <strong>Saldo a ${fCorta(hasta)}:</strong> ${$s(saldoFin)}</p>`);
   b.push(`<h3>4.1 Imputación de los pagos</h3>`);
   if (!filas.length) b.push(`<p>En el período no se registraron pagos ni abonos a la cartera de la unidad.</p>`);
   else {
     let T = filas.reduce((s, x) => ({ imput: s.imput + x.imput, desc: s.desc + x.R.desc, san: s.san + x.sum.san, int: s.int + x.sum.int, cap: s.cap + x.sum.cap, fav: s.fav + x.R.antRec }), { imput: 0, desc: 0, san: 0, int: 0, cap: 0, fav: 0 });
-    b.push(`<table><thead><tr><th>Fecha</th><th>Recibo</th><th>Valor imputado</th><th>Descuento pronto pago</th><th>A multas y sanciones</th><th>A intereses de mora</th><th>A cuotas</th><th>Saldo a favor</th><th>Cuentas de cobro afectadas</th></tr></thead><tbody>` +
-      filas.map(x => `<tr><td>${cbFecha(x.R.f)}</td><td>${cmEsc(x.R.doc)}</td><td>${$(x.imput)}</td><td>${$(x.R.desc)}</td><td>${$(x.sum.san)}</td><td>${$(x.sum.int)}</td><td>${$(x.sum.cap)}</td><td>${$(x.R.antRec)}</td><td>${cmEsc(x.ets.join(", ") + (x.R.antApl > .5 ? ` (usa saldo a favor de ${cbPesos(x.R.antApl)})` : ""))}</td></tr>`).join("") +
+    b.push(`<table><thead><tr><th>Fecha</th><th>Recibo</th><th>Valor imputado</th><th>Descuento</th><th>A multas</th><th>A intereses</th><th>A cuotas</th><th>A saldo a favor</th><th>Cuentas de cobro</th></tr></thead><tbody>` +
+      filas.map(x => `<tr><td>${cbFecha(x.R.f)}</td><td>${cmEsc(x.R.doc)}</td><td>${$(x.imput)}</td><td>${$(x.R.desc)}</td><td>${$(x.sum.san)}</td><td>${$(x.sum.int)}</td><td>${$(x.sum.cap)}</td><td>${$(x.R.antRec)}</td><td>${cmEsc(x.ets.join(", ") + (x.R.antApl > .5 ? ` (con saldo a favor de ${cbPesos(x.R.antApl)})` : ""))}</td></tr>`).join("") +
       `<tr><td><strong>Totales</strong></td><td></td><td>${$b(T.imput)}</td><td>${$b(T.desc)}</td><td>${$b(T.san)}</td><td>${$b(T.int)}</td><td>${$b(T.cap)}</td><td>${$b(T.fav)}</td><td></td></tr></tbody></table>`);
     b.push(!nRC ? `<p>En el período no hubo recibos de caja; los movimientos de la tabla son cruces y ajustes contables.</p>` : !incumple.length
       ? `<p>Los ${nRC} pagos del período se imputaron en el orden del artículo 42.3 del RPH: ningún valor se aplicó a cuotas mientras existían multas, sanciones o intereses de mora causados y pendientes.</p>`
@@ -5931,9 +5933,9 @@ async function cmImpArmar(ses, B, c, imp) {
   b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` +
     [[`Saldo anterior al ${cbFecha(abre)}`, saldoIni], ["Cuotas causadas en el período", tot.cap], ["Multas y sanciones", tot.san], ["Intereses de mora causados", tot.int], ["Pagos recibidos", -pagos], ["Descuentos por pronto pago", -desc], ...(Math.abs(ajustes) > .5 ? [["Notas crédito, cruces y ajustes", -ajustes]] : [])]
       .map(([t, v]) => `<tr><td>${t}</td><td>${$(v)}</td></tr>`).join("") +
-    `<tr><td><strong>Saldo a ${cbFechaLarga(hasta)}</strong></td><td>${$b(saldoFin)}</td></tr></tbody></table>`);
+    `<tr><td><strong>Saldo a ${cbFechaLarga(hasta)}</strong></td><td><strong>${$s(saldoFin)}</strong></td></tr></tbody></table>`);
   b.push(`<p>Composición del saldo a ${cbFechaLarga(hasta)}:</p>`);
-  b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` + compo.map(([t, v]) => `<tr><td>${t}</td><td>${$(v)}</td></tr>`).join("") + `<tr><td><strong>Total</strong></td><td>${$b(saldoFin)}</td></tr></tbody></table>`);
+  b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` + compo.map(([t, v]) => `<tr><td>${t}</td><td>${$(v)}</td></tr>`).join("") + `<tr><td><strong>Total</strong></td><td><strong>${$s(saldoFin)}</strong></td></tr></tbody></table>`);
   b.push(`<p>Fuente: libro auxiliar de World Office (cuentas 1305 y 28050501) cargado en la plataforma${ultMov?.hasta ? ` hasta el ${cbFecha(ultMov.hasta < hasta ? ultMov.hasta : hasta)}` : ""}; saldo anterior según ${iniDesc}; tasas de usura según las certificaciones de la Superintendencia Financiera (1,5 veces el interés bancario corriente, crédito de consumo y ordinario).</p>`);
   /* armar la carta */
   if (num) h = h.replace(new RegExp(`apartamento ${num}(?! de la torre)\\b`, "g"), uLarga);
@@ -6060,7 +6062,8 @@ function cmDoc(c, entidad) {
       let th = [...el.querySelectorAll("thead th")].map(x => limpio(x)), n = th.length;
       let cel = [...el.querySelectorAll("tbody tr")].map(tr => [...tr.children].map(td => limpio(td)));
       let esDin = t => /^\(?-?\$\s?[\d.,]+\)?$/.test(t), num = th.map((_, k) => { let v = cel.map(r => r[k] ?? "").filter(Boolean); return v.length > 0 && v.filter(esDin).length >= v.length * .8; });
-      let peso = th.map((t, k) => num[k] ? 16 : Math.min(60, Math.max(t.length + 2, ...cel.map(r => (r[k] ?? "").length).sort((x, y) => y - x).slice(0, 3).map(v => Math.min(v, 90) * .55), 8)));
+      let palabra = k => Math.max(...[th[k], ...cel.map(r => r[k] ?? "")].map(t => Math.max(0, ...String(t).split(/\s+/).map(w => w.length)))) * 1.5;
+      let peso = th.map((t, k) => num[k] ? Math.max(16, palabra(k)) : Math.min(60, Math.max(t.length + 2, palabra(k), ...cel.map(r => (r[k] ?? "").length).sort((x, y) => y - x).slice(0, 3).map(v => Math.min(v, 90) * .55), 8)));
       let tot = peso.reduce((x, y) => x + y, 0), anchos = peso.map(p => p / tot * 100);
       b.push({ tipo: "tabla", cabecera: !0, columnas: th.map((t, k) => ({ titulo: t.toUpperCase(), ancho: anchos[k], alin: num[k] ? "right" : "left" })),
         filas: [...el.querySelectorAll("tbody tr")].map(tr => ({ estilo: "detalle", celdas: [...tr.children].map(td => or(limpio(td), td.querySelector("strong,b") ? { bold: !0 } : {})) })) });
