@@ -5738,8 +5738,9 @@ var CM_INICIALES = [
   { id: "2026-002", anio: 2026, consecutivo: 2, fecha: "2026-11-06", tipo: "Respuesta a solicitud",
     destinatario: "Administración · Agrupación Reserva del Mar P.H.", origen: "Solicitud de la Administración del 30-10-2026",
     asunto: "Procedimiento de causación de intereses de mora e imputación de pagos · Apto 1607", estado: "Borrador",
-    resumen: "Explica, con los artículos 35, 37.3, 39, 42.2, 42.3, 43 y 44.6 del RPH (E.P. 753 de 2023) y el art. 30 de la Ley 675, cómo se causan los intereses de mora (tasa de usura, desde el día siguiente al cierre del mes, sin interés sobre interés) y el orden de imputación de pagos (multas y sanciones, intereses, cuotas). Falta diligenciar el anexo de cifras del apartamento 1607.",
-    enlace: "https://claude.ai/artifact/RsEmfdezFRzXFsGVXQ7HWK", html: CM_CARTA_002 },
+    resumen: "Explica, con los artículos 35, 37.3, 39, 42.2, 42.3, 43 y 44.6 del RPH (E.P. 753 de 2023) y el art. 30 de la Ley 675, cómo se causan los intereses de mora (tasa de usura, desde el día siguiente al cierre del mes, sin interés sobre interés) y el orden de imputación de pagos (multas y sanciones, intereses, cuotas). La sección 4 (imputación de pagos, liquidación de intereses y saldo del apartamento 1607) se llena sola con los pagos de propietarios, la cartera y la base de propietarios cargados en la plataforma.",
+    enlace: "https://claude.ai/artifact/RsEmfdezFRzXFsGVXQ7HWK", html: CM_CARTA_002,
+    imp: { apto: "1607", hasta: "2026-10-31", dirigida: "propietario", trato: "Señora" } },
   { id: "2026-004", anio: 2026, consecutivo: 4, fecha: "2026-11-13", tipo: "Solicitud",
     destinatario: "Administración · Agrupación Reserva del Mar P.H.", origen: "Iniciativa de Contabilidad (presupuesto 2027)",
     asunto: "Solicitud de propuestas económicas 2027 a proveedores con contrato de tarifa fija mensual", estado: "Emitido",
@@ -5758,6 +5759,224 @@ var cmMezclar = guardados => {
   for (const c of guardados ?? []) if (c && c.id) M.set(c.id, { ...(M.get(c.id) || {}), ...c });
   return [...M.values()];
 };
+/* ---------- Informe de imputación de pagos de una unidad: se llena solo con la plataforma ----------
+   Fuentes: Pagos de propietarios (libro auxiliar, colección cartera_mov), cartera por edades (cartera_c/<AAAA-MM>)
+   y base de propietarios (cartera_p/bdprop). Una comunicación lo usa si tiene el campo imp: { apto, hasta, dirigida, trato }. */
+/* Tasa de usura certificada por la Superintendencia Financiera (1,5 × IBC, crédito de consumo y ordinario), % efectivo anual */
+var CM_USURA = { "2025-01": 24.89, "2025-02": 26.30, "2025-03": 24.92, "2025-04": 25.62, "2025-05": 25.97, "2025-06": 25.55, "2025-07": 24.78, "2025-08": 25.17, "2025-09": 25.01, "2025-10": 24.36, "2025-11": 24.99, "2025-12": 25.02,
+  "2026-01": 24.36, "2026-02": 25.23, "2026-03": 25.52, "2026-04": 26.76, "2026-05": 28.17, "2026-06": 28.79, "2026-07": 28.79, "2026-08": 29.66, "2026-09": 29.24, "2026-10": 28.59, "2026-11": 28.34 };
+var CM_MESES_N = { ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6, JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, SETIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12 };
+var cmYm = (ym, d) => { let y = +ym.slice(0, 4), m = +ym.slice(5, 7) + d; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return `${y}-${String(m).padStart(2, "0")}`; };
+var cmDiasMes = ym => new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
+var cmIso = (ym, d) => `${ym}-${String(d).padStart(2, "0")}`;
+var cmDiaSig = f => { let t = new Date(f + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
+var cmImpClave = u => { let m = String(u || "").match(/^Apto (\S+) · T(\d)$/); return m ? `${m[1]} T${m[2]}` : null; };
+var cmImpTipo = cta => /^13050503/.test(cta) ? "int" : /^1305050[6-9]/.test(cta) ? "san" : "cap";
+var cmImpMesF = F => { let m = String(F.mesTxt || "").toUpperCase().match(/([A-Z]+)\s+DE\s+(\d{4})/); return m && CM_MESES_N[m[1]] ? `${m[2]}-${String(CM_MESES_N[m[1]]).padStart(2, "0")}` : String(F.f || "").slice(0, 7); };
+var cmPct = (v, d = 2) => v == null ? "—" : v.toFixed(d).replace(".", ",") + "%";
+var cmImpCache = null;
+async function cmImpBase(ses, forzar) {
+  if (cmImpCache && !forzar && Date.now() - cmImpCache.t < 300000) return cmImpCache.p;
+  let p = (async () => {
+    let [mov, cortes, bd] = await Promise.all([
+      cpmLeerTodo(ses).catch(() => ({ meses: [], L: [] })),
+      ses.store.list("cartera").then(x => x.map(y => y.data).filter(y => y && y.corte)).catch(() => []),
+      ses.store.get("cartera_p/bdprop").catch(() => null)]);
+    bd = bd ? (typeof bd.j === "string" ? JSON.parse(bd.j) : bd) : null;
+    return { meses: [...mov.meses].sort((a, b) => a.mes.localeCompare(b.mes)), U: cpmModelo(mov.L), cortes: [...cortes].sort((a, b) => String(a.corte).localeCompare(String(b.corte))), bd, cart: {} };
+  })();
+  cmImpCache = { t: Date.now(), p };
+  p.catch(() => { cmImpCache = null; });
+  return p;
+}
+function cmImpCartera(ses, B, ym) {
+  if (!(ym in B.cart)) B.cart[ym] = ses.store.get("cartera_c/" + ym).then(d => d ? Zl(l2(d)) : null).catch(() => null);
+  return B.cart[ym];
+}
+/* unidades que coinciden con el número de apartamento de la comunicación (puede haber una por torre) */
+var cmImpCandidatas = (B, apto) => B.U.filter(u => String(u.n) === String(apto ?? "").replace(/\D/g, ""));
+async function cmImpArmar(ses, B, c, imp) {
+  let avisos = [], h = c.html;
+  let cand = cmImpCandidatas(B, imp.apto);
+  let u = (imp.unidad && B.U.find(x => x.unidad === imp.unidad)) || cand[0] || null;
+  if (!imp.unidad && cand.length > 1) avisos.push(`Hay ${cand.length} unidades con el número ${imp.apto} (${cand.map(x => x.unidad).join(", ")}). Se tomó ${u.unidad}; elija la correcta en «Unidad».`);
+  let meses = B.meses.map(m => m.mes), ultMov = B.meses.length ? B.meses[B.meses.length - 1] : null;
+  let desde = imp.desde && meses.includes(imp.desde) ? imp.desde : meses[0];
+  let hasta = imp.hasta || (ultMov?.hasta ?? new Date().toISOString().slice(0, 10));
+  let base = { avisos, unidad: u?.unidad ?? "", desde, hasta, meses, falta: [] };
+  if (!u || !desde) {
+    avisos.push(!desde ? "No hay pagos de propietarios cargados (Cartera → Pagos de propietarios: suba el libro auxiliar de World Office)." : `No se encontraron movimientos de la unidad ${imp.apto} en los pagos de propietarios cargados.`);
+    return { ...base, html: h };
+  }
+  let hm = hasta.slice(0, 7);
+  if (desde > hm) { avisos.push("El mes inicial es posterior a la fecha de corte del informe."); return { ...base, html: h }; }
+  let mU = u.unidad.match(/^Apto (\S+) · T(\d)$/), num = mU ? mU[1] : String(u.n), torre = mU ? mU[2] : "";
+  let uTit = mU ? `Apartamento ${num} · Torre ${torre}` : u.unidad, uLarga = mU ? `apartamento ${num} de la torre ${torre}` : u.unidad;
+  /* saldo anterior: cartera por edades al cierre del mes anterior al período */
+  let prevYm = cmYm(desde, -1), cIni = B.cortes.find(k => String(k.corte).slice(0, 7) === prevYm), x0 = null, abre = cmIso(prevYm, cmDiasMes(prevYm));
+  if (cIni) { let T = await cmImpCartera(ses, B, prevYm); if (T) { x0 = T.find(x => x.unidad === u.unidad) ?? { total: 0, docs: [] }; abre = String(cIni.corte).slice(0, 10); } }
+  let cFin = B.cortes.filter(k => String(k.corte).slice(0, 10) <= hasta && String(k.corte).slice(0, 7) >= desde).pop(), x1 = null, fFin = null;
+  if (cFin) { let T = await cmImpCartera(ses, B, String(cFin.corte).slice(0, 7)); if (T) { x1 = T.find(x => x.unidad === u.unidad) ?? { total: 0, docs: [] }; fFin = String(cFin.corte).slice(0, 10); } }
+  let esC = cta => /^(1305|2805)/.test(cta) && !/^130595/.test(cta);
+  let neto = (a, b) => u.M.filter(x => x.f && x.f > a && x.f <= b && esC(x.cta)).reduce((s, x) => s + x.db - x.cr, 0);
+  let enR = f => !!f && f > abre && f <= hasta;
+  let saldoIni, iniDesc;
+  if (x0) { saldoIni = x0.total; iniDesc = `cartera por edades con corte al ${cbFecha(abre)}`; }
+  else if (x1) { saldoIni = x1.total - neto(abre, fFin); iniDesc = `cartera al ${cbFecha(fFin)} menos los movimientos del período`; avisos.push(`No hay cartera cargada al cierre de ${cbMesLargo(prevYm)}: el saldo anterior se obtuvo de la cartera al ${cbFecha(fFin)} menos los movimientos del período, y se trata todo como capital (no se conoce su composición).`); }
+  else { saldoIni = 0; iniDesc = "sin cartera cargada"; avisos.push(`No hay cartera por edades cargada para ${cbMesLargo(prevYm)} ni para el período: el saldo anterior se toma en cero.`); }
+  let mesesSin = []; for (let M = desde; M <= hm; M = cmYm(M, 1)) meses.includes(M) || mesesSin.push(M);
+  mesesSin.length && avisos.push(`Faltan los pagos de propietarios (libro auxiliar) de ${mesesSin.map(cbMesLargo).join(", ")}: los movimientos de esos meses no entran en el informe.`);
+  if (ultMov && ultMov.hasta && ultMov.mes === hm && ultMov.hasta < hasta) avisos.push(`El libro auxiliar de ${cbMesLargo(hm)} está cargado hasta el ${cbFecha(ultMov.hasta)}.`);
+  let saldoFin = saldoIni + neto(abre, hasta);
+  if (x0 && x1 && fFin > abre) { let dif = x1.total - (saldoIni + neto(abre, fFin)); Math.abs(dif) > 1 && avisos.push(`La cartera al ${cbFecha(fFin)} muestra ${cbPesos(x1.total)} y el cálculo con el libro auxiliar da ${cbPesos(x1.total - dif)} (diferencia ${cbPesos(dif)}). Revise que el libro auxiliar esté completo para esos meses.`); }
+  /* partidas: saldo anterior por documento + cuentas de cobro del período, separadas en capital, sanciones e intereses */
+  let items = [], favorIni = 0;
+  if (x0) {
+    let neg = 0;
+    for (const d of x0.docs) { let cta = String(d[7] || ""); if (/^2805/.test(cta)) { favorIni += d[4]; continue; } if (d[4] > .5) items.push({ k: cmImpTipo(cta), mes: String(d[2]).slice(0, 7), monto: d[4], pag: [], ini: !0, et: "saldo anterior" }); else if (d[4] < -.5) neg -= d[4]; }
+    for (const it of items.sort((a, b) => a.mes.localeCompare(b.mes))) { let q = Math.min(it.monto, neg); it.monto -= q; neg -= q; }
+    favorIni -= neg;
+  } else if (saldoIni > .5) items.push({ k: "cap", mes: prevYm, monto: saldoIni, pag: [], ini: !0, et: "saldo anterior" });
+  else if (saldoIni < -.5) favorIni = saldoIni;
+  let porF = new Map();
+  let facs = u.facs.filter(F => !F.fuera && enR(F.f)).sort((a, b) => a.f.localeCompare(b.f));
+  let tot = { cap: 0, san: 0, int: 0 };
+  for (const F of facs) {
+    let mes = cmImpMesF(F), et = F.mesTxt ? F.mesTxt.toLowerCase() : cbMesTxt(mes);
+    for (const k of ["cap", "san", "int"]) {
+      let v = F.con.filter(x => cmImpTipo(x.cta) === k).reduce((s, x) => s + x.v, 0); if (Math.abs(v) < .5) continue;
+      tot[k] += v; let it = { k, mes, monto: v, pag: [], F, et, f: F.f }; items.push(it); porF.set(F.doc + "|" + k, it);
+    }
+  }
+  let resta = it => it.monto - it.pag.reduce((s, p) => s + p.v, 0);
+  /* pagos del período en orden de fecha, con la imputación que registró la contabilidad */
+  let recs = u.recs.filter(R => enR(R.f)).sort((a, b) => a.f.localeCompare(b.f) || a.doc.localeCompare(b.doc));
+  let filas = [], incumple = [], nRC = 0, pagos = 0, desc = 0;
+  for (const R of recs) {
+    let esRC = /^RC\b/.test(R.doc), sum = { cap: 0, san: 0, int: 0 }, ets = new Set();
+    let pendAntes = esRC ? items.filter(it => it.k !== "cap" && (it.ini || it.f <= R.f)) : [];
+    for (const a of R.apl) {
+      let k = cmImpTipo(a.cta), Fit = a.F && porF.get(a.F.doc + "|" + k), v = a.v, usados = [];
+      let porMes = (x, y) => x.mes.localeCompare(y.mes), cola = [...(Fit ? [Fit] : []), ...items.filter(x => x.k === k && x !== Fit && (x.ini || x.f <= R.f)).sort(porMes), ...items.filter(x => x.k === k && x !== Fit && !(x.ini || x.f <= R.f)).sort(porMes)];
+      if (v > 0) for (const it of cola) { if (v <= .5) break; let q = Math.min(v, Math.max(0, resta(it))); if (q > .5) { it.pag.push({ f: R.f, v: q }); v -= q; usados.push(it); } }
+      if (Math.abs(v) > .5 && cola.length) { let it = Fit || usados[usados.length - 1] || cola[0]; it.pag.push({ f: R.f, v }); usados.includes(it) || usados.push(it); }
+      sum[k] += a.v; usados.length ? usados.forEach(it => ets.add(it.et)) : ets.add((a.F?.mesTxt || "").toLowerCase() || "—");
+    }
+    let apl = sum.cap + sum.san + sum.int, imput = apl + R.antRec;
+    if (Math.abs(imput) < .5 && R.antApl < .5) continue;
+    if (esRC) {
+      nRC++; pagos += apl + R.antRec - R.antApl - R.desc; desc += R.desc;
+      let quedan = pendAntes.reduce((s, it) => s + Math.max(0, resta(it)), 0);
+      if (sum.cap > .5 && quedan > .5) incumple.push(R.doc);
+    }
+    filas.push({ R, sum, imput, ets: [...ets] });
+  }
+  let cargos = tot.cap + tot.san + tot.int, ajustes = cargos - pagos - desc - (saldoFin - saldoIni);
+  /* liquidación de intereses de mora: capital vencido día a día × tasa mensual ÷ días del mes */
+  let tasas = { ...CM_USURA, ...(imp.usura || {}) }, liq = [], baseInt = items.filter(it => it.k !== "int");
+  for (let M = desde; M <= hm; M = cmYm(M, 1)) {
+    let dm = cmDiasMes(M), ult = M === hm ? Math.min(dm, +hasta.slice(8, 10)) : dm, ea = tasas[M] != null && tasas[M] !== "" ? +tasas[M] : null, tm = ea != null ? Math.pow(1 + ea / 100, 1 / 12) - 1 : null;
+    let venc = baseInt.filter(it => it.mes < M), cap = D => venc.reduce((s, it) => s + Math.max(0, it.monto - it.pag.filter(p => p.f < D).reduce((t, p) => t + p.v, 0)), 0);
+    let suma = 0, dias = 0;
+    for (let d = 1; d <= ult; d++) { let v = cap(cmIso(M, d)); if (v > .5) { dias++; suma += v; } }
+    let cierre = cap(cmIso(M, ult) + "~"), sig = cmYm(M, 1), Fs = u.facs.filter(F => cmImpMesF(F) === sig);
+    if (ea == null && dias) base.falta.push(M);
+    liq.push({ M, cierre, ea, tm, dias, inte: tm != null ? suma * tm / dm : null, cob: Fs.length ? Fs.reduce((s, F) => s + F.con.filter(k => cmImpTipo(k.cta) === "int").reduce((t, k) => t + k.v, 0), 0) : null, sig });
+  }
+  /* composición del saldo al corte */
+  let rem = k => items.filter(it => it.k === k).reduce((s, it) => s + Math.max(0, resta(it)), 0);
+  let capV = items.filter(it => it.k === "cap" && it.mes < hm).reduce((s, it) => s + Math.max(0, resta(it)), 0), capP = rem("cap") - capV;
+  let favor = favorIni + u.M.filter(x => enR(x.f) && /^2805/.test(x.cta)).reduce((s, x) => s + x.db - x.cr, 0);
+  let compo = [["Cuotas vencidas", capV], ["Cuota del mes por vencer", capP], ["Multas y sanciones", rem("san")], ["Intereses de mora", rem("int")], ["Saldo a favor (cuenta 28050501)", favor]];
+  let difC = saldoFin - compo.reduce((s, x) => s + x[1], 0);
+  Math.abs(difC) > 1 && compo.push(["Partidas sin identificar en la imputación", difC]);
+  /* datos del propietario */
+  let k = cmImpClave(u.unidad), adm = (B.bd?.adm ?? []).find(x => x.k === k), w = B.bd?.wo?.[k];
+  let noms = adm ? bdPersonas(adm.titular) : [];
+  let nombre = noms.length ? noms.join(" y ") : (w?.nombre || x1?.titular || x0?.titular || u.prop || "").trim();
+  let correo = adm?.correos?.[0] || x1?.mail || x0?.mail || "";
+  let coef = w?.coef > 0 ? (+w.coef).toLocaleString("es-CO", { maximumFractionDigits: 6 }) : null;
+  !coef && avisos.push("La unidad no tiene coeficiente en la base de propietarios (Cartera → Base de propietarios).");
+  !nombre && avisos.push("No se encontró el nombre del propietario en la base de propietarios ni en la cartera.");
+  /* HTML de la sección 4 */
+  let $ = v => Math.abs(v) < .5 ? "—" : v < 0 ? "(" + cbPesos(-v) + ")" : cbPesos(v), $b = v => `<strong>${$(v)}</strong>`;
+  let pIni = cmDiaSig(abre), perTxt = pIni.slice(0, 4) === hasta.slice(0, 4) ? `${cbFechaLarga(pIni).replace(/ de \d{4}$/, "")} al ${cbFechaLarga(hasta)}` : `${cbFechaLarga(pIni)} al ${cbFechaLarga(hasta)}`;
+  let fCorta = f => { let p = f.split("-"); return `${+p[2]}-${CB_MESES[+p[1] - 1].slice(0, 3)}-${p[0]}`; };
+  let b = [];
+  b.push(`<h2>4. Informe de imputación de pagos — ${cmEsc(uTit)}</h2>`);
+  b.push(`<p><strong>Propietario:</strong> ${cmEsc(nombre || "—")} · <strong>Coeficiente:</strong> ${coef ?? "—"} · <strong>Período analizado:</strong> ${perTxt} · <strong>Saldo a ${fCorta(hasta)}:</strong> ${$(saldoFin)}</p>`);
+  b.push(`<h3>4.1 Imputación de los pagos</h3>`);
+  if (!filas.length) b.push(`<p>En el período no se registraron pagos ni abonos a la cartera de la unidad.</p>`);
+  else {
+    let T = filas.reduce((s, x) => ({ imput: s.imput + x.imput, desc: s.desc + x.R.desc, san: s.san + x.sum.san, int: s.int + x.sum.int, cap: s.cap + x.sum.cap, fav: s.fav + x.R.antRec }), { imput: 0, desc: 0, san: 0, int: 0, cap: 0, fav: 0 });
+    b.push(`<table><thead><tr><th>Fecha</th><th>Recibo</th><th>Valor imputado</th><th>Descuento pronto pago</th><th>A multas y sanciones</th><th>A intereses de mora</th><th>A cuotas</th><th>Saldo a favor</th><th>Cuentas de cobro afectadas</th></tr></thead><tbody>` +
+      filas.map(x => `<tr><td>${cbFecha(x.R.f)}</td><td>${cmEsc(x.R.doc)}</td><td>${$(x.imput)}</td><td>${$(x.R.desc)}</td><td>${$(x.sum.san)}</td><td>${$(x.sum.int)}</td><td>${$(x.sum.cap)}</td><td>${$(x.R.antRec)}</td><td>${cmEsc(x.ets.join(", ") + (x.R.antApl > .5 ? ` (usa saldo a favor de ${cbPesos(x.R.antApl)})` : ""))}</td></tr>`).join("") +
+      `<tr><td><strong>Totales</strong></td><td></td><td>${$b(T.imput)}</td><td>${$b(T.desc)}</td><td>${$b(T.san)}</td><td>${$b(T.int)}</td><td>${$b(T.cap)}</td><td>${$b(T.fav)}</td><td></td></tr></tbody></table>`);
+    b.push(!nRC ? `<p>En el período no hubo recibos de caja; los movimientos de la tabla son cruces y ajustes contables.</p>` : !incumple.length
+      ? `<p>Los ${nRC} pagos del período se imputaron en el orden del artículo 42.3 del RPH: ningún valor se aplicó a cuotas mientras existían multas, sanciones o intereses de mora causados y pendientes.</p>`
+      : `<p>En ${incumple.length} de los ${nRC} pagos (${cmEsc(incumple.join(", "))}) la contabilidad aplicó valores a cuotas cuando existían multas, sanciones o intereses de mora causados y pendientes. Conforme al artículo 42.3 del RPH, esos valores debían aplicarse primero a las multas, sanciones e intereses; la imputación de esos recibos debe reclasificarse en World Office.</p>`);
+  }
+  b.push(`<h3>4.2 Liquidación de intereses de mora</h3>`);
+  let li = liq.filter(x => x.dias || x.cob);
+  if (!li.length) b.push(`<p>En el período la unidad no tuvo capital vencido, por lo que no se causaron intereses de mora.</p>`);
+  else {
+    let tI = li.reduce((s, x) => s + (x.inte ?? 0), 0), conCob = li.filter(x => x.cob != null), tC = conCob.reduce((s, x) => s + x.cob, 0);
+    b.push(`<table><thead><tr><th>Mes</th><th>Capital en mora al cierre</th><th>Tasa de usura EA certificada</th><th>Tasa mensual</th><th>Días en mora</th><th>Interés liquidado</th><th>Interés cobrado en la cuenta de cobro siguiente</th></tr></thead><tbody>` +
+      li.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$(x.cierre)}</td><td>${cmPct(x.ea)}</td><td>${cmPct(x.tm != null ? x.tm * 100 : null, 4)}</td><td>${x.dias}</td><td>${x.inte == null ? "sin tasa" : $(x.inte)}</td><td>${x.cob == null ? "no cargada" : $(x.cob)}</td></tr>`).join("") +
+      `<tr><td><strong>Total intereses</strong></td><td></td><td></td><td></td><td></td><td>${$b(tI)}</td><td>${$b(tC)}</td></tr></tbody></table>`);
+    let comp = li.filter(x => x.cob != null && x.inte != null), dif = comp.reduce((s, x) => s + x.cob - x.inte, 0);
+    b.push(`<p>El interés liquidado aplica la fórmula del numeral 2 sobre el capital vencido de cada día (cuotas, multas y sanciones; sin interés sobre interés). El interés de cada mes se cobra en la cuenta de cobro del mes siguiente.${comp.length ? Math.abs(dif) <= Math.max(100, comp.length * 50) ? ` En los meses comparables, lo cobrado coincide con lo liquidado (diferencia de ${$(dif)}, por redondeo).` : ` En los meses comparables, lo cobrado ${dif > 0 ? "supera" : "es inferior a"} lo liquidado en ${cbPesos(Math.abs(dif))}; conviene revisar la liquidación de esos meses.` : ""}${base.falta.length ? ` No se liquidó ${base.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
+  }
+  b.push(`<h3>4.3 Resumen del saldo</h3>`);
+  b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` +
+    [[`Saldo anterior al ${cbFecha(abre)}`, saldoIni], ["Cuotas causadas en el período", tot.cap], ["Multas y sanciones", tot.san], ["Intereses de mora causados", tot.int], ["Pagos recibidos", -pagos], ["Descuentos por pronto pago", -desc], ...(Math.abs(ajustes) > .5 ? [["Notas crédito, cruces y ajustes", -ajustes]] : [])]
+      .map(([t, v]) => `<tr><td>${t}</td><td>${$(v)}</td></tr>`).join("") +
+    `<tr><td><strong>Saldo a ${cbFechaLarga(hasta)}</strong></td><td>${$b(saldoFin)}</td></tr></tbody></table>`);
+  b.push(`<p>Composición del saldo a ${cbFechaLarga(hasta)}:</p>`);
+  b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` + compo.map(([t, v]) => `<tr><td>${t}</td><td>${$(v)}</td></tr>`).join("") + `<tr><td><strong>Total</strong></td><td>${$b(saldoFin)}</td></tr></tbody></table>`);
+  b.push(`<p>Fuente: libro auxiliar de World Office (cuentas 1305 y 28050501) cargado en la plataforma${ultMov?.hasta ? ` hasta el ${cbFecha(ultMov.hasta < hasta ? ultMov.hasta : hasta)}` : ""}; saldo anterior según ${iniDesc}; tasas de usura según las certificaciones de la Superintendencia Financiera (1,5 veces el interés bancario corriente, crédito de consumo y ordinario).</p>`);
+  /* armar la carta */
+  if (num) h = h.replace(new RegExp(`apartamento ${num}(?! de la torre)\\b`, "g"), uLarga);
+  let i0 = h.indexOf("<h2>4. Informe de imputación"), i1 = i0 >= 0 ? h.indexOf("<p>Quedamos atentos", i0) : -1;
+  h = i0 >= 0 && i1 > i0 ? h.slice(0, i0) + b.join("\n") + "\n" + h.slice(i1) : h + b.join("\n");
+  if (imp.dirigida === "propietario") {
+    if (!nombre) avisos.push("La carta sigue dirigida a la Administración porque no hay nombre de propietario.");
+    else {
+      let tr = imp.trato || "Señora", cal = tr === "Señor" ? "Propietario" : tr === "Señores" ? "Propietarios" : "Propietaria";
+      h = h.replace(/<p>Señores<br><strong>Administración<\/strong>[\s\S]*?<\/p>/, `<p>${tr}<br><strong>${cmEsc(nombre.toUpperCase())}</strong><br>${cal} del ${cmEsc(uLarga)}<br>Agrupación Reserva del Mar P.H.${correo ? `<br>${cmEsc(correo)}` : ""}<br>Ciudad</p>`)
+        .replace("respuesta a su comunicación del 30 de octubre de 2026", "respuesta a su solicitud, trasladada por la Administración el 30 de octubre de 2026")
+        .replace("En atención a su solicitud, el área de Contabilidad presenta", "En atención a su solicitud, el área de Contabilidad le presenta");
+      h.includes("<strong>Copia:</strong>") || (h = h.replace("<p><strong>Anexos:</strong>", "<p><strong>Copia:</strong> Administración, Agrupación Reserva del Mar P.H.</p>\n<p><strong>Anexos:</strong>"));
+    }
+  }
+  return { ...base, html: h, nombre, correo, coef, saldoFin, abre, fFin, cand: cand.map(x => x.unidad) };
+}
+/* panel sobre la carta: unidad, período, a quién va dirigida y tasas faltantes */
+function CmImpPanel({ ses, imp, setImp, res, B, soloLectura, onGuardar, onRecargar, cambio }) {
+  let opsU = B ? [...B.U].filter(x => x.n > 0) : [];
+  let cand = res?.cand ?? [];
+  opsU.sort((a, b) => (cand.includes(b.unidad) ? 1 : 0) - (cand.includes(a.unidad) ? 1 : 0) || cbOrdG(a.torre) - cbOrdG(b.torre) || a.n - b.n);
+  let set = (k, v) => setImp({ ...imp, [k]: v });
+  let campo = (et, el) => cmH("label", { className: "campo" }, cmH("span", null, et), el);
+  return cmH("section", { className: "panel", style: { margin: "12px 0" } },
+    cmH("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" } },
+      cmH("div", null, cmH("h3", { style: { margin: 0 } }, "Datos del propietario e imputación de pagos"),
+        cmH("p", { className: "tenue", style: { margin: "4px 0 0" } }, !B ? "Leyendo pagos de propietarios, cartera y base de propietarios…" : res?.nombre ? `${res.unidad} · ${res.nombre}${res.correo ? " · " + res.correo : ""}${res.coef ? " · coeficiente " + res.coef : ""}` : "La sección 4 de la carta se llena con los datos de la plataforma.")),
+      cmH("div", { className: "acciones" },
+        cmH("button", { type: "button", className: "btn btn-sm", onClick: onRecargar }, "Actualizar datos"),
+        !soloLectura && onGuardar && cmH("button", { type: "button", className: "btn btn-sm btn-primario", disabled: !cambio, onClick: onGuardar }, "Guardar en la comunicación"))),
+    B && cmH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } },
+      campo("Unidad", cmH("select", { value: res?.unidad || "", onChange: e => set("unidad", e.target.value) }, !res?.unidad && cmH("option", { value: "" }, "—"), opsU.map(x => cmH("option", { key: x.unidad, value: x.unidad }, `${x.unidad}${x.prop ? " · " + x.prop : ""}`)))),
+      campo("Desde", cmH("select", { value: res?.desde || "", onChange: e => set("desde", e.target.value) }, B.meses.map(m => cmH("option", { key: m.mes, value: m.mes }, cbMesLargo(m.mes))))),
+      campo("Hasta", cmH("input", { type: "date", value: res?.hasta || imp.hasta || "", onChange: e => e.target.value && set("hasta", e.target.value) })),
+      campo("Dirigida a", cmH("select", { value: imp.dirigida || "administracion", onChange: e => set("dirigida", e.target.value) }, cmH("option", { value: "propietario" }, "Propietario de la unidad"), cmH("option", { value: "administracion" }, "Administración"))),
+      imp.dirigida === "propietario" && campo("Trato", cmH("select", { value: imp.trato || "Señora", onChange: e => set("trato", e.target.value) }, ["Señora", "Señor", "Señores"].map(t => cmH("option", { key: t, value: t }, t))))),
+    res?.falta?.length > 0 && cmH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10 } },
+      cmH("span", { className: "tenue" }, "Tasa de usura EA (%) que falta:"),
+      res.falta.map(M => campo(cbMesLargo(M), cmH("input", { key: M, type: "number", step: "0.01", style: { width: 90 }, value: imp.usura?.[M] ?? "", onChange: e => setImp({ ...imp, usura: { ...(imp.usura || {}), [M]: e.target.value } }) })))),
+    res?.avisos?.length > 0 && cmH("ul", { style: { margin: "10px 0 0", paddingLeft: 18 } }, res.avisos.map((a, i) => cmH("li", { key: i, className: "tenue" }, a))),
+    res?.error && cmH("p", { className: "est est-alerta" }, res.error));
+}
 async function cmGuardarPdf(ses, id, file) {
   let u = new Uint8Array(await file.arrayBuffer()), s = "";
   for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768));
@@ -5858,11 +6077,18 @@ function cmDoc(c, entidad) {
     secciones: [{ id: "comunicacion", nombre: "Comunicación", titulo: c.tituloDoc ?? ("COMUNICACIÓN No. " + cmNumero(c)), subtitulos: c.subDoc ?? [c.asunto || "", "Santa Marta, " + cmFechaLarga(c.fecha)], orientacion: "portrait", bloques: b }] };
 }
 async function cmBajar(c, entidad, ses, notificar, tipo) {
-  try { let doc = cmDoc(c, entidad), bytes = tipo === "pdf" ? await en(doc) : await Ls(doc); await BL(ses, `${cmNumero(c)}.${tipo}`, bytes, notificar); }
+  try { if (c.imp && !c.impListo) c = { ...c, html: (await cmImpArmar(ses, await cmImpBase(ses), c, c.imp)).html };
+    let doc = cmDoc(c, entidad), bytes = tipo === "pdf" ? await en(doc) : await Ls(doc); await BL(ses, `${cmNumero(c)}.${tipo}`, bytes, notificar); }
   catch (e) { console.error(e); notificar("error", "No se pudo generar el archivo: " + (e?.message ?? e)); }
 }
-function CmInforme({ c, ses, notificar, entidad, onCerrar }) {
+function CmInforme({ c: c0, ses, notificar, entidad, onCerrar, soloLectura, onGuardarImp }) {
   let [gen, setGen] = Ve.useState(null);
+  let [imp, setImp0] = Ve.useState(c0.imp ? { ...c0.imp } : null), [B, setB] = Ve.useState(null), [res, setRes] = Ve.useState(null), [cambio, setCambio] = Ve.useState(!1), [rec, setRec] = Ve.useState(0);
+  let setImp = v => { setImp0(v); setCambio(!0); };
+  Ve.useEffect(() => { if (!c0.imp) return; let vivo = !0; setB(null); cmImpBase(ses, rec > 0).then(b => vivo && setB(b)).catch(e => vivo && setRes({ error: "No se pudieron leer los datos: " + (e?.message ?? e) })); return () => { vivo = !1; }; }, [ses, rec]);
+  Ve.useEffect(() => { if (!B || !imp) return; let vivo = !0; cmImpArmar(ses, B, c0, imp).then(r => vivo && setRes(r)).catch(e => { console.error(e); vivo && setRes({ error: "No se pudo armar el informe: " + (e?.message ?? e) }); }); return () => { vivo = !1; }; }, [B, JSON.stringify(imp)]);
+  let c = c0.imp ? (res?.html ? { ...c0, html: res.html, impListo: !0 } : { ...c0, impListo: !1 }) : c0;
+  let listo = !c0.imp || !!res?.html;
   let bajar = async tipo => { setGen(tipo); await cmBajar(c, entidad, ses, notificar, tipo); setGen(null); };
   return cmH("div", { className: "pantalla" },
     cmH("style", null, CM_ESTILO),
@@ -5870,8 +6096,9 @@ function CmInforme({ c, ses, notificar, entidad, onCerrar }) {
       cmH("div", null, cmH("h2", { className: "h-sec" }, cmNumero(c)), cmH("p", { className: "lead" }, c.asunto), cmH("div", null, cmChip(c.estado))),
       cmH("div", { className: "acciones" },
         cmH("button", { type: "button", className: "btn", onClick: onCerrar }, "Volver a la lista"),
-        cmH("button", { type: "button", className: "btn", disabled: !!gen, onClick: () => bajar("docx") }, gen === "docx" ? "Generando…" : "Descargar Word"),
-        cmH("button", { type: "button", className: "btn btn-primario", disabled: !!gen, onClick: () => bajar("pdf") }, gen === "pdf" ? "Generando…" : "Descargar PDF"))),
+        cmH("button", { type: "button", className: "btn", disabled: !!gen || !listo, onClick: () => bajar("docx") }, gen === "docx" ? "Generando…" : "Descargar Word"),
+        cmH("button", { type: "button", className: "btn btn-primario", disabled: !!gen || !listo, onClick: () => bajar("pdf") }, gen === "pdf" ? "Generando…" : "Descargar PDF"))),
+    imp && cmH(CmImpPanel, { ses, imp, setImp, res, B, soloLectura, cambio, onRecargar: () => setRec(r => r + 1), onGuardar: onGuardarImp && (async () => { try { await onGuardarImp(imp); setCambio(!1); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } }) }),
     c.cartas && cmCartasPanel({ c, ses, notificar, entidad }),
     cmH("div", { className: "cm-carta", dangerouslySetInnerHTML: { __html: cmCartaHtml(c, entidad) } }));
 }
@@ -5922,7 +6149,12 @@ function CmSeccion({ ses, notificar, soloLectura, entidad }) {
     } catch (e) { if (w) w.close(); notificar("error", "No se pudo abrir la comunicación: " + (e?.message ?? e)); }
     setOc(null);
   };
-  if (ver) return cmH(CmInforme, { c: ver, ses, notificar, entidad, onCerrar: () => setVer(null) });
+  let guardarImp = async imp => {
+    let prev = (guardados ?? []).find(y => y.id === ver.id), x = { ...(prev ?? { id: ver.id, anio: ver.anio, consecutivo: ver.consecutivo }), imp, actualizadoEn: new Date().toISOString() };
+    await ses.store.set("comunicados/" + x.id, JSON.parse(JSON.stringify(x)));
+    setGuardados(v => [...(v ?? []).filter(y => y.id !== x.id), x]); notificar("ok", `Datos del informe guardados en ${cmNumero(ver)}.`);
+  };
+  if (ver) return cmH(CmInforme, { key: ver.id, c: ver, ses, notificar, entidad, soloLectura, onGuardarImp: soloLectura ? null : guardarImp, onCerrar: () => setVer(null) });
   if (sel) return cmH(CmEditor, { key: sel.id, c0: sel, ses, notificar, soloLectura, abrir, ocupado, verInforme: () => { let x = sel; setSel(null); setVer(x); }, onCerrar: () => setSel(null), onGuardar: async c => { let x = await guardar(c); setSel({ ...x, inicial: sel.inicial }); notificar("ok", `Comunicación ${cmNumero(x)} guardada.`); }, onQuitar: quitar });
   return cmH("div", { className: "pantalla" },
     cmH("div", { className: "pantalla-enc" },
