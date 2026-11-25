@@ -6128,9 +6128,9 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
     let a = M === desde ? abre : cmIso(cmYm(M, -1), cmDiasMes(cmYm(M, -1))), b = M === hm ? hasta : cmIso(M, cmDiasMes(M)); if (a < abre) a = abre;
     let fM = facs.filter(F => F.f > a && F.f <= b), c = k => fM.reduce((s, F) => s + F.con.filter(x => rpTipo(x.cta) === k).reduce((t, x) => t + x.v, 0), 0);
     let rM = filas.filter(x => x.R.f > a && x.R.f <= b), pagos = rM.filter(x => x.esRC).reduce((s, x) => s + x.pago, 0), desc = rM.reduce((s, x) => s + (x.esRC ? x.R.desc : 0), 0);
-    let net = neto(a, b), ord = fM.reduce((s, F) => s + F.con.filter(x => /^13050501/.test(x.cta)).reduce((t, x) => t + x.v, 0), 0), ext = c("cap") - ord + c("otr");
-    let cargos = ord + ext + c("san") + c("int"), aj = cargos - pagos - desc - net;
-    mensual.push({ M, ini: saldo, ord, ext, san: c("san"), int: c("int"), pagos, desc, aj, fin: saldo + net }); saldo += net;
+    let net = neto(a, b), ord = fM.reduce((s, F) => s + F.con.filter(x => /^13050501/.test(x.cta)).reduce((t, x) => t + x.v, 0), 0), ext = c("cap") - ord, otr = c("otr");
+    let cargos = ord + ext + otr + c("san") + c("int"), aj = cargos - pagos - desc - net;
+    mensual.push({ M, ini: saldo, ord, ext, otr, san: c("san"), int: c("int"), pagos, desc, aj, fin: saldo + net }); saldo += net;
   }
   let saldoFin = saldo;
   /* liquidación de intereses: capital vencido de cada día (cuotas, extraordinarias, multas; sin interés sobre interés) */
@@ -6230,12 +6230,12 @@ function rpHtml(D, op, firma) {
     if (i >= 0 && j > i) { h.push(b.slice(i, j).trim()); n = 3; }
   }
   if (sec.has("mes")) {
-    n++; let T = D.mensual, s = k => T.reduce((a, x) => a + x[k], 0);
+    n++; let T = D.mensual, s = k => T.reduce((a, x) => a + (x[k] || 0), 0), hayO = T.some(x => Math.abs(x.otr || 0) > .5);
     h.push(`<h2>${n}. Estado de cuenta mes a mes</h2>`);
-    h.push(`<p>Movimientos de la cuenta del ${cmEsc(uL)} ${per}, según los registros contables. «Cuota» es la cuota ordinaria de administración; «Extraord.» agrupa retroactivos, cuotas extraordinarias y otros cobros; «Desc.» es el descuento por pronto pago, y «Ajustes» agrupa notas crédito, cruces y reclasificaciones.</p>`);
-    h.push(`<table><thead><tr><th>Mes</th><th>Saldo inicial</th><th>Cuota</th><th>Extraord.</th><th>Multas</th><th>Intereses</th><th>Pagos</th><th>Desc.</th><th>Ajustes</th><th>Saldo final</th></tr></thead><tbody>` +
-      T.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$s(x.ini)}</td><td>${$(x.ord)}</td><td>${$(x.ext)}</td><td>${$(x.san)}</td><td>${$(x.int)}</td><td>${$(-x.pagos)}</td><td>${$(-x.desc)}</td><td>${$(-x.aj)}</td><td>${$s(x.fin)}</td></tr>`).join("") +
-      `<tr><td><strong>Total</strong></td><td>${$bs(T[0]?.ini ?? 0)}</td><td>${$b(s("ord"))}</td><td>${$b(s("ext"))}</td><td>${$b(s("san"))}</td><td>${$b(s("int"))}</td><td>${$b(-s("pagos"))}</td><td>${$b(-s("desc"))}</td><td>${$b(-s("aj"))}</td><td>${$bs(D.saldoFin)}</td></tr></tbody></table>`);
+    h.push(`<p>Movimientos de la cuenta del ${cmEsc(uL)} ${per}, según los registros contables. «Cuota» es la cuota ordinaria de administración; «Retroactivo» es el mayor valor de la cuota ordinaria cobrado por el incremento aprobado para el año${hayO ? "; «Otros» agrupa otros cobros" : ""}; «Desc.» es el descuento por pronto pago, y «Ajustes» agrupa notas crédito, cruces y reclasificaciones.</p>`);
+    h.push(`<table><thead><tr><th>Mes</th><th>Saldo inicial</th><th>Cuota</th><th>Retroactivo</th>${hayO ? "<th>Otros</th>" : ""}<th>Multas</th><th>Intereses</th><th>Pagos</th><th>Desc.</th><th>Ajustes</th><th>Saldo final</th></tr></thead><tbody>` +
+      T.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$s(x.ini)}</td><td>${$(x.ord)}</td><td>${$(x.ext)}</td>${hayO ? `<td>${$(x.otr)}</td>` : ""}<td>${$(x.san)}</td><td>${$(x.int)}</td><td>${$(-x.pagos)}</td><td>${$(-x.desc)}</td><td>${$(-x.aj)}</td><td>${$s(x.fin)}</td></tr>`).join("") +
+      `<tr><td><strong>Total</strong></td><td>${$bs(T[0]?.ini ?? 0)}</td><td>${$b(s("ord"))}</td><td>${$b(s("ext"))}</td>${hayO ? `<td>${$b(s("otr"))}</td>` : ""}<td>${$b(s("san"))}</td><td>${$b(s("int"))}</td><td>${$b(-s("pagos"))}</td><td>${$b(-s("desc"))}</td><td>${$b(-s("aj"))}</td><td>${$bs(D.saldoFin)}</td></tr></tbody></table>`);
     h.push(`<p>Saldo anterior tomado de ${cmEsc(D.iniDesc)}.</p>`);
   }
   if (sec.has("imp")) {
@@ -6306,7 +6306,7 @@ function rpExcel(D, op, cfg) {
 function RpPantalla({ ses, config, notificar, soloLectura }) {
   let hoy = new Date().toISOString().slice(0, 10);
   let [B, setB] = Ve.useState(null), [err, setErr] = Ve.useState(null), [rec, setRec] = Ve.useState(0), [D, setD] = Ve.useState(null), [oc, setOc] = Ve.useState(null), [local, setLocal] = Ve.useState(null), [q, setQ] = Ve.useState(""), [com, setCom] = Ve.useState(null);
-  let [op, setOp] = Ve.useState({ unidad: "", desde: "", hasta: "", dirigida: "propietario", trato: "", fecha: hoy, resol: {}, secciones: RP_SECC.map(s => s[0]), copia: "Administración, Agrupación Reserva del Mar P.H.", anexos: "", referencia: "", intro: "", cierre: "Quedamos atentos a cualquier aclaración adicional. Los soportes contables de cada registro están a disposición del propietario, de la Administración, del Consejo de Administración y de la Revisoría Fiscal.", usura: {} });
+  let [op, setOp] = Ve.useState({ unidad: "", desde: "", hasta: "", dirigida: "propietario", trato: "", fecha: hoy, resol: {}, firmaPor: "aldahir", secciones: RP_SECC.map(s => s[0]), copia: "Administración, Agrupación Reserva del Mar P.H.", anexos: "", referencia: "", intro: "", cierre: "Quedamos atentos a cualquier aclaración adicional. Los soportes contables de cada registro están a disposición del propietario, de la Administración, del Consejo de Administración y de la Revisoría Fiscal.", usura: {} });
   let set = (k, v) => setOp(o => ({ ...o, [k]: v }));
   Ve.useEffect(() => { let vivo = !0; setB(null); cmImpBase(ses, rec > 0).then(b => rpBaseMas(ses, b)).then(b => vivo && setB(b)).catch(e => vivo && setErr(e?.message ?? String(e))); return () => { vivo = !1; }; }, [ses, rec]);
   Ve.useEffect(() => { if (!B?.comunicados) return; let vivo = !0; B.comunicados.then(c => vivo && setCom(c)); return () => { vivo = !1; }; }, [B]);
