@@ -4233,7 +4233,7 @@ function fiDoc(r, entidad) {
     { estilo: "totalDoble", celdas: [or("PATRIMONIO DEL FONDO DESPU\xC9S DE LOS ABONOS", { bold: !0 }), or(""), er(r.patrimonioDespues, { bold: !0 })] }] });
   p(`Fiducia despu\xE9s del traslado: ${aclP(r.fiduciaDespues)}. Patrimonio del fondo despu\xE9s de los abonos: ${aclP(r.patrimonioDespues)}. Diferencia: ${aclP(r.fiduciaDespues - r.patrimonioDespues)}.${r.otrosDep.length ? ` El ajuste de a\xF1os anteriores incluye ${r.otrosDep.map(x => `${fiDocL(x.doc)} del ${fiFecha(x.f)} por ${aclP(x.d)}`).join("; ")}${Math.abs(r.difInicial) >= 1 ? ` y la diferencia que tra\xEDa la fiducia al 1 de enero (${aclP(r.difInicial)})` : ""}.` : ""}`);
   if (r.descSI && r.yaLiqT >= 1) p(`No se cuentan ${aclP(r.yaLiqT)} recaudados de la cartera que ya estaba al 1 de enero: se liquidaron al fondo en el a\xF1o en que se causaron.`);
-  h("5. HALLAZGOS");
+  h("5. OBSERVACIONES");
   fiHallazgos(r).forEach(x => b.push({ tipo: "parrafo", estilo: "vineta", texto: x }));
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
     secciones: [{ id: "fondo", nombre: "Fondo de imprevistos", titulo: "AUDITOR\xCDA DEL FONDO DE IMPREVISTOS", subtitulos: [per, "Reglamento de propiedad horizontal, art. 79 \xB7 Ley 675 de 2001, art. 35"], orientacion: "landscape", bloques: b }],
@@ -4391,7 +4391,7 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
         aH("thead", null, aH("tr", null, ["Fecha", "Documento", "Concepto", "Tercero", "Detalle", "Valor"].map((t, i) => th(t, i, i === 5)))),
         aH("tbody", null, r.noRec.map((x, i) => aH("tr", { key: i }, aH("td", null, fiFecha(x.f)), aH("td", null, fiDocL(x.doc)), aH("td", null, x.concepto), aH("td", null, x.ter), aH("td", null, x.nota), num(x.c - x.d)))),
         aH("tfoot", null, aH("tr", null, aH("td", { colSpan: 5 }, aH("b", null, "Total")), num(r.noRecTotal, 1)))))),
-    r && aH("section", { className: "panel" }, aH("h2", null, "Hallazgos"), aH("ul", null, fiHallazgos(r).map((x, i) => aH("li", { key: i }, x)))));
+    r && aH("section", { className: "panel" }, aH("h2", null, "Observaciones"), aH("ul", null, fiHallazgos(r).map((x, i) => aH("li", { key: i }, x)))));
 }
 
 var aclNum = s => { let t = String(s ?? "").trim(); if (!t) return 0; let neg = /^\(.*\)$/.test(t) || t.startsWith("-"); t = t.replace(/[()$\s-]/g, "").replace(/\./g, "").replace(",", "."); let v = Number(t); return isNaN(v) ? 0 : neg ? -v : v; };
