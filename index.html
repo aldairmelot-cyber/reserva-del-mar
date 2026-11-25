@@ -5924,17 +5924,10 @@ async function cmImpArmar(ses, B, c, imp) {
       ? `<p>Los ${nRC} pagos del período se imputaron en el orden del artículo 42.3 del RPH: ningún valor se aplicó a cuotas mientras existían multas, sanciones o intereses de mora causados y pendientes.</p>`
       : `<p>En ${incumple.length} de los ${nRC} pagos (${cmEsc(incumple.join(", "))}) la contabilidad aplicó valores a cuotas cuando existían multas, sanciones o intereses de mora causados y pendientes. Conforme al artículo 42.3 del RPH, esos valores debían aplicarse primero a las multas, sanciones e intereses; la imputación de esos recibos debe reclasificarse en World Office.</p>`);
   }
-  b.push(`<h3>4.2 Liquidación de intereses de mora</h3>`);
-  let li = liq.filter(x => x.dias || x.cob);
-  if (!li.length) b.push(`<p>En el período la unidad no tuvo capital vencido, por lo que no se causaron intereses de mora.</p>`);
-  else {
-    let tI = li.reduce((s, x) => s + (x.inte ?? 0), 0), conCob = li.filter(x => x.cob != null), tC = conCob.reduce((s, x) => s + x.cob, 0);
-    b.push(`<table><thead><tr><th>Mes</th><th>Capital en mora</th><th>Usura EA</th><th>Tasa mensual</th><th>Días</th><th>Interés liquidado</th><th>Interés cobrado</th></tr></thead><tbody>` +
-      li.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$(x.cierre)}</td><td>${cmPct(x.ea)}</td><td>${cmPct(x.tm != null ? x.tm * 100 : null, 4)}</td><td>${x.dias}</td><td>${x.inte == null ? "sin tasa" : $(x.inte)}</td><td>${x.cob == null ? "no cargada" : $(x.cob)}</td></tr>`).join("") +
-      `<tr><td><strong>Total intereses</strong></td><td></td><td></td><td></td><td></td><td>${$b(tI)}</td><td>${$b(tC)}</td></tr></tbody></table>`);
-    let comp = li.filter(x => x.cob != null && x.inte != null), dif = comp.reduce((s, x) => s + x.cob - x.inte, 0);
-    b.push(`<p>El interés liquidado aplica la fórmula del numeral 2 sobre el capital vencido de cada día (cuotas, multas y sanciones; sin interés sobre interés). El capital en mora es el del cierre de cada mes; «Interés cobrado» es el interés de mora facturado en la cuenta de cobro de ese mismo mes.${comp.length ? Math.abs(dif) <= Math.max(100, comp.length * 50) ? ` En los meses comparables, lo cobrado coincide con lo liquidado (diferencia de ${$(dif)}, por redondeo).` : ` En los meses comparables, lo cobrado ${dif > 0 ? "supera" : "es inferior a"} lo liquidado en ${cbPesos(Math.abs(dif))}; conviene revisar la liquidación de esos meses.` : ""}${base.falta.length ? ` No se liquidó ${base.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
-  }
+  b.push(`<h3>4.2 Intereses de mora cobrados</h3>`);
+  { let R = cmIntCobrados(items, imp.usura);
+    b.push(R.filas.length ? cmIntTabla(R, $, $b) : `<p>En el período no se cobraron intereses de mora a la unidad.</p>`);
+    R.filas.length && b.push(`<p>Tasa: la de usura certificada por la Superintendencia Financiera para cada mes, convertida a mensual. En el período se cobraron intereses por ${$s(R.cob)} y se pagaron ${$s(R.pag)}. Los valores son los registrados en las cuentas de cobro de la unidad.</p>`); }
   b.push(`<h3>4.3 Resumen del saldo</h3>`);
   b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` +
     [[`Saldo anterior al ${cbFecha(abre)}`, saldoIni], ["Cuotas causadas en el período", tot.cap], ["Multas y sanciones", tot.san], ["Intereses de mora causados", tot.int], ["Pagos recibidos", -pagos], ["Descuentos por pronto pago", -desc], ...(Math.abs(ajustes) > .5 ? [["Notas crédito, cruces y ajustes", -ajustes]] : [])]
@@ -5992,10 +5985,20 @@ function CmImpPanel({ ses, imp, setImp, res, B, soloLectura, onGuardar, onRecarg
    auxiliar), la cartera por edades y la base de propietarios; para períodos anteriores se puede subir el auxiliar de la
    unidad (se usa solo en la respuesta, no se guarda). La carta se descarga en Word/PDF, el auxiliar de la unidad en Excel,
    y se puede registrar en Comunicaciones con el consecutivo siguiente. */
+/* Intereses de mora tal como se cobraron: uno por cuenta de cobro, con la tasa certificada del mes, lo pagado y lo pendiente. */
+var RP_FORMULA_INT = "Fórmula aplicada. El interés de cada mes se factura en la cuenta de cobro de ese mismo mes: saldo de cuotas vencidas al primer día del mes × tasa mensual del mes. Los intereses no causan nuevos intereses.";
+function cmIntCobrados(items, usura) {
+  let T = { ...CM_USURA, ...(usura || {}) };
+  let filas = items.filter(it => it.k === "int").map(it => { let ea = it.ini ? null : (T[it.mes] != null && T[it.mes] !== "" ? +T[it.mes] : null), pag = it.pag.reduce((s, p) => s + p.v, 0); return { mes: it.mes, ini: !!it.ini, doc: it.ini ? "Saldo anterior" : (it.F?.doc || it.doc || ""), ea, tm: ea != null ? (Math.pow(1 + ea / 100, 1 / 12) - 1) * 100 : null, cob: it.monto, pag, saldo: it.monto - pag }; }).sort((a, b) => (a.ini ? 0 : 1) - (b.ini ? 0 : 1) || a.mes.localeCompare(b.mes));
+  return { filas, cob: filas.reduce((s, x) => s + x.cob, 0), pag: filas.reduce((s, x) => s + x.pag, 0) };
+}
+var cmIntTabla = (R, $, $b) => `<table><thead><tr><th>Mes</th><th>Cuenta de cobro</th><th>Usura EA</th><th>Tasa mensual</th><th>Interés cobrado</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>` +
+  R.filas.map(x => `<tr><td>${x.ini ? "Anterior" : cbMesTxt(x.mes)}</td><td>${cmEsc(x.doc)}</td><td>${x.ini ? "—" : cmPct(x.ea)}</td><td>${x.ini ? "—" : cmPct(x.tm, 4)}</td><td>${$(x.cob)}</td><td>${$(x.pag)}</td><td>${$(x.saldo)}</td></tr>`).join("") +
+  `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td>${$b(R.cob)}</td><td>${$b(R.pag)}</td><td>${$b(R.cob - R.pag)}</td></tr></tbody></table>`;
 var RP_VISTAS = ["rp_prop"];
 var rpH = Ve.createElement;
 var rpTipo = cta => /^13050503/.test(cta) ? "int" : /^1305050[6-9]/.test(cta) ? "san" : /^1305050[12]/.test(cta) ? "cap" : "otr";
-var RP_SECC = [["proc", "Marco normativo y procedimientos"], ["mes", "Estado de cuenta mes a mes"], ["imp", "Imputación de cada pago"], ["int", "Liquidación de intereses de mora"], ["san", "Multas y sanciones"], ["pend", "Obligaciones pendientes"]];
+var RP_SECC = [["proc", "Marco normativo y procedimientos"], ["mes", "Estado de cuenta mes a mes"], ["imp", "Imputación de cada pago"], ["int", "Intereses de mora cobrados"], ["san", "Multas y sanciones"], ["pend", "Obligaciones pendientes"]];
 var rpLargaU = u => { let m = String(u || "").match(/^Apto (\S+) · T(\d)$/); return m ? `apartamento ${m[1]} de la torre ${m[2]}` : String(u || "").toLowerCase(); };
 var rpTitU = u => { let m = String(u || "").match(/^Apto (\S+) · T(\d)$/); return m ? `Apartamento ${m[1]} · Torre ${m[2]}` : String(u || ""); };
 /* auxiliar de una unidad subido para la respuesta: movimientos + saldos iniciales por cuenta */
@@ -6182,15 +6185,12 @@ function rpHtml(D, op) {
     }
   }
   if (sec.has("int")) {
-    n++; let L = D.liq.filter(x => x.dias || x.cob), tI = L.reduce((s, x) => s + (x.inte ?? 0), 0), tC = L.reduce((s, x) => s + (x.cob ?? 0), 0);
-    h.push(`<h2>${n}. Liquidación de intereses de mora</h2>`);
-    h.push(`<p><strong>Tasa y fórmula.</strong> Conforme al artículo 30 de la Ley 675 de 2001 y al numeral 42.3 del RPH, el interés de mora es una y media (1,5) veces el interés bancario corriente certificado por la Superintendencia Financiera para créditos de consumo y ordinario (tasa de usura), sin exceder la tasa máxima legal. Para cada mes:</p>`);
-    h.push(`<ul><li>Tasa mensual = (1 + tasa de usura efectiva anual) ^ (1/12) − 1.</li><li>Interés del mes = Σ (capital vencido de cada día) × tasa mensual ÷ días del mes.</li><li>Capital vencido: cuotas ordinarias y extraordinarias, multas y sanciones no pagadas después del último día del mes en que se causaron. Los intereses no causan nuevos intereses.</li></ul>`);
-    if (!L.length) h.push(`<p>En el período la unidad no tuvo capital vencido, por lo que no se causaron intereses de mora.</p>`);
-    else h.push(`<table><thead><tr><th>Mes</th><th>Capital promedio</th><th>Usura EA</th><th>Tasa mensual</th><th>Días</th><th>Interés liquidado</th><th>Interés cobrado</th></tr></thead><tbody>` +
-      L.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$(x.prom)}</td><td>${cmPct(x.ea)}</td><td>${cmPct(x.tm != null ? x.tm * 100 : null, 4)}</td><td>${x.dias}</td><td>${x.inte == null ? "sin tasa" : $(x.inte)}</td><td>${x.cob == null ? "—" : $(x.cob)}</td></tr>`).join("") +
-      `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td></td><td>${$b(tI)}</td><td>${$b(tC)}</td></tr></tbody></table>`);
-    h.push(`<p>«Capital promedio» es el capital vencido promedio de los días en mora del mes; «Interés cobrado» es el interés de mora facturado en la cuenta de cobro de ese mismo mes. En el período se cobraron intereses de mora por ${$s(D.intCob)} y se pagaron ${$s(D.intPag)}.${D.falta.length ? ` No se liquidó ${D.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
+    n++; let R = cmIntCobrados(D.items, op.usura);
+    h.push(`<h2>${n}. Intereses de mora cobrados</h2>`);
+    h.push(`<p><strong>Tasa.</strong> Conforme al artículo 30 de la Ley 675 de 2001 y al numeral 42.3 del RPH, el interés de mora es una y media (1,5) veces el interés bancario corriente certificado por la Superintendencia Financiera para créditos de consumo y ordinario (tasa de usura), vigente en cada mes. La tasa mensual equivalente es (1 + tasa de usura efectiva anual) ^ (1/12) − 1.</p>`);
+    (op.formulaInt ?? RP_FORMULA_INT).split(/\n{2,}/).map(t => t.trim()).filter(Boolean).forEach(t => h.push(`<p>${cmEsc(t)}</p>`));
+    h.push(cmIntTabla(R, $, $b));
+    h.push(`<p>En el período se cobraron intereses de mora por ${$s(R.cob)} y se pagaron ${$s(R.pag)}; quedan pendientes ${$s(R.cob - R.pag)}. Los valores son los registrados en las cuentas de cobro de la unidad.</p>`);
   }
   if (sec.has("san")) {
     n++; let S = D.san;
@@ -6201,7 +6201,7 @@ function rpHtml(D, op) {
       h.push(`<table><thead><tr><th>Fecha</th><th>Documento</th><th>Acto que la originó / detalle</th><th>Valor</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>` +
         S.map(it => `<tr><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${cmEsc([op.resol?.[it.doc] || res(it), it.notas?.join(" · ")].filter(Boolean).join(" — ") || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.saldo)}</td></tr>`).join("") +
         `<tr><td><strong>Total</strong></td><td></td><td></td><td>${$b(S.reduce((s, x) => s + x.monto, 0))}</td><td>${$b(S.reduce((s, x) => s + x.pagado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.saldo, 0))}</td></tr></tbody></table>`);
-      h.push(`<p>Cada multa se causa en la fecha en que queda en firme la resolución que la impone (numeral 42.3 del RPH) y desde el mes siguiente causa intereses de mora con las cuotas, según la liquidación anterior.</p>`);
+      h.push(`<p>Cada multa se causa en la fecha en que queda en firme la resolución que la impone (numeral 42.3 del RPH).</p>`);
     }
   }
   if (sec.has("pend")) {
@@ -6298,6 +6298,7 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
       rpH("div", { style: { marginTop: 10 } }, campo("Referencia", area("referencia", 2, `Estado de cuenta, imputación de pagos e intereses de mora del ${rpLargaU(op.unidad)}.`))),
       rpH("div", { style: { marginTop: 8 } }, campo("Párrafo inicial (separe párrafos con una línea en blanco)", area("intro", 3, "Ej.: En cumplimiento del fallo de tutela del 18 de noviembre de 2026 (radicado 47-001-40-09-007-2026-00595-00), el área de Contabilidad da respuesta complementaria a las solicitudes 16 a 21, 23 y 36 de su petición del 2 de octubre de 2026."))),
       rpH("div", { className: "fila", style: { gap: 14, flexWrap: "wrap", marginTop: 10 } }, RP_SECC.map(([k, t]) => rpH("label", { key: k, style: { display: "flex", gap: 6, alignItems: "center" } }, rpH("input", { type: "checkbox", checked: op.secciones.includes(k), onChange: e => set("secciones", e.target.checked ? RP_SECC.map(s => s[0]).filter(x => x === k || op.secciones.includes(x)) : op.secciones.filter(x => x !== k)) }), t))),
+      op.secciones.includes("int") && rpH("div", { style: { marginTop: 8 } }, campo("Fórmula de intereses que aplica la contabilidad (revísela)", rpH("textarea", { rows: 2, value: op.formulaInt ?? RP_FORMULA_INT, onChange: e => set("formulaInt", e.target.value), style: { width: "100%" } }))),
       rpH("div", { style: { marginTop: 8 } }, campo("Párrafo final", area("cierre", 2, ""))),
       rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 8 } }, campo("Copia", rpH("input", { value: op.copia, onChange: e => set("copia", e.target.value) }), 300), campo("Anexos (opcional)", rpH("input", { value: op.anexos, onChange: e => set("anexos", e.target.value) }), 300)),
       D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Acto que originó cada multa (si la nota contable no lo trae):"), D.san.filter(it => it.doc).map(it => campo(`${it.doc} · ${cbFecha(it.f)} · ${cbPesos(it.monto)}`, rpH("input", { key: it.doc, value: op.resol?.[it.doc] ?? "", placeholder: "Resolución No. …", onChange: e => set("resol", { ...op.resol, [it.doc]: e.target.value }) }), 260))),
