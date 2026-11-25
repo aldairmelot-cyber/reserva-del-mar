@@ -6118,8 +6118,8 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
     for (const a of R.apl) {
       let k = rpTipo(a.cta), Fit = a.F && porF.get(a.F.doc + "|" + k), v = a.v, usados = [];
       let porMes = (x, y) => x.mes.localeCompare(y.mes), cola = [...(Fit ? [Fit] : []), ...items.filter(x => x.k === k && x !== Fit && (x.ini || x.f <= R.f)).sort(porMes)];
-      if (v > 0) for (const it of cola) { if (v <= .5) break; let q = Math.min(v, Math.max(0, resta(it))); if (q > .5) { it.pag.push({ f: R.f, v: q }); det.push({ k, it, v: q }); v -= q; usados.push(it); } }
-      if (Math.abs(v) > .5) { let it = Fit || items.find(x => x.ini && x.k === k) || items.find(x => x.ini) || usados[usados.length - 1] || cola[0]; if (!it) { it = { k, mes: abre.slice(0, 7), monto: 0, pag: [], ini: !0, et: "saldo anterior" }; items.push(it); } it.pag.push({ f: R.f, v }); det.push({ k, it, v }); usados.includes(it) || usados.push(it); }
+      if (v > 0) for (const it of cola) { if (v <= .5) break; let q = Math.min(v, Math.max(0, resta(it))); if (q > .5) { it.pag.push({ f: R.f, v: q, doc: R.doc }); det.push({ k, it, v: q }); v -= q; usados.push(it); } }
+      if (Math.abs(v) > .5) { let it = Fit || items.find(x => x.ini && x.k === k) || items.find(x => x.ini) || usados[usados.length - 1] || cola[0]; if (!it) { it = { k, mes: abre.slice(0, 7), monto: 0, pag: [], ini: !0, et: "saldo anterior" }; items.push(it); } it.pag.push({ f: R.f, v, doc: R.doc }); det.push({ k, it, v }); usados.includes(it) || usados.push(it); }
       sum[k] += a.v; usados.length ? usados.forEach(it => ets.add(it.et)) : ets.add("—");
     }
     let imput = sum.cap + sum.san + sum.int + sum.otr + R.antRec;
@@ -6152,7 +6152,8 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
   let intCob = tot.int, intPag = filas.reduce((s, x) => s + x.sum.int, 0);
   let favor = ini.favor + u.M.filter(x => enR(x.f) && /^2805/.test(x.cta)).reduce((s, x) => s + x.db - x.cr, 0);
   let pend = items.filter(it => resta(it) > .5).map(it => ({ ...it, saldo: resta(it), vence: cbFinMes(it.mes + "-01") })).sort((a, b) => a.mes.localeCompare(b.mes) || a.k.localeCompare(b.k));
-  let san = items.filter(it => it.k === "san").map(it => ({ ...it, pagado: it.monto - resta(it), saldo: Math.max(0, resta(it)) }));
+  /* en multas, lo que cancela un documento distinto de un recibo de caja (nota crédito, ajuste) es una reversión, no un pago */
+  let san = items.filter(it => it.k === "san").map(it => { let rev = it.pag.filter(p => p.doc && !/^RC\b/.test(p.doc)), pagRC = it.pag.filter(p => !p.doc || /^RC\b/.test(p.doc)); return { ...it, reversado: rev.reduce((a, p) => a + p.v, 0), docsRev: [...new Set(rev.map(p => p.doc))], pagado: pagRC.reduce((a, p) => a + p.v, 0), docsPag: [...new Set(pagRC.map(p => p.doc).filter(Boolean))], saldo: Math.max(0, resta(it)) }; });
   return { items, filas, incumple, nRC, mensual, saldoFin, liq, falta, tot, intCob, intPag, favor, pend, san };
 }
 /* arma el contexto (saldo anterior, movimientos) desde la plataforma o desde el auxiliar subido de la unidad */
@@ -6395,15 +6396,17 @@ function rpHtml(D, op, firma) {
     }
   }
   if (sec.has("san")) {
-    n++; let S = D.san;
+    n++; let todo = D.san, rv = it => it.reversado > .5 && it.monto - it.reversado <= .5, S = todo.filter(it => !rv(it)), R = todo.filter(rv);
+    let rec = it => [it.docsPag?.length ? `pagado con ${it.docsPag.join(", ")}` : "", it.docsRev?.length ? `reversado con ${it.docsRev.join(", ")}` : ""].filter(Boolean).join("; ") || "—";
     h.push(`<h2>${n}. Multas y sanciones</h2>`);
-    if (!S.length) h.push(`<p>En el período no se cargaron multas ni sanciones a la unidad.</p>`);
+    if (!S.length) h.push(`<p>En el período no se impusieron multas ni sanciones a la unidad.</p>`);
     else {
-      h.push(`<p>Conforme al numeral 42.3 del RPH, cada multa se causa cuando queda en firme la resolución que la impone. Cada multa cargada a la unidad se identifica a continuación con la resolución que la originó y la fecha en que quedó en firme.</p>`);
-      h.push(`<table><thead><tr><th>Resolución</th><th>Fecha en firme</th><th>Cuenta de cobro</th><th>Fecha de cargo</th><th>Cuenta contable y nota</th><th>Valor</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>` +
-        S.map(it => `<tr><td>${cmEsc(op.resol?.[it.doc] || rpResNota(it) || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${op.firme?.[it.doc] ? cbFecha(op.firme[it.doc]) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${cmEsc([(it.ctas || []).join(", "), (it.notas || []).join(" · ")].filter(Boolean).join(" — ") || "—")}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.saldo)}</td></tr>`).join("") +
-        `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td></td><td>${$b(S.reduce((s, x) => s + x.monto, 0))}</td><td>${$b(S.reduce((s, x) => s + x.pagado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.saldo, 0))}</td></tr></tbody></table>`);
+      h.push(`<p>Conforme al numeral 42.3 del RPH, cada multa se causa cuando queda en firme la resolución que la impone. ${S.length === 1 ? "La multa impuesta a la unidad en el período es la siguiente, con la resolución que la originó y la fecha en que quedó en firme:" : `Las multas impuestas a la unidad en el período son las ${S.length} siguientes, cada una con la resolución que la originó y la fecha en que quedó en firme:`}</p>`);
+      h.push(`<table><thead><tr><th>Resolución</th><th>Fecha en firme</th><th>Cuenta de cobro</th><th>Fecha de cargo</th><th>Valor</th><th>Pagado</th><th>Reversado</th><th>Saldo</th><th>Recibos / notas</th></tr></thead><tbody>` +
+        S.map(it => `<tr><td>${cmEsc(op.resol?.[it.doc] || rpResNota(it) || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${op.firme?.[it.doc] ? cbFecha(op.firme[it.doc]) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.reversado)}</td><td>${$(it.saldo)}</td><td>${cmEsc(rec(it))}</td></tr>`).join("") +
+        `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td>${$b(S.reduce((s, x) => s + x.monto, 0))}</td><td>${$b(S.reduce((s, x) => s + x.pagado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.reversado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.saldo, 0))}</td><td></td></tr></tbody></table>`);
     }
+    R.length && h.push(`<p>Además, en la cuenta de la unidad ${R.length === 1 ? "se registró un cargo en una cuenta de sanciones que se reversó en su totalidad y no constituye una multa" : `se registraron ${R.length} cargos en cuentas de sanciones que se reversaron en su totalidad y no constituyen multas`} a cargo del propietario: ${R.map(it => `${cmEsc(it.doc)} del ${cbFecha(it.f)} por ${$s(it.monto)}, reversado con ${cmEsc(it.docsRev.join(", "))}`).join("; ")}.</p>`);
   }
   if (sec.has("pend")) {
     n++; let P = D.pend, nom = { cap: "Cuota", san: "Multa o sanción", int: "Intereses de mora", otr: "Otros cobros" };
@@ -6472,7 +6475,7 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
   if (listo) {
     D.sinInfo?.length && !op.motivoSinInfo?.trim() && pend.push(`Explique por qué no hay información de ${rpRangos(D.sinInfo)}.`);
     D.sinMov?.length && !op.motivoSinMov?.trim() && pend.push(`Revise los meses sin movimientos (${rpRangos(D.sinMov)}) y, si corresponde, escriba el motivo.`);
-    op.secciones.includes("san") && D.san.filter(it => it.doc && (!(op.resol?.[it.doc] || rpResNota(it)) || !op.firme?.[it.doc])).forEach(it => pend.push(`Multa ${it.doc} (${cbPesos(it.monto)}): falta ${!(op.resol?.[it.doc] || rpResNota(it)) ? "la resolución y " : ""}la fecha en que quedó en firme.`));
+    op.secciones.includes("san") && D.san.filter(it => it.doc && !(it.reversado > .5 && it.monto - it.reversado <= .5) && (!(op.resol?.[it.doc] || rpResNota(it)) || !op.firme?.[it.doc])).forEach(it => pend.push(`Multa ${it.doc} (${cbPesos(it.monto)}): falta ${!(op.resol?.[it.doc] || rpResNota(it)) ? "la resolución y " : ""}la fecha en que quedó en firme.`));
     rpOtros(D, op).filter(o => !o.txt).forEach(o => pend.push(`«Otros» de ${cbMesLargo(o.it.mes)} (${cbPesos(o.it.monto)}, ${o.it.doc}): escriba qué concepto es.`));
     rcPer.length && !rcs.length && pend.push(`Adjunte los recibos de caja del período en PDF (${rcPer.length}: ${rcPer.join(", ")}).`);
     op.firmaPor !== "dairo" && pend.push("La respuesta debe ir firmada por contador público con tarjeta profesional: elija a Dairo Ortega Palomino en «Firma».");
@@ -6525,8 +6528,8 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
       op.secciones.includes("int") && rpH("div", { style: { marginTop: 8 } }, campo("Fórmula de intereses que aplica la contabilidad (revísela)", rpH("textarea", { rows: 2, value: op.formulaInt ?? RP_FORMULA_INT, onChange: e => set("formulaInt", e.target.value), style: { width: "100%" } }))),
       rpH("div", { style: { marginTop: 8 } }, campo("Párrafo final", area("cierre", 2, ""))),
       rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 8 } }, campo("Copia", rpH("input", { value: op.copia, onChange: e => set("copia", e.target.value) }), 300), campo("Anexos (opcional)", rpH("input", { value: op.anexos, onChange: e => set("anexos", e.target.value) }), 300)),
-      D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Resolución que originó cada multa (si la nota contable no la trae):"), D.san.filter(it => it.doc).map(it => campo(`${it.doc} · ${cbFecha(it.f)} · ${cbPesos(it.monto)}`, rpH("input", { key: it.doc, value: op.resol?.[it.doc] ?? "", placeholder: "Resolución No. 234-521 de 2026", onChange: e => set("resol", { ...op.resol, [it.doc]: e.target.value }) }), 260))),
-      D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 8, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Fecha en que quedó en firme cada resolución:"), D.san.filter(it => it.doc).map(it => campo(`${op.resol?.[it.doc] || rpResNota(it) || it.doc}`, rpH("input", { key: it.doc, type: "date", value: op.firme?.[it.doc] ?? "", onChange: e => set("firme", { ...op.firme, [it.doc]: e.target.value }) }), 200))),
+      D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Resolución que originó cada multa (si la nota contable no la trae):"), D.san.filter(it => it.doc && !(it.reversado > .5 && it.monto - it.reversado <= .5)).map(it => campo(`${it.doc} · ${cbFecha(it.f)} · ${cbPesos(it.monto)}`, rpH("input", { key: it.doc, value: op.resol?.[it.doc] ?? "", placeholder: "Resolución No. 234-521 de 2026", onChange: e => set("resol", { ...op.resol, [it.doc]: e.target.value }) }), 260))),
+      D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 8, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Fecha en que quedó en firme cada resolución:"), D.san.filter(it => it.doc && !(it.reversado > .5 && it.monto - it.reversado <= .5)).map(it => campo(`${op.resol?.[it.doc] || rpResNota(it) || it.doc}`, rpH("input", { key: it.doc, type: "date", value: op.firme?.[it.doc] ?? "", onChange: e => set("firme", { ...op.firme, [it.doc]: e.target.value }) }), 200))),
       listo && rpOtros(D, op).length > 0 && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Concepto de cada cobro «Otros» (sale en la carta):"), rpOtros(D, op).map(o => campo(`${o.it.doc} · ${cbMesTxt(o.it.mes)} · ${cbPesos(o.it.monto)} · cta ${o.ctas.join(", ")}${o.nota ? " · " + o.nota : ""}`, rpH("input", { value: op.otrosTxt?.[o.it.doc] ?? "", placeholder: "Ej.: reposición de manilla de acceso", onChange: e => set("otrosTxt", { ...op.otrosTxt, [o.it.doc]: e.target.value }) }), 320))),
       listo && D.sinInfo?.length > 0 && rpH("div", { style: { marginTop: 8 } }, campo(`No hay información de ${rpRangos(D.sinInfo)}. Diga concretamente por qué (completa la frase «No hay información de … porque …»)`, area("motivoSinInfo", 2, "Ej.: el propietario adquirió el inmueble el 15 de marzo de 2023 (E.P. …), y los registros anteriores corresponden al propietario anterior"))),
       listo && D.sinMov?.length > 0 && rpH("div", { style: { marginTop: 8 } }, campo(`Meses sin movimientos en la cuenta de la unidad: ${rpRangos(D.sinMov)}. Motivo (opcional)`, area("motivoSinMov", 2, "Ej.: el inmueble estaba a nombre de la constructora"))),
