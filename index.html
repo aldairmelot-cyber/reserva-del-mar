@@ -4235,7 +4235,6 @@ function fiDoc(r, entidad) {
   if (r.descSI && r.yaLiqT >= 1) p(`No se cuentan ${aclP(r.yaLiqT)} recaudados de la cartera que ya estaba al 1 de enero: se liquidaron al fondo en el a\xF1o en que se causaron.`);
   h("5. HALLAZGOS");
   fiHallazgos(r).forEach(x => b.push({ tipo: "parrafo", estilo: "vineta", texto: x }));
-  b.push({ tipo: "firmas" });
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
     secciones: [{ id: "fondo", nombre: "Fondo de imprevistos", titulo: "AUDITOR\xCDA DEL FONDO DE IMPREVISTOS", subtitulos: [per, "Reglamento de propiedad horizontal, art. 79 \xB7 Ley 675 de 2001, art. 35"], orientacion: "landscape", bloques: b }],
     leyendas: ["Cifras Expresadas en Pesos Colombianos (COP$)"] };
@@ -10965,7 +10964,6 @@ function polDocManual(entidad) {
     let S = POL_SIT[x.n] ?? [];
     S.length && (p("Situaciones y qué se hace", "h3"), b.push({ tipo: "tabla", cabecera: !0, columnas: [{ titulo: "SITUACIÓN", ancho: 36, alin: "left" }, { titulo: "QUÉ SE HACE", ancho: 64, alin: "left" }], filas: S.map(r => ({ estilo: "detalle", celdas: [or(r[0]), or(r[1])] })) }));
   }
-  b.push({ tipo: "firmas" });
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
     secciones: [{ id: "pol", nombre: "Políticas contables", titulo: "MANUAL DE POLÍTICAS CONTABLES", subtitulos: [POL_VERSION, "NIIF para las Pymes (Grupo 2) · Ley 675 de 2001 · Reglamento de propiedad horizontal"], orientacion: "portrait", bloques: b }], leyendas: [] };
 }
@@ -10975,8 +10973,7 @@ function polDocVal(R, entidad) {
   let V = R.V, n = k => V.filter(v => v.est === k).length;
   let b = [{ tipo: "parrafo", estilo: "normal", texto: `Resultado de comparar el balance, el libro auxiliar y las conciliaciones al corte con el manual de políticas contables: ${n("ok")} controles cumplen, ${n("alerta")} requieren revisión y ${n("desv")} no cumplen.` },
     { tipo: "tabla", cabecera: !0, columnas: [{ titulo: "POLÍTICA", ancho: 8, alin: "left" }, { titulo: "CONTROL", ancho: 24, alin: "left" }, { titulo: "ESTADO", ancho: 10, alin: "left" }, { titulo: "RESULTADO", ancho: 30, alin: "left" }, { titulo: "QUÉ SE HACE", ancho: 28, alin: "left" }],
-      filas: V.map(v => ({ estilo: "detalle", celdas: [or(v.pol), or(v.t), or(POL_EST[v.est][0], v.est === "desv" ? { bold: !0 } : {}), or(v.dato), or(v.accion || "—")] })) },
-    { tipo: "firmas" }];
+      filas: V.map(v => ({ estilo: "detalle", celdas: [or(v.pol), or(v.t), or(POL_EST[v.est][0], v.est === "desv" ? { bold: !0 } : {}), or(v.dato), or(v.accion || "—")] })) }];
   return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
     secciones: [{ id: "pol_val", nombre: "Validación de políticas", titulo: "VALIDACIÓN DE LAS POLÍTICAS CONTABLES", subtitulos: [`Corte al ${fiFin(R.anio, R.mes)} de ${fiMeses[R.mes - 1].toLowerCase()} de ${R.anio}`], orientacion: "landscape", bloques: b }], leyendas: [] };
 }
