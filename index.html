@@ -6141,7 +6141,7 @@ async function rpPreparar(ses, B, op, local) {
   let noms = adm ? bdPersonas(adm.titular).map(s => s.trim()).filter(Boolean) : [];
   let nombre = noms.length ? noms.join(" y ") : (w?.nombre || u.prop || "").trim(), correo = adm?.correos?.[0] || "";
   let coef = w?.coef > 0 ? (+w.coef).toLocaleString("es-CO", { maximumFractionDigits: 6 }) : null;
-  return { ...r, u, avisos, desde, hasta, abre, iniDesc, ini, nombre, correo, coef, fuente, archivo: local?.archivo };
+  return { ...r, u, avisos, desde, hasta, abre, iniDesc, ini, nombre, correo, coef, fuente, archivo: local?.archivo, trato: noms.length > 1 ? "Señores" : "Señora" };
 }
 /* carta en HTML (mismo formato de Comunicaciones: cmCartaHtml / cmDoc) */
 function rpHtml(D, op) {
@@ -6151,7 +6151,7 @@ function rpHtml(D, op) {
   /* destinatario */
   if (op.dirigida === "administracion") h.push(`<p>Señores<br><strong>Administración</strong><br><strong>Agrupación Reserva del Mar P.H.</strong><br>Ciudad</p>`);
   else if (op.dirigida === "otro") h.push(`<p>${cmEsc(op.trato || "Señores")}<br><strong>${cmEsc((op.otroNombre || "").toUpperCase())}</strong>${op.otroCargo ? "<br>" + cmEsc(op.otroCargo) : ""}<br>Ciudad</p>`);
-  else { let tr = op.trato || "Señora", cal = tr === "Señor" ? "Propietario" : tr === "Señora" ? "Propietaria" : "Propietarios"; h.push(`<p>${cmEsc(tr)}<br><strong>${cmEsc((op.nombre || D.nombre || "").toUpperCase())}</strong><br>${cal} del ${cmEsc(uL)}<br>Agrupación Reserva del Mar P.H.${(op.correo ?? D.correo) ? "<br>" + cmEsc(op.correo ?? D.correo) : ""}<br>Ciudad</p>`); }
+  else { let tr = op.trato || D.trato || "Señora", cal = tr === "Señor" ? "Propietario" : tr === "Señora" ? "Propietaria" : "Propietarios"; h.push(`<p>${cmEsc(tr)}<br><strong>${cmEsc((op.nombre || D.nombre || "").toUpperCase())}</strong><br>${cal} del ${cmEsc(uL)}<br>Agrupación Reserva del Mar P.H.${(op.correo ?? D.correo) ? "<br>" + cmEsc(op.correo ?? D.correo) : ""}<br>Ciudad</p>`); }
   h.push(`<p><strong>Referencia:</strong> ${cmEsc(op.referencia || `Estado de cuenta, imputación de pagos e intereses de mora del ${uL}.`)}</p>`);
   h.push(`<p>Cordial saludo.</p>`);
   (op.intro || "").split(/\n{2,}/).map(t => t.trim()).filter(Boolean).forEach(t => h.push(`<p>${cmEsc(t)}</p>`));
@@ -6199,7 +6199,7 @@ function rpHtml(D, op) {
     else {
       let res = it => { let t = it.notas?.join(" · ") || ""; let m = t.match(/RES(?:OLUCI[OÓ]N)?\.?\s*(?:N[OoºÚ°.]*\s*)?([\w-]+(?:\s*DE\s*\d{4})?)/i); return m ? "Resolución " + m[1] : ""; };
       h.push(`<table><thead><tr><th>Fecha</th><th>Documento</th><th>Acto que la originó / detalle</th><th>Valor</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>` +
-        S.map(it => `<tr><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${cmEsc([res(it), it.notas?.join(" · ")].filter(Boolean).join(" — ") || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.saldo)}</td></tr>`).join("") +
+        S.map(it => `<tr><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${cmEsc([op.resol?.[it.doc] || res(it), it.notas?.join(" · ")].filter(Boolean).join(" — ") || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.saldo)}</td></tr>`).join("") +
         `<tr><td><strong>Total</strong></td><td></td><td></td><td>${$b(S.reduce((s, x) => s + x.monto, 0))}</td><td>${$b(S.reduce((s, x) => s + x.pagado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.saldo, 0))}</td></tr></tbody></table>`);
       h.push(`<p>Cada multa se causa en la fecha en que queda en firme la resolución que la impone (numeral 42.3 del RPH) y desde el mes siguiente causa intereses de mora con las cuotas, según la liquidación anterior.</p>`);
     }
@@ -6238,7 +6238,7 @@ function rpExcel(D, op, cfg) {
 function RpPantalla({ ses, config, notificar, soloLectura }) {
   let hoy = new Date().toISOString().slice(0, 10);
   let [B, setB] = Ve.useState(null), [err, setErr] = Ve.useState(null), [rec, setRec] = Ve.useState(0), [D, setD] = Ve.useState(null), [oc, setOc] = Ve.useState(null), [local, setLocal] = Ve.useState(null), [q, setQ] = Ve.useState(""), [com, setCom] = Ve.useState(null);
-  let [op, setOp] = Ve.useState({ unidad: "", desde: "", hasta: "", dirigida: "propietario", trato: "Señora", fecha: hoy, secciones: RP_SECC.map(s => s[0]), copia: "Administración, Agrupación Reserva del Mar P.H.", anexos: "", referencia: "", intro: "", cierre: "Quedamos atentos a cualquier aclaración adicional. Los soportes contables de cada registro están a disposición del propietario, de la Administración, del Consejo de Administración y de la Revisoría Fiscal.", usura: {} });
+  let [op, setOp] = Ve.useState({ unidad: "", desde: "", hasta: "", dirigida: "propietario", trato: "", fecha: hoy, resol: {}, secciones: RP_SECC.map(s => s[0]), copia: "Administración, Agrupación Reserva del Mar P.H.", anexos: "", referencia: "", intro: "", cierre: "Quedamos atentos a cualquier aclaración adicional. Los soportes contables de cada registro están a disposición del propietario, de la Administración, del Consejo de Administración y de la Revisoría Fiscal.", usura: {} });
   let set = (k, v) => setOp(o => ({ ...o, [k]: v }));
   Ve.useEffect(() => { let vivo = !0; setB(null); cmImpBase(ses, rec > 0).then(b => rpBaseMas(ses, b)).then(b => vivo && setB(b)).catch(e => vivo && setErr(e?.message ?? String(e))); return () => { vivo = !1; }; }, [ses, rec]);
   Ve.useEffect(() => { if (!B?.comunicados) return; let vivo = !0; B.comunicados.then(c => vivo && setCom(c)); return () => { vivo = !1; }; }, [B]);
@@ -6277,7 +6277,7 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
     rpH("section", { className: "panel" },
       rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", alignItems: "flex-end" } },
         campo("Buscar unidad o propietario", rpH("input", { type: "search", value: q, placeholder: "521 T3, apellido…", onChange: e => setQ(e.target.value) }), 180),
-        campo("Unidad", rpH("select", { value: op.unidad, onChange: e => setOp(o => ({ ...o, unidad: e.target.value, nombre: "", correo: undefined })) }, rpH("option", { value: "" }, `— Elija (${Uf.length}) —`), Uf.map(x => rpH("option", { key: x.unidad, value: x.unidad }, `${x.unidad}${x.prop ? " · " + x.prop : ""}`))), 260),
+        campo("Unidad", rpH("select", { value: op.unidad, onChange: e => setOp(o => ({ ...o, unidad: e.target.value, nombre: "", correo: undefined, trato: "", resol: {} })) }, rpH("option", { value: "" }, `— Elija (${Uf.length}) —`), Uf.map(x => rpH("option", { key: x.unidad, value: x.unidad }, `${x.unidad}${x.prop ? " · " + x.prop : ""}`))), 260),
         campo("Desde (mes)", rpH("input", { type: "month", value: op.desde || D?.desde || "", onChange: e => set("desde", e.target.value) })),
         campo("Hasta", rpH("input", { type: "date", value: op.hasta || D?.hasta || "", onChange: e => set("hasta", e.target.value) })),
         campo("Fecha de la carta", rpH("input", { type: "date", value: op.fecha, onChange: e => e.target.value && set("fecha", e.target.value) })),
@@ -6290,7 +6290,7 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
     op.unidad && rpH("section", { className: "panel", style: { marginTop: 12 } },
       rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", alignItems: "flex-end" } },
         campo("Dirigida a", rpH("select", { value: op.dirigida, onChange: e => set("dirigida", e.target.value) }, rpH("option", { value: "propietario" }, "Propietario de la unidad"), rpH("option", { value: "administracion" }, "Administración"), rpH("option", { value: "otro" }, "Otro (apoderado, juzgado…)"))),
-        campo("Trato", rpH("select", { value: op.trato, onChange: e => set("trato", e.target.value) }, ["Señora", "Señor", "Señores", "Doctor", "Doctora"].map(t => rpH("option", { key: t, value: t }, t)))),
+        campo("Trato", rpH("select", { value: op.trato || (op.dirigida === "propietario" ? D?.trato : "") || "Señores", onChange: e => set("trato", e.target.value) }, ["Señora", "Señor", "Señores", "Doctor", "Doctora"].map(t => rpH("option", { key: t, value: t }, t)))),
         op.dirigida === "propietario" && campo("Nombre(s)", rpH("input", { value: op.nombre || D?.nombre || "", onChange: e => set("nombre", e.target.value) }), 260),
         op.dirigida === "propietario" && campo("Correo", rpH("input", { value: op.correo ?? D?.correo ?? "", onChange: e => set("correo", e.target.value) }), 200),
         op.dirigida === "otro" && campo("Nombre", rpH("input", { value: op.otroNombre || "", onChange: e => set("otroNombre", e.target.value) }), 240),
@@ -6300,6 +6300,7 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
       rpH("div", { className: "fila", style: { gap: 14, flexWrap: "wrap", marginTop: 10 } }, RP_SECC.map(([k, t]) => rpH("label", { key: k, style: { display: "flex", gap: 6, alignItems: "center" } }, rpH("input", { type: "checkbox", checked: op.secciones.includes(k), onChange: e => set("secciones", e.target.checked ? RP_SECC.map(s => s[0]).filter(x => x === k || op.secciones.includes(x)) : op.secciones.filter(x => x !== k)) }), t))),
       rpH("div", { style: { marginTop: 8 } }, campo("Párrafo final", area("cierre", 2, ""))),
       rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 8 } }, campo("Copia", rpH("input", { value: op.copia, onChange: e => set("copia", e.target.value) }), 300), campo("Anexos (opcional)", rpH("input", { value: op.anexos, onChange: e => set("anexos", e.target.value) }), 300)),
+      D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Acto que originó cada multa (si la nota contable no lo trae):"), D.san.filter(it => it.doc).map(it => campo(`${it.doc} · ${cbFecha(it.f)} · ${cbPesos(it.monto)}`, rpH("input", { key: it.doc, value: op.resol?.[it.doc] ?? "", placeholder: "Resolución No. …", onChange: e => set("resol", { ...op.resol, [it.doc]: e.target.value }) }), 260))),
       D?.falta?.length > 0 && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10 } }, rpH("span", { className: "tenue" }, "Tasa de usura EA (%) que falta:"), D.falta.map(M => campo(cbMesLargo(M), rpH("input", { type: "number", step: "0.01", style: { width: 90 }, value: op.usura?.[M] ?? "", onChange: e => set("usura", { ...op.usura, [M]: e.target.value }) })))),
       D?.avisos?.length > 0 && rpH("ul", { style: { margin: "10px 0 0", paddingLeft: 18 } }, D.avisos.map((a, i) => rpH("li", { key: i, className: "tenue" }, a))),
       rpH("div", { className: "acciones", style: { marginTop: 12 } },
