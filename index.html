@@ -4192,7 +4192,7 @@ function fiHallazgos(r) {
 }
 
 var FI_NOTA_TOTAL = "* En la fila Total, el saldo anterior no es una sumatoria de la columna: corresponde al saldo por trasladar al inicio del per\xEDodo (1 de enero). Las dem\xE1s columnas s\xED se suman.";
-function fiDoc(r, entidad) {
+function fiDoc(r, entidad, fir) {
   let per = `Corte al ${fiFin(r.anio, r.mes)} de ${fiMeses[r.mes - 1].toLowerCase()} de ${r.anio}`, b = [], h = t => b.push({ tipo: "parrafo", texto: t, estilo: "h2" }), p = t => b.push({ tipo: "parrafo", texto: t, estilo: "normal" });
   let tot = (n, v, k = 1) => ({ estilo: "totalDoble", celdas: [or(n, { bold: !0 }), ...pl(k - 1), er(v, { bold: !0 })] }), rojo = v => Math.abs(v) >= 1 ? { color: "rojo" } : {};
   h("1. C\xD3MO DEBE ESTAR EL FONDO");
@@ -4235,7 +4235,9 @@ function fiDoc(r, entidad) {
   if (r.descSI && r.yaLiqT >= 1) p(`No se cuentan ${aclP(r.yaLiqT)} recaudados de la cartera que ya estaba al 1 de enero: se liquidaron al fondo en el a\xF1o en que se causaron.`);
   h("5. OBSERVACIONES");
   fiHallazgos(r).forEach(x => b.push({ tipo: "parrafo", estilo: "vineta", texto: x }));
-  return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: entidad.firmasImg,
+  b.push({ tipo: "parrafo", estilo: "normal", texto: "Emitido por el Departamento de Contabilidad de la Agrupaci\xF3n Reserva del Mar P.H." });
+  b.push({ tipo: "firma1", w: fir?.w || 0, h: fir?.h || 0, lineas: [fir?.nombre || RP_FIRMANTE.nombre, fir?.cargo || RP_FIRMANTE.cargo, "Departamento de Contabilidad", "Agrupaci\xF3n Reserva del Mar P.H."] });
+  return { entidad: entidad.entidad, nit: "NIT. " + entidad.nit, logo: entidad.logo || void 0, firmantes: entidad.firmantes, firmasImg: { ...(entidad.firmasImg || {}), unico: fir?.img || void 0 },
     secciones: [{ id: "fondo", nombre: "Fondo de imprevistos", titulo: "AUDITOR\xCDA DEL FONDO DE IMPREVISTOS", subtitulos: [per, "Reglamento de propiedad horizontal, art. 79 \xB7 Ley 675 de 2001, art. 35"], orientacion: "landscape", bloques: b }],
     leyendas: ["Cifras Expresadas en Pesos Colombianos (COP$)"] };
 }
@@ -4292,7 +4294,7 @@ function FiSeccion({ ses, notificar, entidad, soloLectura }) {
   };
   let quitar = async id => { await guardarCfg({ ...cfg, traslados: (cfg.traslados ?? []).filter(t => t.id !== id) }); };
   let P = aclP, anios = [hoy.getFullYear(), hoy.getFullYear() - 1];
-  let descargar = async (word) => { setGen(true); try { await BL(ses, `Fondo_de_imprevistos_${fiMeses[r.mes - 1]}_${r.anio}.${word ? "docx" : "pdf"}`, word ? await Ls(fiDoc(r, entidad)) : await en(fiDoc(r, entidad)), notificar); } catch (e) { notificar("error", e.message || String(e)); } setGen(false); };
+  let descargar = async (word) => { setGen(true); try { let fir = (await cmFirmantes(ses, entidad).catch(() => null))?.aldahir, D = fiDoc(r, entidad, fir); await BL(ses, `Fondo_de_imprevistos_${fiMeses[r.mes - 1]}_${r.anio}.${word ? "docx" : "pdf"}`, word ? await Ls(D) : await en(D), notificar); } catch (e) { notificar("error", e.message || String(e)); } setGen(false); };
   let th = (t, i, der) => aH("th", { key: i, className: der ? "a-right" : "" }, t), num = (v, b, cls) => aH("td", { className: "a-right num" + (cls ? " " + cls : "") }, b ? aH("b", null, P(v)) : P(v));
   let chip = v => aH("span", { className: "chip " + (Math.abs(v) < 1 ? "chip-ok" : v > 0 ? "chip-warn" : "chip-gris") }, fiEstado(v));
   return aH(Ve.Fragment, null,
