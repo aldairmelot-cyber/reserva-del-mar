@@ -6400,9 +6400,9 @@ function rpHtml(D, op, firma) {
     if (!S.length) h.push(`<p>En el período no se cargaron multas ni sanciones a la unidad.</p>`);
     else {
       h.push(`<p>Conforme al numeral 42.3 del RPH, cada multa se causa cuando queda en firme la resolución que la impone. Cada multa cargada a la unidad se identifica a continuación con la resolución que la originó y la fecha en que quedó en firme.</p>`);
-      h.push(`<table><thead><tr><th>Resolución</th><th>Fecha en firme</th><th>Cuenta de cobro</th><th>Fecha de cargo</th><th>Valor</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>` +
-        S.map(it => `<tr><td>${cmEsc(op.resol?.[it.doc] || rpResNota(it) || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${op.firme?.[it.doc] ? cbFecha(op.firme[it.doc]) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.saldo)}</td></tr>`).join("") +
-        `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td>${$b(S.reduce((s, x) => s + x.monto, 0))}</td><td>${$b(S.reduce((s, x) => s + x.pagado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.saldo, 0))}</td></tr></tbody></table>`);
+      h.push(`<table><thead><tr><th>Resolución</th><th>Fecha en firme</th><th>Cuenta de cobro</th><th>Fecha de cargo</th><th>Cuenta contable y nota</th><th>Valor</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>` +
+        S.map(it => `<tr><td>${cmEsc(op.resol?.[it.doc] || rpResNota(it) || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${op.firme?.[it.doc] ? cbFecha(op.firme[it.doc]) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${cmEsc([(it.ctas || []).join(", "), (it.notas || []).join(" · ")].filter(Boolean).join(" — ") || "—")}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.saldo)}</td></tr>`).join("") +
+        `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td></td><td>${$b(S.reduce((s, x) => s + x.monto, 0))}</td><td>${$b(S.reduce((s, x) => s + x.pagado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.saldo, 0))}</td></tr></tbody></table>`);
     }
   }
   if (sec.has("pend")) {
