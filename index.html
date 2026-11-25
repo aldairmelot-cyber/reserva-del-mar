@@ -6093,7 +6093,11 @@ async function rpBaseMas(ses, B) {
   return B;
 }
 /* cálculo completo de una unidad entre abre (exclusive) y hasta (inclusive) */
-function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
+function rpCalcular({ u, abre, hasta, desde, ini, tasas, excl = {} }) {
+  /* cuentas de cobro de expensas registradas por error en subcuentas de sanciones (nota «EXPENSAS» sin «sanción» ni «multa»): se tratan como cuota */
+  let expDocs = new Set(u.M.filter(x => /^1305050[6-9]/.test(x.cta) && x.db > 0 && /EXPENSAS/i.test(x.nota || "") && !/SANCI|MULTA/i.test(x.nota || "")).map(x => x.doc));
+  /* cargos de sanción que el usuario dejó fuera del informe de multas: se presentan en «Otros» con su nota contable */
+  let kc = (F, cta) => { let k = rpTipo(cta); return k === "san" && F && expDocs.has(F.doc) ? "cap" : k === "san" && F && excl[F.doc] ? "otr" : k; };
   let hm = hasta.slice(0, 7), esC = cta => /^(1305|2805)/.test(cta) && !/^130595/.test(cta);
   let enR = f => !!f && f > abre && f <= hasta;
   let neto = (a, b) => u.M.filter(x => x.f && x.f > a && x.f <= b && esC(x.cta)).reduce((s, x) => s + x.db - x.cr, 0);
@@ -6103,10 +6107,10 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
   for (const F of facs) {
     let mes = cmImpMesF(F), et = cbMesTxt(mes);
     for (const k of ["cap", "san", "int", "otr"]) {
-      let L = F.con.filter(x => rpTipo(x.cta) === k), v = L.reduce((s, x) => s + x.v, 0); if (Math.abs(v) < .5) continue;
+      let L = F.con.filter(x => kc(F, x.cta) === k), v = L.reduce((s, x) => s + x.v, 0); if (Math.abs(v) < .5) continue;
       tot[k] += v;
       let notas = k === "san" ? [...new Set(u.M.filter(x => x.doc === F.doc && rpTipo(x.cta) === "san" && /^1305/.test(x.cta) && x.db > 0).map(x => x.nota).filter(Boolean))] : [];
-      let it = { k, mes, monto: v, pag: [], F, et, f: F.f, doc: F.doc, notas, ctas: [...new Set(L.map(x => x.cta))] }; items.push(it); porF.set(F.doc + "|" + k, it);
+      let it = { k, mes, monto: v, pag: [], F, et, f: F.f, doc: F.doc, notas, ctas: [...new Set(L.map(x => x.cta))], exSan: k === "otr" && L.some(x => rpTipo(x.cta) === "san") }; items.push(it); porF.set(F.doc + "|" + k, it);
     }
   }
   /* pagos: la imputación que registró la contabilidad, repartida entre las partidas pendientes de cada concepto */
@@ -6116,7 +6120,7 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
     let esRC = /^RC\b/.test(R.doc), sum = { cap: 0, san: 0, int: 0, otr: 0 }, ets = new Set(), det = [];
     let pendAntes = esRC ? items.filter(it => (it.k === "int" || it.k === "san") && (it.ini || it.f <= R.f)) : [];
     for (const a of R.apl) {
-      let k = rpTipo(a.cta), Fit = a.F && porF.get(a.F.doc + "|" + k), v = a.v, usados = [];
+      let k = kc(a.F, a.cta), Fit = a.F && porF.get(a.F.doc + "|" + k), v = a.v, usados = [];
       let porMes = (x, y) => x.mes.localeCompare(y.mes), cola = [...(Fit ? [Fit] : []), ...items.filter(x => x.k === k && x !== Fit && (x.ini || x.f <= R.f)).sort(porMes)];
       if (v > 0) for (const it of cola) { if (v <= .5) break; let q = Math.min(v, Math.max(0, resta(it))); if (q > .5) { it.pag.push({ f: R.f, v: q, doc: R.doc }); det.push({ k, it, v: q }); v -= q; usados.push(it); } }
       if (Math.abs(v) > .5) { let it = Fit || items.find(x => x.ini && x.k === k) || items.find(x => x.ini) || usados[usados.length - 1] || cola[0]; if (!it) { it = { k, mes: abre.slice(0, 7), monto: 0, pag: [], ini: !0, et: "saldo anterior" }; items.push(it); } it.pag.push({ f: R.f, v, doc: R.doc }); det.push({ k, it, v }); usados.includes(it) || usados.push(it); }
@@ -6131,9 +6135,9 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
   let mensual = [], saldo = ini.saldo;
   for (let M = desde; M <= hm; M = cmYm(M, 1)) {
     let a = M === desde ? abre : cmIso(cmYm(M, -1), cmDiasMes(cmYm(M, -1))), b = M === hm ? hasta : cmIso(M, cmDiasMes(M)); if (a < abre) a = abre;
-    let fM = facs.filter(F => F.f > a && F.f <= b), c = k => fM.reduce((s, F) => s + F.con.filter(x => rpTipo(x.cta) === k).reduce((t, x) => t + x.v, 0), 0);
+    let fM = facs.filter(F => F.f > a && F.f <= b), c = k => fM.reduce((s, F) => s + F.con.filter(x => kc(F, x.cta) === k).reduce((t, x) => t + x.v, 0), 0);
     let rM = filas.filter(x => x.R.f > a && x.R.f <= b), pagos = rM.filter(x => x.esRC).reduce((s, x) => s + x.pago, 0), desc = rM.reduce((s, x) => s + (x.esRC ? x.R.desc : 0), 0);
-    let net = neto(a, b), ord = fM.reduce((s, F) => s + F.con.filter(x => /^13050501/.test(x.cta)).reduce((t, x) => t + x.v, 0), 0), ext = c("cap") - ord, otr = c("otr");
+    let net = neto(a, b), ord = fM.reduce((s, F) => s + F.con.filter(x => /^13050501/.test(x.cta) || (rpTipo(x.cta) === "san" && kc(F, x.cta) === "cap")).reduce((t, x) => t + x.v, 0), 0), ext = c("cap") - ord, otr = c("otr");
     let cargos = ord + ext + otr + c("san") + c("int"), aj = cargos - pagos - desc - net;
     mensual.push({ M, ini: saldo, ord, ext, otr, san: c("san"), int: c("int"), pagos, desc, aj, fin: saldo + net }); saldo += net;
   }
@@ -6155,7 +6159,8 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
   /* en multas, lo que cancela un documento distinto de un recibo de caja (nota crédito, ajuste) es una reversión, no un pago */
   let conDin = new Map(u.recs.map(R => [R.doc, (R.banco || 0) + (R.desc || 0) + (R.antApl || 0) + (R.ident || 0) > .5])), esRev = p => p.doc && (!/^RC\b/.test(p.doc) || conDin.get(p.doc) === !1);
   let san = items.filter(it => it.k === "san").map(it => { let rev = it.pag.filter(esRev), pagRC = it.pag.filter(p => !esRev(p)); return { ...it, reversado: rev.reduce((a, p) => a + p.v, 0), docsRev: [...new Set(rev.map(p => p.doc))], pagado: pagRC.reduce((a, p) => a + p.v, 0), docsPag: [...new Set(pagRC.map(p => p.doc).filter(Boolean))], saldo: Math.max(0, resta(it)) }; });
-  return { items, filas, incumple, nRC, mensual, saldoFin, liq, falta, tot, intCob, intPag, favor, pend, san };
+  let sanCand = u.facs.filter(F => !F.fuera && F.f > abre && F.f <= hasta && !expDocs.has(F.doc) && F.con.some(x => rpTipo(x.cta) === "san")).map(F => ({ doc: F.doc, f: F.f, monto: F.con.filter(x => rpTipo(x.cta) === "san").reduce((a, x) => a + x.v, 0), nota: [...new Set(u.M.filter(x => x.doc === F.doc && rpTipo(x.cta) === "san" && x.db > 0).map(x => x.nota).filter(Boolean))].join(" · ") })).sort((a, b) => a.f.localeCompare(b.f));
+  return { sanCand, expDocs: [...expDocs], items, filas, incumple, nRC, mensual, saldoFin, liq, falta, tot, intCob, intPag, favor, pend, san };
 }
 /* arma el contexto (saldo anterior, movimientos) desde la plataforma o desde el auxiliar subido de la unidad */
 async function rpPreparar(ses, B, op, local) {
@@ -6231,7 +6236,7 @@ async function rpPreparar(ses, B, op, local) {
     let sin = []; for (let M = desde; M <= hm; M = cmYm(M, 1)) meses.includes(M) || sin.push(M);
     sin = sin.filter(M => M >= desde); sin.length && avisos.push(`Faltan los pagos de propietarios de ${sin.map(cbMesLargo).join(", ")}: esos meses no tienen movimientos en la respuesta.`);
   }
-  let r = rpCalcular({ u, abre, hasta, desde, ini, tasas });
+  let r = rpCalcular({ u, abre, hasta, desde, ini, tasas, excl: op.excl || {} });
   /* fuente de la información, meses sin información y meses sin movimientos (para explicarlos en la carta) */
   let d1 = cmDiaSig(abre), recorta = x => ({ ...x, desde: x.desde < d1 ? d1 : x.desde, hasta: x.hasta > hasta ? hasta : x.hasta }), fuentes = [];
   if (fuente === "auxiliar") fuentes.push(recorta({ desde: local.desde, hasta: local.hasta, txt: `libro auxiliar de la unidad (cuentas 1305 y 2805) exportado de World Office${local.archivo ? ` (${local.archivo})` : ""}` }));
@@ -6301,7 +6306,7 @@ function rpProc() {
 }
 var rpResNota = it => { let t = it.notas?.join(" · ") || ""; let m = t.match(/RES(?:OLUCI[OÓ]N)?\.?\s*(?:N[OoºÚ°.]*\s*)?([\w-]+(?:\s*DE\s*\d{4})?)/i); return m ? "Resolución " + m[1] : ""; };
 /* detalle de los cobros «Otros»: cuenta, nota contable y explicación escrita en la pantalla */
-var rpOtros = (D, op) => D.items.filter(it => it.k === "otr" && !it.ini).map(it => { let L = D.u.M.filter(x => x.doc === it.doc && rpTipo(x.cta) === "otr" && /^1305/.test(x.cta) && x.db > 0); return { it, ctas: [...new Set(L.map(x => x.cta))], nota: [...new Set(L.map(x => x.nota).filter(Boolean))].join(" · "), txt: op.otrosTxt?.[it.doc] || "" }; });
+var rpOtros = (D, op) => D.items.filter(it => it.k === "otr" && !it.ini).map(it => { let L = D.u.M.filter(x => x.doc === it.doc && rpTipo(x.cta) === (it.exSan ? "san" : "otr") && /^1305/.test(x.cta) && x.db > 0); return { it, ctas: [...new Set(L.map(x => x.cta))], nota: [...new Set(L.map(x => x.nota).filter(Boolean))].join(" · "), txt: op.otrosTxt?.[it.doc] || (it.exSan ? [...new Set(L.map(x => x.nota).filter(Boolean))].join(" · ") : "") }; });
 /* interés liquidado y facturado en el mes de corte cuando el corte es antes de terminar el mes */
 var rpIntCorte = D => { let hm = D.hasta.slice(0, 7), dm = cmDiasMes(hm), d = +D.hasta.slice(8, 10), L = D.items.filter(it => it.k === "int" && !it.ini && it.mes === hm), v = L.reduce((s, it) => s + it.monto, 0); if (d >= dm || v < .5) return null; let prop = Math.round(v * d / dm); return { hm, dm, d, v, prop, dif: v - prop, docs: [...new Set(L.map(it => it.doc).filter(Boolean))] }; };
 /* carta en HTML (mismo formato de Comunicaciones: cmCartaHtml / cmDoc) */
@@ -6407,6 +6412,7 @@ function rpHtml(D, op, firma) {
         S.map(it => `<tr><td>${cmEsc(op.resol?.[it.doc] || rpResNota(it) || (it.ini ? "Saldo anterior al período" : "—"))}</td><td>${op.firme?.[it.doc] ? cbFecha(op.firme[it.doc]) : "—"}</td><td>${cmEsc(it.doc || "saldo anterior")}</td><td>${it.f ? cbFecha(it.f) : "—"}</td><td>${cmEsc([(it.ctas || []).join(", "), (it.notas || []).join(" · ")].filter(Boolean).join(" — ") || "—")}</td><td>${$(it.monto)}</td><td>${$(it.pagado)}</td><td>${$(it.reversado)}</td><td>${$(it.saldo)}</td><td>${cmEsc(rec(it))}</td></tr>`).join("") +
         `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td></td><td>${$b(S.reduce((s, x) => s + x.monto, 0))}</td><td>${$b(S.reduce((s, x) => s + x.pagado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.reversado, 0))}</td><td>${$b(S.reduce((s, x) => s + x.saldo, 0))}</td><td></td></tr></tbody></table>`);
     }
+    D.expDocs?.length && h.push((D.expDocs.length === 1 ? `<p>La cuenta de cobro ${cmEsc(D.expDocs[0])} se registró en una subcuenta de sanciones, pero según su nota contable corresponde a expensas comunes (cuota de administración); en este documento se presenta como cuota y no como multa.</p>` : `<p>Las cuentas de cobro ${cmEsc(D.expDocs.join(", "))} se registraron en una subcuenta de sanciones, pero según su nota contable corresponden a expensas comunes (cuotas de administración); en este documento se presentan como cuotas y no como multas.</p>`));
     R.length && h.push(`<p>Además, en la cuenta de la unidad ${R.length === 1 ? "se registró un cargo en una cuenta de sanciones que se reversó en su totalidad y no constituye una multa" : `se registraron ${R.length} cargos en cuentas de sanciones que se reversaron en su totalidad y no constituyen multas`} a cargo del propietario: ${R.map(it => `${cmEsc(it.doc)} del ${cbFecha(it.f)} por ${$s(it.monto)}, reversado con ${cmEsc(it.docsRev.join(", "))}`).join("; ")}.</p>`);
   }
   if (sec.has("pend")) {
@@ -6451,7 +6457,7 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
   let set = (k, v) => setOp(o => ({ ...o, [k]: v }));
   Ve.useEffect(() => { let vivo = !0; setB(null); cmImpBase(ses, rec > 0).then(b => rpBaseMas(ses, b)).then(b => vivo && setB(b)).catch(e => vivo && setErr(e?.message ?? String(e))); return () => { vivo = !1; }; }, [ses, rec]);
   Ve.useEffect(() => { if (!B?.comunicados) return; let vivo = !0; B.comunicados.then(c => vivo && setCom(c)); return () => { vivo = !1; }; }, [B]);
-  Ve.useEffect(() => { if (!B || !op.unidad) { setD(null); return; } let vivo = !0; rpPreparar(ses, B, op, local).then(r => vivo && setD(r)).catch(e => { console.error(e); vivo && setD({ avisos: ["No se pudo armar la respuesta: " + (e?.message ?? e)] }); }); return () => { vivo = !1; }; }, [B, local, op.unidad, op.desde, op.hasta, JSON.stringify(op.usura)]);
+  Ve.useEffect(() => { if (!B || !op.unidad) { setD(null); return; } let vivo = !0; rpPreparar(ses, B, op, local).then(r => vivo && setD(r)).catch(e => { console.error(e); vivo && setD({ avisos: ["No se pudo armar la respuesta: " + (e?.message ?? e)] }); }); return () => { vivo = !1; }; }, [B, local, op.unidad, op.desde, op.hasta, JSON.stringify(op.usura), JSON.stringify(op.excl || {})]);
   let ref = Ve.useRef(null), [FF, setFF] = Ve.useState(null), [rf, setRf] = Ve.useState(0);
   Ve.useEffect(() => { let vivo = !0; cmFirmantes(ses, config, rf > 0).then(x => vivo && setFF(x)); return () => { vivo = !1; }; }, [ses, rf]);
   if (err) return rpH("p", { className: "est est-alerta" }, "No se pudieron leer los datos de cartera: " + err);
@@ -6529,7 +6535,7 @@ function RpPantalla({ ses, config, notificar, soloLectura }) {
       op.secciones.includes("int") && rpH("div", { style: { marginTop: 8 } }, campo("Fórmula de intereses que aplica la contabilidad (revísela)", rpH("textarea", { rows: 2, value: op.formulaInt ?? RP_FORMULA_INT, onChange: e => set("formulaInt", e.target.value), style: { width: "100%" } }))),
       rpH("div", { style: { marginTop: 8 } }, campo("Párrafo final", area("cierre", 2, ""))),
       rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 8 } }, campo("Copia", rpH("input", { value: op.copia, onChange: e => set("copia", e.target.value) }), 300), campo("Anexos (opcional)", rpH("input", { value: op.anexos, onChange: e => set("anexos", e.target.value) }), 300)),
-      D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { style: { marginTop: 10 } }, rpH("span", { className: "tenue" }, "Cargos en cuentas de sanciones. Desmarque los que fueron reversados o no son multas: no aparecen en la carta."), rpH("div", { className: "fila", style: { gap: 14, flexWrap: "wrap", marginTop: 4 } }, D.san.filter(it => it.doc).map(it => { let auto = it.reversado > .5 && it.monto - it.reversado <= .5; return rpH("label", { key: it.doc, style: { display: "flex", gap: 6, alignItems: "center" } }, rpH("input", { type: "checkbox", disabled: auto, checked: !auto && !op.excl?.[it.doc], onChange: e => set("excl", { ...op.excl, [it.doc]: !e.target.checked }) }), `${it.doc} · ${cbFecha(it.f)} · ${cbPesos(it.monto)}${auto ? " (reversado con " + it.docsRev.join(", ") + ")" : ""}`); }))),
+      D?.sanCand?.length > 0 && op.secciones.includes("san") && rpH("div", { style: { marginTop: 10 } }, rpH("span", { className: "tenue" }, "Cargos en cuentas de sanciones. Deje marcadas solo las multas que van en el informe; las desmarcadas salen de «Multas y sanciones» y se muestran en «Otros» con su nota contable."), rpH("div", { className: "fila", style: { gap: 14, flexWrap: "wrap", marginTop: 4 } }, (D.sanCand || []).map(x => { let it = D.san.find(y => y.doc === x.doc), auto = !!it && it.reversado > .5 && it.monto - it.reversado <= .5; return rpH("label", { key: x.doc, style: { display: "flex", gap: 6, alignItems: "center" } }, rpH("input", { type: "checkbox", disabled: auto, checked: !auto && !op.excl?.[x.doc], onChange: e => set("excl", { ...op.excl, [x.doc]: !e.target.checked }) }), `${x.doc} · ${cbFecha(x.f)} · ${cbPesos(x.monto)}${x.nota ? " · " + x.nota : ""}${auto ? " (reversado con " + it.docsRev.join(", ") + ")" : ""}`); }))),
       D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Resolución que originó cada multa (si la nota contable no la trae):"), D.san.filter(it => it.doc && !op.excl?.[it.doc] && !(it.reversado > .5 && it.monto - it.reversado <= .5)).map(it => campo(`${it.doc} · ${cbFecha(it.f)} · ${cbPesos(it.monto)} · cta ${(it.ctas || []).join(", ")}${it.notas?.length ? " · " + it.notas.join(" · ") : ""}`, rpH("input", { key: it.doc, value: op.resol?.[it.doc] ?? "", placeholder: "Resolución No. 234-521 de 2026", onChange: e => set("resol", { ...op.resol, [it.doc]: e.target.value }) }), 260))),
       D?.san?.some(it => it.doc) && op.secciones.includes("san") && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 8, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Fecha en que quedó en firme cada resolución:"), D.san.filter(it => it.doc && !op.excl?.[it.doc] && !(it.reversado > .5 && it.monto - it.reversado <= .5)).map(it => campo(`${op.resol?.[it.doc] || rpResNota(it) || it.doc}`, rpH("input", { key: it.doc, type: "date", value: op.firme?.[it.doc] ?? "", onChange: e => set("firme", { ...op.firme, [it.doc]: e.target.value }) }), 200))),
       listo && rpOtros(D, op).length > 0 && rpH("div", { className: "fila", style: { gap: 12, flexWrap: "wrap", marginTop: 10, alignItems: "flex-end" } }, rpH("span", { className: "tenue" }, "Concepto de cada cobro «Otros» (sale en la carta):"), rpOtros(D, op).map(o => campo(`${o.it.doc} · ${cbMesTxt(o.it.mes)} · ${cbPesos(o.it.monto)} · cta ${o.ctas.join(", ")}${o.nota ? " · " + o.nota : ""}`, rpH("input", { value: op.otrosTxt?.[o.it.doc] ?? "", placeholder: "Ej.: reposición de manilla de acceso", onChange: e => set("otrosTxt", { ...op.otrosTxt, [o.it.doc]: e.target.value }) }), 320))),
