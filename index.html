@@ -5887,7 +5887,7 @@ async function cmImpArmar(ses, B, c, imp) {
     let venc = baseInt.filter(it => it.mes < M), cap = D => venc.reduce((s, it) => s + Math.max(0, it.monto - it.pag.filter(p => p.f < D).reduce((t, p) => t + p.v, 0)), 0);
     let suma = 0, dias = 0;
     for (let d = 1; d <= ult; d++) { let v = cap(cmIso(M, d)); if (v > .5) { dias++; suma += v; } }
-    let cierre = cap(cmIso(M, ult) + "~"), sig = cmYm(M, 1), Fs = u.facs.filter(F => cmImpMesF(F) === sig);
+    let cierre = cap(cmIso(M, ult) + "~"), sig = M, Fs = u.facs.filter(F => cmImpMesF(F) === M);
     if (ea == null && dias) base.falta.push(M);
     liq.push({ M, cierre, ea, tm, dias, inte: tm != null ? suma * tm / dm : null, cob: Fs.length ? Fs.reduce((s, F) => s + F.con.filter(k => cmImpTipo(k.cta) === "int").reduce((t, k) => t + k.v, 0), 0) : null, sig });
   }
@@ -5933,7 +5933,7 @@ async function cmImpArmar(ses, B, c, imp) {
       li.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$(x.cierre)}</td><td>${cmPct(x.ea)}</td><td>${cmPct(x.tm != null ? x.tm * 100 : null, 4)}</td><td>${x.dias}</td><td>${x.inte == null ? "sin tasa" : $(x.inte)}</td><td>${x.cob == null ? "no cargada" : $(x.cob)}</td></tr>`).join("") +
       `<tr><td><strong>Total intereses</strong></td><td></td><td></td><td></td><td></td><td>${$b(tI)}</td><td>${$b(tC)}</td></tr></tbody></table>`);
     let comp = li.filter(x => x.cob != null && x.inte != null), dif = comp.reduce((s, x) => s + x.cob - x.inte, 0);
-    b.push(`<p>El interés liquidado aplica la fórmula del numeral 2 sobre el capital vencido de cada día (cuotas, multas y sanciones; sin interés sobre interés). El capital en mora es el del cierre de cada mes; el interés de cada mes se cobra en la cuenta de cobro del mes siguiente («Interés cobrado»).${comp.length ? Math.abs(dif) <= Math.max(100, comp.length * 50) ? ` En los meses comparables, lo cobrado coincide con lo liquidado (diferencia de ${$(dif)}, por redondeo).` : ` En los meses comparables, lo cobrado ${dif > 0 ? "supera" : "es inferior a"} lo liquidado en ${cbPesos(Math.abs(dif))}; conviene revisar la liquidación de esos meses.` : ""}${base.falta.length ? ` No se liquidó ${base.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
+    b.push(`<p>El interés liquidado aplica la fórmula del numeral 2 sobre el capital vencido de cada día (cuotas, multas y sanciones; sin interés sobre interés). El capital en mora es el del cierre de cada mes; «Interés cobrado» es el interés de mora facturado en la cuenta de cobro de ese mismo mes.${comp.length ? Math.abs(dif) <= Math.max(100, comp.length * 50) ? ` En los meses comparables, lo cobrado coincide con lo liquidado (diferencia de ${$(dif)}, por redondeo).` : ` En los meses comparables, lo cobrado ${dif > 0 ? "supera" : "es inferior a"} lo liquidado en ${cbPesos(Math.abs(dif))}; conviene revisar la liquidación de esos meses.` : ""}${base.falta.length ? ` No se liquidó ${base.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
   }
   b.push(`<h3>4.3 Resumen del saldo</h3>`);
   b.push(`<table><thead><tr><th>Concepto</th><th>Valor</th></tr></thead><tbody>` +
@@ -6071,7 +6071,7 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas }) {
     let venc = baseInt.filter(it => it.mes < M), cap = D => venc.reduce((s, it) => s + Math.max(0, it.monto - it.pag.filter(p => p.f < D).reduce((t, p) => t + p.v, 0)), 0);
     let suma = 0, dias = 0;
     for (let d = 1; d <= ult; d++) { let v = cap(cmIso(M, d)); if (v > .5) { dias++; suma += v; } }
-    let sig = cmYm(M, 1), Fs = u.facs.filter(F => cmImpMesF(F) === sig);
+    let Fs = u.facs.filter(F => cmImpMesF(F) === M);
     if (ea == null && dias) falta.push(M);
     liq.push({ M, cierre: cap(cmIso(M, ult) + "~"), prom: dias ? suma / dias : 0, ea, tm, dias, dm, inte: tm != null ? suma * tm / dm : null, cob: Fs.length ? Fs.reduce((s, F) => s + F.con.filter(k => rpTipo(k.cta) === "int").reduce((t, k) => t + k.v, 0), 0) : null });
   }
@@ -6190,7 +6190,7 @@ function rpHtml(D, op) {
     else h.push(`<table><thead><tr><th>Mes</th><th>Capital promedio</th><th>Usura EA</th><th>Tasa mensual</th><th>Días</th><th>Interés liquidado</th><th>Interés cobrado</th></tr></thead><tbody>` +
       L.map(x => `<tr><td>${cbMesTxt(x.M)}</td><td>${$(x.prom)}</td><td>${cmPct(x.ea)}</td><td>${cmPct(x.tm != null ? x.tm * 100 : null, 4)}</td><td>${x.dias}</td><td>${x.inte == null ? "sin tasa" : $(x.inte)}</td><td>${x.cob == null ? "—" : $(x.cob)}</td></tr>`).join("") +
       `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td></td><td>${$b(tI)}</td><td>${$b(tC)}</td></tr></tbody></table>`);
-    h.push(`<p>«Capital promedio» es el capital vencido promedio de los días en mora del mes; «Interés cobrado» es el interés registrado en la cuenta de cobro del mes siguiente. En el período se cobraron intereses de mora por ${$s(D.intCob)} y se pagaron ${$s(D.intPag)}.${D.falta.length ? ` No se liquidó ${D.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
+    h.push(`<p>«Capital promedio» es el capital vencido promedio de los días en mora del mes; «Interés cobrado» es el interés de mora facturado en la cuenta de cobro de ese mismo mes. En el período se cobraron intereses de mora por ${$s(D.intCob)} y se pagaron ${$s(D.intPag)}.${D.falta.length ? ` No se liquidó ${D.falta.map(cbMesLargo).join(", ")} por falta de la tasa certificada.` : ""}</p>`);
   }
   if (sec.has("san")) {
     n++; let S = D.san;
