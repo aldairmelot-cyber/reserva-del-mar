@@ -76,7 +76,7 @@ service cloud.firestore {
       allow read: if editor() || consulta();
       allow write: if editor() || (consulta() && request.auth.uid == uid);
     }
-    // Firmas de los estados financieros: '<mes>_<rol>' (firma del mes) y 'persona_<correo>' (firma guardada).
+    // Firmas: '<mes>_<rol>' (estados financieros del mes), 'cm_<comunicación>_<rol>' (comunicaciones, p. ej. cm_2026-010_contador) y 'persona_<correo>' (firma guardada).
     // Cada persona solo firma con su correo y en el papel que el editor le asignó (_roles/<correo>.firma).
     match /firmas/{id} {
       allow read: if editor() || consulta();
@@ -84,7 +84,8 @@ service cloud.firestore {
         && request.resource.data.email == correo()
         && (id == 'persona_' + correo()
             || (request.resource.data.rol == get(/databases/$(database)/documents/_roles/$(correo())).data.firma
-                && id.matches('^[0-9]{4}-[0-9]{2}_' + request.resource.data.rol + '$'))));
+                && (id.matches('^[0-9]{4}-[0-9]{2}_' + request.resource.data.rol + '$')
+                    || id.matches('^cm_[0-9]{4}-[0-9]{3}_' + request.resource.data.rol + '$')))));
       allow delete: if editor() || (consulta() && resource.data.email == correo());
     }
     // Consignaciones por identificar: cartera registra su gestión con su propio correo.
