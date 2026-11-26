@@ -6506,7 +6506,7 @@ var PRES_CSS = `.pres{position:fixed;inset:0;z-index:99999;background:#fff;displ
 .pres-barra{height:3px;background:#c8904f;transition:width .2s}`;
 /* reparte cada sección del documento en diapositivas: un título por diapositiva y tablas largas partidas */
 function presDiapos(doc) {
-  let D = [{ tipo: "portada" }], MAXF = 15, MAXP = 17;
+  let D = [{ tipo: "portada" }], MAXF = 20, MAXP = 22;
   for (const sec of doc.secciones || []) {
     let base = sec.titulo || sec.nombre || "", tit = base, cur = null, peso = 0;
     let nueva = (t, cont) => { if (cur && cur.bloques.length) D.push(cur); cur = { tipo: "contenido", sec, kicker: sec.nombre || sec.titulo, titulo: t + (cont ? " (continuación)" : ""), bloques: [] }; peso = 0; };
@@ -6517,7 +6517,12 @@ function presDiapos(doc) {
         let F = b.filas || [];
         if (F.length > MAXF) {
           if (cur.bloques.length) nueva(tit, !0);
-          for (let k = 0; k < F.length; k += MAXF) { if (k) nueva(tit, !0); cur.bloques.push({ ...b, etiqueta: k ? (b.etiqueta ? b.etiqueta + " (cont.)" : b.etiqueta) : b.etiqueta, filas: F.slice(k, k + MAXF) }); peso = MAXP; }
+          /* corta en un renglón en blanco o en el título de un grupo (ACTIVO, PASIVO…) para no partir un grupo por la mitad */
+          let corte = r => r && (r.estilo === "blank" || r.estilo === "grupo" || r.estilo === "seccion" || (r.celdas || []).slice(1).every(c => !c.t));
+          let partes = [], ini = 0;
+          for (let j = 1; j <= F.length; j++) { let n = j - ini; if (j === F.length || (n >= MAXF * .55 && corte(F[j])) || n >= MAXF + 6) { partes.push(F.slice(ini, j)); ini = j; } }
+          partes = partes.map(p => { let a = 0, z = p.length; while (a < z && p[a].estilo === "blank") a++; while (z > a && p[z - 1].estilo === "blank") z--; return p.slice(a, z); }).filter(p => p.length);
+          partes.forEach((p, k) => { if (k) nueva(tit, !0); cur.bloques.push({ ...b, etiqueta: k && b.etiqueta ? b.etiqueta + " (cont.)" : b.etiqueta, filas: p }); peso = MAXP; });
           continue;
         }
         let w = 2 + F.length;
