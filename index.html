@@ -6038,7 +6038,11 @@ function cmConFirma(h, f) {
   let m = h.match(/<p>(Cordialmente|Atentamente),?<\/p>\n?/);
   return m ? h.replace(m[0], m[0].replace(/\n?$/, "\n") + bloque + "\n") : h + "\n<p>Cordialmente,</p>\n" + bloque;
 }
+/* firma que el contador registra él mismo sobre una comunicación (firmas/cm_<id>_contador) */
+var cmFirmaReg = (ses, id) => id ? ses.store.get(`firmas/cm_${id}_contador`).catch(() => null) : Promise.resolve(null);
 async function cmFirmar(ses, cfg, c) {
+  let reg = await cmFirmaReg(ses, c.id);
+  if (reg?.img) { let F = await cmFirmantes(ses, cfg), f = { ...F.dairo, img: reg.img, ...(await cmDims(reg.img)) }; return { ...c, firmaReg: reg, html: cmConFirma(c.html, f) }; }
   if (!c.firmaPor || !CM_FIRMANTES_ID.includes(c.firmaPor)) return c;
   let F = await cmFirmantes(ses, cfg);
   return { ...c, html: cmConFirma(c.html, F[c.firmaPor]) };
@@ -7615,7 +7619,7 @@ function cmDoc(c, entidad) {
 }
 async function cmBajar(c, entidad, ses, notificar, tipo) {
   try { if (c.imp && !c.impListo) c = { ...c, html: (await cmImpArmar(ses, await cmImpBase(ses), c, c.imp)).html };
-    if (c.firmaPor && !c.firmaLista) c = { ...(await cmFirmar(ses, entidad, c)), firmaLista: !0 };
+    if (!c.firmaLista) c = { ...(await cmFirmar(ses, entidad, c)), firmaLista: !0 };
     let doc = cmDoc(c, entidad), bytes = tipo === "pdf" ? await en(doc) : await Ls(doc); await BL(ses, `${cmNumero(c)}.${tipo}`, bytes, notificar); }
   catch (e) { console.error(e); notificar("error", "No se pudo generar el archivo: " + (e?.message ?? e)); }
 }
@@ -7628,8 +7632,8 @@ function CmInforme({ c: c0, ses, notificar, entidad, onCerrar, soloLectura, onGu
   let c1 = c0.imp ? (res?.html ? { ...c0, html: res.html, impListo: !0 } : { ...c0, impListo: !1 }) : c0;
   let [firmaPor, setFirmaPor] = Ve.useState(c0.firmaPor || ""), [cf, setCf] = Ve.useState(null), [rf, setRf] = Ve.useState(0);
   Ve.useEffect(() => { let vivo = !0; setCf(null); cmFirmar(ses, entidad, { ...c1, firmaPor }).then(x => vivo && setCf({ ...x, firmaLista: !0 })); return () => { vivo = !1; }; }, [c1.html, firmaPor, rf]);
-  let c = firmaPor ? (cf || { ...c1, firmaPor, firmaLista: !1 }) : c1;
-  let listo = (!c0.imp || !!res?.html) && (!firmaPor || !!cf);
+  let c = cf || { ...c1, firmaPor, firmaLista: !1 };
+  let listo = (!c0.imp || !!res?.html) && !!cf;
   let bajar = async tipo => { setGen(tipo); await cmBajar(c, entidad, ses, notificar, tipo); setGen(null); };
   return cmH("div", { className: "pantalla" },
     cmH("style", null, CM_ESTILO),
@@ -7639,7 +7643,8 @@ function CmInforme({ c: c0, ses, notificar, entidad, onCerrar, soloLectura, onGu
         cmH("button", { type: "button", className: "btn", onClick: onCerrar }, "Volver a la lista"),
         cmH("button", { type: "button", className: "btn", disabled: !!gen || !listo, onClick: () => bajar("docx") }, gen === "docx" ? "Generando…" : "Descargar Word"),
         cmH("button", { type: "button", className: "btn btn-primario", disabled: !!gen || !listo, onClick: () => bajar("pdf") }, gen === "pdf" ? "Generando…" : "Descargar PDF"))),
-    cmH("section", { className: "panel", style: { margin: "12px 0" } }, cmH(CmFirmaSel, { ses, cfg: entidad, valor: firmaPor, soloLectura, notificar, nota: "Como está en la carta", onChange: (v, recarga) => { setFirmaPor(v); recarga && setRf(r => r + 1); onGuardarFirma && !recarga && onGuardarFirma(v); } })),
+    cmH(CmFirmaContador, { ses, c: c1, notificar, onCambio: () => setRf(r => r + 1) }),
+    !soloLectura && cmH("section", { className: "panel", style: { margin: "12px 0" } }, cmH(CmFirmaSel, { ses, cfg: entidad, valor: firmaPor, soloLectura, notificar, nota: "Como está en la carta", onChange: (v, recarga) => { setFirmaPor(v); recarga && setRf(r => r + 1); onGuardarFirma && !recarga && onGuardarFirma(v); } })),
     imp && cmH(CmImpPanel, { ses, imp, setImp, res, B, soloLectura, cambio, onRecargar: () => setRec(r => r + 1), onGuardar: onGuardarImp && (async () => { try { await onGuardarImp(imp); setCambio(!1); } catch (e) { notificar("error", "No se pudo guardar: " + (e?.message ?? e)); } }) }),
     c.cartas && cmCartasPanel({ c, ses, notificar, entidad }),
     cmH("div", { className: "cm-carta", dangerouslySetInnerHTML: { __html: cmCartaHtml(c, entidad) } }));
@@ -12599,6 +12604,38 @@ function EfPad({ onCambio, inicial }) {
 }
 
 /* quita el fondo blanco de una imagen subida para que la firma quede limpia sobre el documento */
+/* el contador entra con su usuario y firma la comunicación (dibujando o con una imagen); queda registrado quién y cuándo */
+function CmFirmaContador({ ses, c, notificar, onCambio }) {
+  let quien = window.EFPH_PERFIL || {}, puede = quien.rol === "editor" || quien.firma === "contador";
+  let [reg, setReg] = Ve.useState(void 0), [img, setImg] = Ve.useState(null), [previa, setPrevia] = Ve.useState(null), [ok, setOk] = Ve.useState(!1), [oc, setOc] = Ve.useState(!1), [abierto, setAb] = Ve.useState(!1);
+  let cargar = () => cmFirmaReg(ses, c.id).then(r => setReg(r || null));
+  Ve.useEffect(() => { cargar(); }, [c.id]);
+  Ve.useEffect(() => { if (!abierto || !quien.email) return; ses.store.get("firmas/persona_" + quien.email).then(d => d?.img && setPrevia(d.img)).catch(() => {}); }, [abierto]);
+  if (!c.id || reg === void 0) return null;
+  let fecha = f => new Date(f).toLocaleString("es-CO", { dateStyle: "long", timeStyle: "short" });
+  let firmar = async () => { setOc(!0); try {
+      let limpia = await efLimpiarFondo(img); if (!limpia) throw new Error("La firma está vacía.");
+      let r = { rol: "contador", comunicacion: c.id, email: quien.email || "", nombre: quien.nombre || "", img: limpia, fecha: new Date().toISOString(), declaracion: `Firma de la comunicación ${cmNumero(c)} como Contador Público.` };
+      await ses.store.set(`firmas/cm_${c.id}_contador`, r);
+      quien.email && ses.store.set("firmas/persona_" + quien.email, { email: quien.email, img: limpia, fecha: r.fecha }).catch(() => {});
+      setReg(r); setAb(!1); setImg(null); setOk(!1); onCambio && onCambio(); notificar("ok", `Firma registrada en ${cmNumero(c)}.`);
+    } catch (e) { notificar("error", e?.code === "permission-denied" || e?.code === "not_granted" ? "La base de datos no permitió guardar la firma: hay que publicar las reglas nuevas de Firebase." : "No se pudo guardar la firma: " + (e?.message ?? e)); }
+    setOc(!1); };
+  let quitar = async () => { setOc(!0); try { await ses.store.del(`firmas/cm_${c.id}_contador`); setReg(null); onCambio && onCambio(); notificar("ok", "Firma retirada."); } catch (e) { notificar("error", "No se pudo retirar: " + (e?.message ?? e)); } setOc(!1); };
+  let h = Ve.createElement;
+  return h("section", { className: "panel", style: { margin: "12px 0" } },
+    h("h3", { className: "h-sec", style: { marginTop: 0 } }, "Firma del contador"),
+    reg ? h("div", { className: "fila", style: { gap: 16, alignItems: "center", flexWrap: "wrap" } },
+        h("img", { src: reg.img, alt: "Firma", style: { maxHeight: 70, background: "#fff", border: "1px solid var(--linea)", padding: 4 } }),
+        h("div", null, h("b", null, "Firmada"), ` por ${reg.nombre || reg.email}${reg.email ? ` (${reg.email})` : ""} el ${fecha(reg.fecha)}.`, h("div", { className: "tenue" }, "La firma ya va en el PDF y en el Word de esta comunicación.")),
+        (quien.rol === "editor" || (quien.email && quien.email === reg.email)) && h("button", { type: "button", className: "btn btn-sm btn-quitar", disabled: oc, onClick: quitar }, "Quitar firma"))
+    : !puede ? h("p", { className: "tenue" }, "Pendiente de la firma del contador.")
+    : !abierto ? h("div", null, h("p", { className: "tenue" }, "Esta comunicación aún no tiene la firma del contador."), h("button", { type: "button", className: "btn btn-primario", onClick: () => setAb(!0) }, "Firmar esta comunicación"))
+    : h("div", null,
+        h(EfPad, { onCambio: setImg, inicial: previa }),
+        h("label", { className: "check", style: { display: "block", margin: "10px 0" } }, h("input", { type: "checkbox", checked: ok, onChange: e => setOk(e.target.checked) }), ` Revisé la comunicación ${cmNumero(c)} y la firmo como Contador Público.`),
+        h("div", { className: "fila", style: { gap: 8 } }, h("button", { type: "button", className: "btn btn-primario", disabled: !img || !ok || oc, onClick: firmar }, oc ? "Guardando…" : "Firmar"), h("button", { type: "button", className: "btn", onClick: () => { setAb(!1); setImg(null); } }, "Cancelar"))));
+}
 async function efLimpiarFondo(src) {
   let im = new Image(); await new Promise((ok, no) => { im.onload = ok; im.onerror = no; im.src = src; });
   let c = document.createElement("canvas"); c.width = im.width; c.height = im.height; let x = c.getContext("2d"); x.drawImage(im, 0, 0);
