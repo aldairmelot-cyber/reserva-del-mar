@@ -6809,7 +6809,8 @@ async function igCalcularAuto({ ses, R, pptoMeses, ym }) {
   out.servicios = serv.map(([n, re, cta]) => { let it = P ? P.items.filter(x => re.test(x.nombre) && String(x.codigo).startsWith("5")) : []; let ppto = it.reduce((s, x) => s + (x.mes?.ppto || 0), 0), ejec = it.length ? it.reduce((s, x) => s + (x.mes?.ejec || 0), 0) : gfNeto(B, cta, mes, mes, "d"); return { n, ppto: it.length ? ppto : null, ejec }; });
   /* fondo de imprevistos */
   let fid = Object.keys(B.nombres).filter(c => /^1/.test(c) && /FIDU/i.test(B.nombres[c]));
-  out.fondo = { apMes: gfNeto(B, "33", mes, mes, "c"), apAnio: gfNeto(B, "33", anio + "-01", mes, "c"), saldo: -(gfSaldo(B, "33", mes) ?? 0), fiducia: fid.reduce((s, c) => s + (gfSaldo(B, c, mes) || 0), 0) };
+  let cred33 = (d, h) => { let t = 0; for (const [cod, m] of Object.entries(B.M)) if (cod.startsWith("33")) for (const [k, r] of Object.entries(m)) if (k >= d && k <= h) t += r[1]; return t; };
+  out.fondo = { apMes: cred33(mes, mes), apAnio: cred33(anio + "-01", mes), saldo: -(gfSaldo(B, "33", mes) ?? 0), fiducia: fid.reduce((s, c) => s + (gfSaldo(B, c, mes) || 0), 0) };
   /* contratistas: lo causado en el mes a cada tercero (gastos 51 y 53) */
   out.contratistas = Object.entries(B.P).map(([t, m]) => { let r = m[mes] || {}, v = Object.values(r).reduce((a, b) => a + b, 0), rb = Object.entries(r).sort((a, b) => b[1] - a[1])[0]?.[0]; return { t, v, rubro: rb ? gfNom(B, rb) : "" }; }).filter(x => x.v > 1).sort((a, b) => b.v - a.v).slice(0, 15);
   /* concesiones: ingresos 4220 del mes por tercero */
@@ -6817,7 +6818,10 @@ async function igCalcularAuto({ ses, R, pptoMeses, ym }) {
   /* cartera por unidad (cartera por edades del mes) */
   let d = await ses.store.get("cartera_c/" + ym).catch(() => null); d = d?.j ? JSON.parse(d.j) : d;
   if (d?.t) {
-    let U = d.t.map(r => { let it = r[4] || [], tot = it.reduce((s, x) => s + (+x[5] || 0), 0), cur = it.filter(x => String(x[3]).slice(0, 7) === ym).reduce((s, x) => s + (+x[5] || 0), 0), viejo = it.filter(x => +x[5] > 0).map(x => String(x[3]).slice(0, 7)).sort()[0]; return { u: String(r[0]).replace(/\s+/g, " ").trim(), saldo: Math.round(tot), venc: Math.round(Math.max(0, tot - Math.max(0, cur))), desde: viejo || "" }; }).filter(x => Math.abs(x.saldo) > 1);
+    let U = d.t.map(r => { let it = r[4] || [], tot = it.reduce((s, x) => s + (+x[5] || 0), 0), cur = it.filter(x => String(x[3]).slice(0, 7) === ym).reduce((s, x) => s + (+x[5] || 0), 0), viejo = it.filter(x => +x[5] > 0).map(x => String(x[3]).slice(0, 7)).sort()[0]; return { u: String(r[0]).replace(/\s+/g, " ").trim(), tot, cur, desde: viejo || "" }; });
+    /* una unidad puede venir en varias filas (saldo a favor y saldo por cobrar): se suman */
+    let G = new Map(); for (const x of U) { let g = G.get(x.u) || { u: x.u, tot: 0, cur: 0, desde: "" }; g.tot += x.tot; g.cur += x.cur; if (x.desde && (!g.desde || x.desde < g.desde)) g.desde = x.desde; G.set(x.u, g); }
+    U = [...G.values()].map(g => ({ u: g.u, saldo: Math.round(g.tot), venc: Math.round(Math.max(0, g.tot - Math.max(0, g.cur))), desde: g.desde })).filter(x => Math.abs(x.saldo) > 1);
     let edad = x => { if (!x.desde) return 0; let [y1, m1] = x.desde.split("-").map(Number), [y2, m2] = ym.split("-").map(Number); return (y2 - y1) * 12 + m2 - m1; };
     let V = U.filter(x => x.venc > 1e3);
     out.cartera = { unidades: U, nVenc: V.length, totVenc: V.reduce((s, x) => s + x.venc, 0), total: U.reduce((s, x) => s + Math.max(0, x.saldo), 0),
