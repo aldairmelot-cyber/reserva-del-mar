@@ -6101,7 +6101,10 @@ async function gfBase(ses, avance) {
     let metas = (await ses.store.list("verif_idx").catch(() => [])).map(x => x.data).filter(m => m && m.desde && m.hasta).sort((a, b) => a.desde.localeCompare(b.desde) || b.hasta.localeCompare(a.hasta));
     let usar = [], tope = ""; for (const m of metas) if (m.desde > tope) { usar.push(m); tope = m.hasta; }
     if (!usar.length) throw new Error("No hay libros auxiliares cargados en Verificación.");
-    let fin = usar[usar.length - 1].hasta, finYm = fin.slice(0, 7), dia = +fin.slice(8, 10), diasMes = new Date(+fin.slice(0, 4), +fin.slice(5, 7), 0).getDate(), Mc = {};
+    /* fecha de corte real: la del último movimiento del libro más reciente (un libro puede llamarse "año completo" y llegar solo hasta hoy) */
+    let fin = usar[usar.length - 1].hasta;
+    try { let Xu = await vxCargar(ses.store, usar[usar.length - 1]), mx = 0; for (const x of Xu.movs) { let f = +x[1] || 0; if (f > mx) mx = f; } let fm = String(mx); if (mx && fm.length === 8) { fm = `${fm.slice(0, 4)}-${fm.slice(4, 6)}-${fm.slice(6, 8)}`; if (fm < fin) fin = fm; } } catch { }
+    let finYm = fin.slice(0, 7), dia = +fin.slice(8, 10), diasMes = new Date(+fin.slice(0, 4), +fin.slice(5, 7), 0).getDate(), Mc = {};
     let corte = { fecha: fin, ym: finYm, dia, parcial: dia < diasMes, fr: dia / diasMes };
     let nombres = {}, M = {}, SI = {}, P = {}, FV = {}, RC = {}, flujo = {}, notas = {}, meses = new Set(), libros = [];
     let suma = (o, k, d, c) => { let r = o[k] || (o[k] = [0, 0]); r[0] += d; r[1] += c; };
