@@ -5760,14 +5760,15 @@ var CM_INICIALES = [
     destinatario: "Carolina Lasso Arce y Andrés Alberto Valencia Martínez · Apto 521 T3", origen: "Fallo de tutela del 18-11-2026, Juzgado Séptimo Penal Municipal de Santa Marta, Rad. 47-001-40-09-007-2026-00595-00",
     asunto: "Estado de cuenta, imputación de pagos e intereses de mora · Apto 521 T3 (anexo de la respuesta complementaria)", estado: "Borrador",
     resumen: "Estado de cuenta del 1-ene-2022 al 30-nov-2026 (saldo $ 3.205.682), imputación de cada recibo por concepto y mes, intereses de mora (mora del mes facturada en el mes siguiente) y multas con su resolución. Texto tal como lo entregó el abogado; firma Dairo Ortega Palomino, C.P.",
-    enlace: "", html: CM_CARTA_010 }
+    enlace: "", html: CM_CARTA_010, htmlVer: 4 }
 
 ];
 var cmNumero = c => `${CM_PREFIJO}-${c.anio}-${String(c.consecutivo).padStart(3, "0")}`;
 var cmFecha = f => f ? f.split("-").reverse().join("/") : "";
 var cmMezclar = guardados => {
   let M = new Map(CM_INICIALES.map(c => [c.id, { ...c, inicial: !0 }]));
-  for (const c of guardados ?? []) if (c && c.id) M.set(c.id, { ...(M.get(c.id) || {}), ...c });
+  /* una copia guardada en la base no tapa un texto más nuevo del código (htmlVer de la comunicación inicial) */
+  for (const c of guardados ?? []) if (c && c.id) { let b = M.get(c.id) || {}, x = { ...b, ...c }; if (b.htmlVer && (+c.htmlVer || 0) < b.htmlVer) Object.assign(x, { html: b.html, resumen: b.resumen, asunto: b.asunto, htmlVer: b.htmlVer }); M.set(c.id, x); }
   return [...M.values()];
 };
 /* ---------- Informe de imputación de pagos de una unidad: se llena solo con la plataforma ----------
