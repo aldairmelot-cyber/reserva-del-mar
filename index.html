@@ -6092,7 +6092,7 @@ var gfPctTxt = p => p == null ? "—" : `${p > 0 ? "+" : ""}${p.toFixed(1).repla
 var gfMat = (a, b, lim) => { let d = a - b, p = gfPct(a, b); return Math.abs(d) >= lim && (p == null || Math.abs(p) >= GF_MAT.pct); };
 var gfTer = t => String(t ?? "").replace(/\s+/g, " ").trim();
 /* categoría de la contrapartida de un movimiento de bancos */
-var gfCat = cod => /^(1305|2805)/.test(cod) ? "Propietarios (cuotas, intereses y anticipos)" : /^4220/.test(cod) ? "Manillas y concesiones" : /^42/.test(cod) ? "Otros ingresos" : /^(2335|2205|2380)/.test(cod) ? "Proveedores" : /^(24|2365|2367|2368)/.test(cod) ? "Impuestos y retenciones" : /^5/.test(cod) ? "Gastos pagados directamente" : /^(12|1105|1110|1120)/.test(cod) ? "Inversiones, fiducia y cajas" : /^33/.test(cod) ? "Fondo de imprevistos" : /^1330/.test(cod) ? "Anticipos a proveedores" : "Otros movimientos";
+var gfCat = cod => /^(1305|2805|41)/.test(cod) ? "Propietarios (cuotas, intereses y anticipos)" : /^(4220|1345|1435)/.test(cod) ? "Manillas y concesiones" : /^(42|1380)/.test(cod) ? "Otros ingresos y reintegros" : /^(2335|2205|2380)/.test(cod) ? "Proveedores" : /^(24|2365|2367|2368|1355)/.test(cod) ? "Impuestos y retenciones" : /^5/.test(cod) ? "Gastos pagados directamente" : /^(12|1105|1110|1120)/.test(cod) ? "Inversiones, fiducia y cajas" : /^33/.test(cod) ? "Fondo de imprevistos" : /^1330/.test(cod) ? "Anticipos a proveedores" : "Otros movimientos";
 /* carga de los libros auxiliares (uno por año, sin traslapes) y agregación por cuenta y mes */
 async function gfBase(ses, avance) {
   if (GF_CACHE.p) return GF_CACHE.p;
@@ -6341,7 +6341,7 @@ function GfCaja({ B, ym, pdf }) {
   return gfH("div", { className: "panel" },
     gfH("h2", null, "Flujo de caja"),
     gfH("p", { className: "sub" }, "Dinero que entró y salió de los bancos cada mes, clasificado por la contrapartida del comprobante. No incluye los traslados entre cuentas de la copropiedad. El saldo al cierre es el de todas las cuentas 11 (caja, bancos y fiducias que figuren en efectivo)."),
-    gfH("div", { className: "kpis" }, gfKpi(`Bancos y caja a ${cbMesTxt(ym)}`, gfP(caja)), gfKpi("Cuentas por pagar a proveedores", gfP(cxp)), gfKpi("Impuestos y retenciones por pagar", gfP(imp)), gfKpi("Disponible después de pagar", gfP(caja - cxp - imp), "bancos − proveedores − impuestos")),
+    gfH("div", { className: "kpis" }, gfKpi(`Bancos y caja a ${cbMesTxt(ym)}`, gfP(caja)), gfKpi("Cuentas por pagar a proveedores", gfP(cxp), "cuentas 2335 y 2205"), gfKpi("Impuestos y retenciones por pagar", gfP(imp)), gfKpi("Disponible después de pagar", gfP(caja - cxp - imp), "bancos − proveedores − impuestos")),
     gfH("div", { className: "espacio" }, gfTabla(cols, filas)),
     gfH("h3", { className: "h-sec espacio" }, "Proyección de los próximos 3 meses (estimación)"),
     gfH("p", { className: "sub" }, `Se toma lo que entró y salió en el mismo mes del año anterior y se ajusta por el crecimiento de ${a} frente a ${ant} (entradas ×${gE.toFixed(2).replace(".", ",")}, salidas ×${gS.toFixed(2).replace(".", ",")}). Es una referencia, no un presupuesto: no incluye compras extraordinarias ni decisiones nuevas. Se marca en rojo si el saldo estimado no alcanza para las cuentas por pagar e impuestos de hoy.`),
