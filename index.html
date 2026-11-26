@@ -6382,14 +6382,16 @@ function GfCosto({ B, ym, pdf }) {
     gfH("div", { className: "fila espacio" }, gfH("button", { type: "button", className: "btn btn-sm", onClick: () => pdf(`Costo real por unidad ${ym.slice(0, 4)}`, gfHtmlTabla(cols, filas)) }, "Descargar PDF")));
 }
 /* ---------- 9. Análisis del mes (resumen en palabras) */
+/* los descuentos (cuentas que restan al ingreso) se describen por su tamaño, para que "subió" signifique que hubo más descuento */
+var gfCambio = (nom, a, b) => { let x = Math.abs(a), y = Math.abs(b); return `${nom.toLowerCase()} ${x >= y ? "aumentó" : "disminuyó"} ${gfPctTxt(Math.abs(gfPct(x, y) ?? 0)).replace("+", "")} (${cbPesos(Math.abs(x - y))})`; };
 function gfAnalisis(B, ym) {
   let E = gfEr(B, ym), rec = gfRecaudo(B, ym), recA = gfRecaudo(B, cmYm(ym, -12)), fl = gfFlujoMes(B, ym), caja = gfSaldo(B, "11", ym), car = gfSaldo(B, "1305", ym) - gfSaldo(B, "130595", ym) + gfSaldo(B, "2805", ym), carA = gfSaldo(B, "1305", cmYm(ym, -1)) - gfSaldo(B, "130595", cmYm(ym, -1)) + gfSaldo(B, "2805", cmYm(ym, -1));
   let P = [];
   P.push(`El resultado de ${cbMesLargo(ym)} fue ${E.ex.m >= 0 ? "un excedente" : "un déficit"} de ${cbPesos(Math.abs(E.ex.m))}${E.hayAnt ? `, frente a ${E.ex.mA >= 0 ? "un excedente" : "un déficit"} de ${cbPesos(Math.abs(E.ex.mA))} en ${cbMesLargo(E.ymA)}` : ""}. En lo corrido del año el ${E.ex.ac >= 0 ? "excedente" : "déficit"} acumulado es de ${cbPesos(Math.abs(E.ex.ac))}${E.hayAnt ? ` (${E.ex.acA >= 0 ? "excedente" : "déficit"} de ${cbPesos(Math.abs(E.ex.acA))} en el mismo período del año anterior)` : ""}.`);
   if (E.hayAnt) {
     let ci = E.ing.filter(r => gfMat(r.ac, r.acA, GF_MAT.acum)).sort((a, b) => Math.abs(b.ac - b.acA) - Math.abs(a.ac - a.acA)).slice(0, 3), cg = E.gas.filter(r => gfMat(r.ac, r.acA, GF_MAT.acum)).sort((a, b) => Math.abs(b.ac - b.acA) - Math.abs(a.ac - a.acA)).slice(0, 4);
-    ci.length && P.push(`Ingresos que más cambiaron en el año: ${ci.map(r => `${r.nombre.toLowerCase()} ${gfPctTxt(gfPct(r.ac, r.acA))} (${r.ac > r.acA ? "+" : "−"}${cbPesos(Math.abs(r.ac - r.acA))})`).join("; ")}.`);
-    cg.length && P.push(`Gastos que más cambiaron en el año: ${cg.map(r => `${r.nombre.toLowerCase()} ${gfPctTxt(gfPct(r.ac, r.acA))} (${r.ac > r.acA ? "+" : "−"}${cbPesos(Math.abs(r.ac - r.acA))})`).join("; ")}.`);
+    ci.length && P.push(`Ingresos que más cambiaron en el año: ${ci.map(r => `${gfCambio(r.nombre, r.ac, r.acA)}`).join("; ")}.`);
+    cg.length && P.push(`Gastos que más cambiaron en el año: ${cg.map(r => `${gfCambio(r.nombre, r.ac, r.acA)}`).join("; ")}.`);
     let mg = E.gas.filter(r => gfMat(r.m, r.mA, GF_MAT.mes) && r.m > r.mA).sort((a, b) => (b.m - b.mA) - (a.m - a.mA)).slice(0, 3);
     mg.length && P.push(`En el mes, frente al mismo mes del año anterior, subieron: ${mg.map(r => `${r.nombre.toLowerCase()} (${cbPesos(r.m)} contra ${cbPesos(r.mA)})`).join("; ")}.`);
   }
