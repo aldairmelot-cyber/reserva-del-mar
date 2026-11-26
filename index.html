@@ -6177,6 +6177,7 @@ var GF_CSS = `.gf-t{font-size:13px}.gf-t th{white-space:nowrap;padding:8px 12px}
 .gf-t tr.gf-sub td{color:var(--suave);font-size:12.5px}.gf-t tr.gf-sub td:first-child{padding-left:28px}
 .gf-t tr.gf-click td:first-child{cursor:pointer}.gf-t tr.gf-click:hover td{background:var(--acento-suave)}
 .gf-t tr.gf-res td{background:var(--acento-suave)}
+.gf-t td.neg{color:var(--error);background:none}.gf-t tr.gf-res td.neg{background:var(--acento-suave)}
 .gf-pie{font-size:11.5px;color:var(--suave);margin:6px 2px 0}
 .panel .kpis{gap:12px}.gf-pant .panel>h2{margin-bottom:4px}.gf-pant .panel>.sub{max-width:880px;line-height:1.5}`;
 function gfTabla(cols, filas, opt = {}) {
@@ -6190,13 +6191,15 @@ function gfTabla(cols, filas, opt = {}) {
 var gfKpi = (t, v, s) => gfH("div", { className: "kpi" }, gfH("span", null, t), gfH("b", { className: "num" }, v), s && gfH("small", null, s));
 /* gráfico de barras sencillo (SVG): valores por mes, con línea de promedio */
 function gfBarras(datos, opt = {}) {
-  let W = 760, H = 180, pad = 26, n = datos.length; if (!n) return null;
-  let max = Math.max(...datos.map(d => d.v), 1), bw = (W - pad * 2) / n, prom = datos.reduce((a, d) => a + d.v, 0) / n, y = v => H - pad - (v / max) * (H - pad * 2);
-  return gfH("svg", { viewBox: `0 0 ${W} ${H}`, style: { width: "100%", maxWidth: W, height: "auto" }, role: "img", "aria-label": opt.titulo || "Gráfico" },
-    datos.map((d, i) => gfH("rect", { key: i, x: pad + i * bw + 1, y: y(d.v), width: Math.max(1, bw - 2), height: Math.max(0, H - pad - y(d.v)), fill: d.alerta ? "#B00000" : "var(--acento)", opacity: d.alerta ? .9 : .75 }, gfH("title", null, `${cbMesTxt(d.m)}: ${cbPesos(d.v)}`))),
-    gfH("line", { x1: pad, x2: W - pad, y1: y(prom), y2: y(prom), stroke: "#555", strokeDasharray: "4 3" }),
-    gfH("text", { x: W - pad, y: y(prom) - 4, textAnchor: "end", fontSize: 11, fill: "#555" }, "promedio " + cbCorto(prom)),
-    datos.map((d, i) => (d.m.endsWith("-01") || i === 0) && gfH("text", { key: "t" + i, x: pad + i * bw, y: H - 8, fontSize: 10, fill: "#666" }, d.m.slice(0, 4))));
+  let W = 900, H = 210, pl = 12, pr = 12, pt = 22, pb = 36, n = datos.length; if (!n) return null;
+  let max = Math.max(...datos.map(d => d.v), 1), bw = (W - pl - pr) / n, prom = datos.reduce((a, d) => a + d.v, 0) / n, y = v => H - pb - (Math.max(0, v) / max) * (H - pt - pb);
+  return gfH("svg", { viewBox: `0 0 ${W} ${H}`, style: { width: "100%", height: "auto", display: "block" }, role: "img", "aria-label": opt.titulo || "Gráfico" },
+    gfH("line", { x1: pl, x2: W - pr, y1: H - pb, y2: H - pb, stroke: "var(--linea-fuerte)" }),
+    datos.map((d, i) => gfH("rect", { key: i, x: pl + i * bw + bw * .15, y: y(d.v), width: Math.max(1, bw * .7), height: Math.max(0, H - pb - y(d.v)), rx: 2, fill: d.alerta ? "var(--error)" : "var(--acento)", opacity: d.alerta ? .9 : .7 }, gfH("title", null, `${cbMesTxt(d.m)}: ${cbPesos(d.v)}`))),
+    gfH("line", { x1: pl, x2: W - pr, y1: y(prom), y2: y(prom), stroke: "var(--tinta)", strokeDasharray: "5 4", opacity: .6 }),
+    gfH("text", { x: pl, y: 13, fontSize: 12, fill: "var(--suave)" }, "- - - promedio " + cbCorto(prom)),
+    datos.map((d, i) => gfH("text", { key: "m" + i, x: pl + i * bw + bw / 2, y: H - pb + 14, textAnchor: "middle", fontSize: 10.5, fill: "var(--suave)" }, cbMesTxt(d.m).slice(0, 1))),
+    datos.map((d, i) => (d.m.endsWith("-01") || i === 0) && gfH("text", { key: "a" + i, x: pl + i * bw + bw / 2, y: H - 6, textAnchor: "middle", fontSize: 11, fontWeight: 600, fill: "var(--tinta)" }, d.m.slice(0, 4))));
 }
 /* descarga en PDF con el mismo formato de las comunicaciones */
 async function gfPdf(ses, config, notificar, titulo, sub, html, horizontal) {
@@ -6246,7 +6249,7 @@ function GfErMes({ B, ym, pdf }) {
 function GfEr(p) {
   let [modo, setModo] = Ve.useState("mes");
   return gfH("div", null,
-    gfH("div", { className: "fila", style: { gap: 8, marginBottom: 10 } }, [["mes", "Mes a mes del año"], ["anual", "Frente al año anterior"]].map(([k, t]) => gfH("button", { key: k, type: "button", className: "btn btn-sm" + (modo === k ? " btn-pri" : ""), onClick: () => setModo(k) }, t))),
+    gfH("div", { className: "fila", style: { gap: 8, marginBottom: 10 } }, [["mes", "Mes a mes del año"], ["anual", "Frente al año anterior"]].map(([k, t]) => gfH("button", { key: k, type: "button", className: "btn btn-sm" + (modo === k ? " btn-primario" : ""), onClick: () => setModo(k) }, t))),
     gfH(modo === "mes" ? GfErMes : GfErAnual, p));
 }
 function GfErAnual({ B, ym, pdf }) {
