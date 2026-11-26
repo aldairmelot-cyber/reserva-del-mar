@@ -6205,7 +6205,35 @@ function gfEr(B, ym) {
   let u12 = { ing: gfNeto(B, "4", d12, ym, "c"), gas: gfNeto(B, "5", d12, ym, "d"), ingA: hay24 ? nA("4", d24, h24, "c") : null, gasA: hay24 ? nA("5", d24, h24, "d") : null };
   return { ym, ymA, hayAnt, ing, gas, ti, tg, ex, u12 };
 }
-function GfEr({ B, ym, pdf }) {
+/* estado de resultados mes a mes del año del corte */
+function GfErMes({ B, ym, pdf }) {
+  let [abierto, setAb] = Ve.useState({}), a = ym.slice(0, 4), meses = B.meses.filter(m => m.startsWith(a) && m <= ym), par = gfParcial(B, ym);
+  let nMes = meses.length - (par ? 1 - B.corte.fr : 0) || 1;
+  let fila = (pref, signo) => { let v = meses.map(m => gfNeto(B, pref, m, m, signo)), t = v.reduce((x, y) => x + y, 0); return { pref, v, t }; };
+  let vivo = r => r.v.some(x => Math.abs(x) >= 1);
+  let sec = (pref, signo) => gfHijos(B, pref, 4).map(p => ({ ...fila(p, signo), nombre: gfNom(B, p), hijos: gfHijos(B, p, 6).map(q => ({ ...fila(q, signo), nombre: gfNom(B, q) })).filter(vivo) })).filter(vivo);
+  let R = Ve.useMemo(() => { let ing = sec("4", "c"), gas = sec("5", "d"), tot = L => ({ v: meses.map((_, i) => L.reduce((s, r) => s + r.v[i], 0)), t: L.reduce((s, r) => s + r.t, 0) }); let ti = tot(ing), tg = tot(gas); return { ing, gas, ti, tg, ex: { v: ti.v.map((x, i) => x - tg.v[i]), t: ti.t - tg.t } }; }, [B, ym]);
+  let cols = [{ t: "Concepto" }, ...meses.map(m => ({ t: cbMesTxt(m).slice(0, 3) + (par && m === ym ? ` (1–${B.corte.dia})` : ""), num: 1 })), { t: `Total ${a}`, num: 1 }, { t: "Promedio mensual", num: 1 }];
+  let fl = (r, sub, b) => ({ c: [(sub ? "   " : "") + r.nombre + (r.hijos?.length && !sub ? (abierto[r.pref] ? " ▾" : " ▸") : ""), ...r.v.map(gfP), gfP(r.t), gfP(r.t / nMes)], b, pref: sub ? null : r.pref, estilo: sub ? { color: "var(--suave)", fontSize: 12.5 } : null });
+  let filas = [];
+  let bloque = (tit, L, t) => { filas.push({ c: [tit, ...meses.map(() => ""), "", ""], b: 1 }); for (const r of L) { filas.push(fl(r, !1)); if (abierto[r.pref]) r.hijos.forEach(h => filas.push(fl(h, !0))); } filas.push(fl({ ...t, nombre: "Total " + tit.toLowerCase() }, !1, 1)); };
+  bloque("INGRESOS", R.ing, R.ti); bloque("GASTOS", R.gas, R.tg);
+  let fe = fl({ ...R.ex, nombre: "EXCEDENTE (DÉFICIT)" }, !1, 1); fe.estilo = { borderTop: "2px solid var(--acento)" }; fe.neg = Object.fromEntries(R.ex.v.map((x, i) => [i + 1, x < 0]).concat([[meses.length + 1, R.ex.t < 0]])); filas.push(fe);
+  let peor = meses.map((m, i) => ({ m, v: R.ex.v[i] })).filter(x => !(par && x.m === ym)).sort((x, y) => x.v - y.v)[0], mejor = meses.map((m, i) => ({ m, v: R.ex.v[i] })).filter(x => !(par && x.m === ym)).sort((x, y) => y.v - x.v)[0];
+  return gfH("div", { className: "panel" },
+    gfH("h2", null, `Estado de resultados mes a mes ${a}`),
+    gfH("p", { className: "sub" }, `Ingresos, gastos y excedente de cada mes de ${a} hasta ${par ? "el " + gfFechaCorte(B) : cbMesLargo(ym)}. Haga clic en un rubro para ver sus cuentas. Sin el cierre anual; los ingresos incluyen el descuento por pronto pago como menor valor (cuenta 4175). El promedio mensual cuenta ${par ? "el mes en curso por los días transcurridos" : "los meses del año"}.`),
+    gfH("div", { className: "kpis" }, gfKpi(`Excedente acumulado ${a}`, gfP(R.ex.t), `promedio mensual: ${gfP(R.ex.t / nMes)}`), mejor && gfKpi("Mejor mes", gfP(mejor.v), cbMesLargo(mejor.m)), peor && gfKpi("Mes más bajo", gfP(peor.v), cbMesLargo(peor.m))),
+    gfH("div", { className: "espacio", onClick: e => { let tr = e.target.closest("tr"); if (!tr || !tr.parentNode || tr.parentNode.tagName !== "TBODY") return; let i = [...tr.parentNode.children].indexOf(tr), f = filas[i]; f?.pref && setAb(x => ({ ...x, [f.pref]: !x[f.pref] })); } }, gfTabla(cols, filas)),
+    gfH("div", { className: "fila espacio" }, gfH("button", { type: "button", className: "btn btn-sm", onClick: () => pdf(`Estado de resultados mes a mes ${a}`, gfHtmlTabla(cols, filas.map(f => ({ ...f, c: f.c.map(v => String(v).replace(/ [▾▸]$/, "")) }))), !0) }, "Descargar PDF")));
+}
+function GfEr(p) {
+  let [modo, setModo] = Ve.useState("mes");
+  return gfH("div", null,
+    gfH("div", { className: "fila", style: { gap: 8, marginBottom: 10 } }, [["mes", "Mes a mes del año"], ["anual", "Frente al año anterior"]].map(([k, t]) => gfH("button", { key: k, type: "button", className: "btn btn-sm" + (modo === k ? " btn-pri" : ""), onClick: () => setModo(k) }, t))),
+    gfH(modo === "mes" ? GfErMes : GfErAnual, p));
+}
+function GfErAnual({ B, ym, pdf }) {
   let [abierto, setAb] = Ve.useState({}); let R = Ve.useMemo(() => gfEr(B, ym), [B, ym]);
   let dd = gfParcial(B, ym) ? ` (1–${B.corte.dia})` : "", cols = [{ t: "Concepto" }, { t: cbMesTxt(ym) + dd, num: 1 }, { t: R.hayAnt ? cbMesTxt(R.ymA) + dd : "—", num: 1 }, { t: "Var. mes", num: 1 }, { t: `Ene–${cbMesTxt(ym).slice(0, 3)} ${ym.slice(0, 4)}`, num: 1 }, { t: R.hayAnt ? `Ene–${cbMesTxt(ym).slice(0, 3)} ${R.ymA.slice(0, 4)}` : "—", num: 1 }, { t: "Var. acumulada", num: 1 }];
   let fl = (r, sub, esGasto) => { let vm = r.m - r.mA, va = r.ac - r.acA, malo = v => esGasto ? v > 0 : v < 0, al = gfMat(r.ac, r.acA, GF_MAT.acum) || gfMat(r.m, r.mA, GF_MAT.mes);
