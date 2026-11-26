@@ -1189,11 +1189,19 @@ function ppOpTexto(M, o) {
   let p = v => ppPct(v, 2);
   return `${o.nombre}: incremento de los gastos indexados al salario mínimo ${p(o.pPer)}, de los gastos indexados al IPC ${p(o.pGas)} y de la tarifa de la manilla ${o.temp ? `${o.pmBaja < -0.0005 ? `una rebaja de ${p(-o.pmBaja)}` : p(o.pmBaja)} en temporada baja (${ppP(o.precio27)}) y ${p(o.pmAlta)} en temporada alta (${ppP(o.precioAlta)}), ${p(o.pm)} en promedio del año` : `${p(o.pm)}${M.precio26 ? ` (de ${ppP(M.precio26)} a ${ppP(o.precio27)})` : ""}`}. Gastos de funcionamiento mensuales: ${ppP(o.G / 12)}. Facturación mensual de expensas comunes: ${ppP(o.mes)}, con una variación de ${ppSig(o.inc)} frente a 2026.`;
 }
+/* casilla de porcentaje que acepta negativos y coma decimal mientras se escribe (un input numérico borra el «-» suelto) */
+function PpNum({ val, onVal }) {
+  let [t, setT] = Ve.useState(String(val ?? "").replace(".", ",")), foco = Ve.useRef(!1);
+  Ve.useEffect(() => { if (!foco.current) setT(String(val ?? "").replace(".", ",")); }, [val]);
+  return Ve.createElement("input", { type: "text", inputMode: "decimal", className: "num a-right", style: { width: 80, fontWeight: 700 }, value: t,
+    onFocus: () => { foco.current = !0; }, onBlur: () => { foco.current = !1; setT(String(val ?? "").replace(".", ",")); },
+    onChange: e => { let v = e.target.value.replace(/[^\d,.\-−]/g, "").replace("−", "-"); setT(v); if (v === "") onVal(null); else if (/^-?\d+([.,]\d*)?$/.test(v)) onVal(parseFloat(v.replace(",", "."))); } });
+}
 /* panel de las opciones: lo que se decide (%) y lo que resulta */
 function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
   let c = ppCoefTipo(base), a26 = ppCuota26De(M, base, c), sml = +(M.sml * 100).toFixed(2), ipc = +(M.ipc * 100).toFixed(2);
   let setOp = (i, k, v) => guardar({ ...cfg, op: PP_DEF.op.map((d, j) => ({ ...d, ...(cfg.op?.[j] ?? {}), ...(j === i ? { [k]: v } : {}) })) });
-  let inp = (o, k, val) => soloLectura ? ppPct(val / 100, 2) : h("span", { style: { whiteSpace: "nowrap" } }, h("input", { type: "number", step: 0.1, className: "num a-right", style: { width: 80, fontWeight: 700 }, value: val, onChange: e => setOp(o.i, k, e.target.value === "" ? null : +e.target.value) }), " %");
+  let inp = (o, k, val) => soloLectura ? ppPct(val / 100, 2) : h("span", { style: { whiteSpace: "nowrap" } }, h(PpNum, { key: o.i + k, val, onVal: v => setOp(o.i, k, v) }), " %");
   let th = t => h("th", { className: "a-right" }, t), td = (v, st) => h("td", { className: "a-right num", style: st }, v);
   let fila = (t, ayuda, cells, st) => h("tr", { style: st }, h("td", null, t, ayuda && h("div", { className: "tenue", style: { fontSize: 12 } }, ayuda)), ...cells);
   let grupo = t => h("tr", { className: "pp-g" }, h("td", { colSpan: 1 + M.ops.length }, t));
