@@ -6166,28 +6166,47 @@ function gfSaldo(B, pref, ym) {
 function gfHijos(B, pref, len) { let S = new Set(); for (const cod of Object.keys(B.M)) if (cod.startsWith(pref) && cod.length >= len) S.add(cod.slice(0, len)); return [...S].sort(); }
 var gfMesesDe = (B, anio) => B.meses.filter(m => m.startsWith(anio));
 /* ---------- utilidades de pantalla */
+/* tablas de la sección: cifras sin el signo $ (se indica debajo), sin cortes de línea en los números y la primera columna fija al desplazarse */
+var gfSinPeso = v => typeof v === "string" ? v.replace(/^(\(?)\$\s/, "$1") : v;
+var GF_CSS = `.gf-t{font-size:13px}.gf-t th{white-space:nowrap;padding:8px 12px}.gf-t td{padding:7px 12px;vertical-align:middle}
+.gf-t td.num{white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.gf-t th:first-child,.gf-t td:first-child{position:sticky;left:0;z-index:1;background:var(--hoja);min-width:230px;max-width:300px;box-shadow:1px 0 0 var(--linea)}
+.gf-t th:first-child{z-index:2}
+.gf-t tr.gf-sec td{background:var(--bg);font-weight:700;font-size:11.5px;letter-spacing:.06em;color:var(--suave);padding-top:10px}
+.gf-t tr.gf-tot td{font-weight:700;border-top:1px solid var(--linea-fuerte)}
+.gf-t tr.gf-sub td{color:var(--suave);font-size:12.5px}.gf-t tr.gf-sub td:first-child{padding-left:28px}
+.gf-t tr.gf-click td:first-child{cursor:pointer}.gf-t tr.gf-click:hover td{background:var(--acento-suave)}
+.gf-t tr.gf-res td{background:var(--acento-suave)}
+.gf-t td.neg{color:var(--error);background:none}.gf-t tr.gf-res td.neg{background:var(--acento-suave)}
+.gf-pie{font-size:11.5px;color:var(--suave);margin:6px 2px 0}
+.panel .kpis{gap:12px}.gf-pant .panel>h2{margin-bottom:4px}.gf-pant .panel>.sub{max-width:880px;line-height:1.5}`;
 function gfTabla(cols, filas, opt = {}) {
-  return gfH("div", { className: "tabla-scroll" + (opt.alta ? " alta" : "") }, gfH("table", { className: "t-datos" },
+  let hayNum = cols.some((c, j) => c.num && filas.some(f => /^\(?\$\s/.test(String(f.c[j] ?? ""))));
+  let clase = f => { let vacia = f.c.slice(1).every(v => v === "" || v == null); return [vacia && f.b ? "gf-sec" : f.b ? "gf-tot" : "", f.sub ? "gf-sub" : "", f.pref ? "gf-click" : "", f.res ? "gf-res" : ""].filter(Boolean).join(" "); };
+  return gfH("div", null, gfH("div", { className: "tabla-scroll" + (opt.alta ? " alta" : "") }, gfH("table", { className: "t-datos gf-t" },
     gfH("thead", null, gfH("tr", null, cols.map((c, i) => gfH("th", { key: i, className: c.num ? "a-right" : "" }, c.t)))),
-    gfH("tbody", null, filas.map((f, i) => gfH("tr", { key: i, style: f.estilo || null }, f.c.map((v, j) => gfH("td", { key: j, className: cols[j]?.num ? "a-right num" + (f.neg?.[j] ? " neg" : "") : "", style: f.b ? { fontWeight: 700 } : null }, v)))))));
+    gfH("tbody", null, filas.map((f, i) => gfH("tr", { key: i, className: clase(f) || null }, f.c.map((v, j) => gfH("td", { key: j, className: cols[j]?.num ? "num" + (f.neg?.[j] ? " neg" : "") : "", style: f.estilo || null }, cols[j]?.num ? gfSinPeso(v) : String(v ?? "").replace(/^\s+/, "")))))))),
+    hayNum && gfH("p", { className: "gf-pie" }, "Cifras en pesos colombianos. Los valores entre paréntesis son negativos."));
 }
 var gfKpi = (t, v, s) => gfH("div", { className: "kpi" }, gfH("span", null, t), gfH("b", { className: "num" }, v), s && gfH("small", null, s));
 /* gráfico de barras sencillo (SVG): valores por mes, con línea de promedio */
 function gfBarras(datos, opt = {}) {
-  let W = 760, H = 180, pad = 26, n = datos.length; if (!n) return null;
-  let max = Math.max(...datos.map(d => d.v), 1), bw = (W - pad * 2) / n, prom = datos.reduce((a, d) => a + d.v, 0) / n, y = v => H - pad - (v / max) * (H - pad * 2);
-  return gfH("svg", { viewBox: `0 0 ${W} ${H}`, style: { width: "100%", maxWidth: W, height: "auto" }, role: "img", "aria-label": opt.titulo || "Gráfico" },
-    datos.map((d, i) => gfH("rect", { key: i, x: pad + i * bw + 1, y: y(d.v), width: Math.max(1, bw - 2), height: Math.max(0, H - pad - y(d.v)), fill: d.alerta ? "#B00000" : "var(--acento)", opacity: d.alerta ? .9 : .75 }, gfH("title", null, `${cbMesTxt(d.m)}: ${cbPesos(d.v)}`))),
-    gfH("line", { x1: pad, x2: W - pad, y1: y(prom), y2: y(prom), stroke: "#555", strokeDasharray: "4 3" }),
-    gfH("text", { x: W - pad, y: y(prom) - 4, textAnchor: "end", fontSize: 11, fill: "#555" }, "promedio " + cbCorto(prom)),
-    datos.map((d, i) => (d.m.endsWith("-01") || i === 0) && gfH("text", { key: "t" + i, x: pad + i * bw, y: H - 8, fontSize: 10, fill: "#666" }, d.m.slice(0, 4))));
+  let W = 900, H = 210, pl = 12, pr = 12, pt = 22, pb = 36, n = datos.length; if (!n) return null;
+  let max = Math.max(...datos.map(d => d.v), 1), bw = (W - pl - pr) / n, prom = datos.reduce((a, d) => a + d.v, 0) / n, y = v => H - pb - (Math.max(0, v) / max) * (H - pt - pb);
+  return gfH("svg", { viewBox: `0 0 ${W} ${H}`, style: { width: "100%", height: "auto", display: "block" }, role: "img", "aria-label": opt.titulo || "Gráfico" },
+    gfH("line", { x1: pl, x2: W - pr, y1: H - pb, y2: H - pb, stroke: "var(--linea-fuerte)" }),
+    datos.map((d, i) => gfH("rect", { key: i, x: pl + i * bw + bw * .15, y: y(d.v), width: Math.max(1, bw * .7), height: Math.max(0, H - pb - y(d.v)), rx: 2, fill: d.alerta ? "var(--error)" : "var(--acento)", opacity: d.alerta ? .9 : .7 }, gfH("title", null, `${cbMesTxt(d.m)}: ${cbPesos(d.v)}`))),
+    gfH("line", { x1: pl, x2: W - pr, y1: y(prom), y2: y(prom), stroke: "var(--tinta)", strokeDasharray: "5 4", opacity: .6 }),
+    gfH("text", { x: pl, y: 13, fontSize: 12, fill: "var(--suave)" }, "- - - promedio " + cbCorto(prom)),
+    datos.map((d, i) => gfH("text", { key: "m" + i, x: pl + i * bw + bw / 2, y: H - pb + 14, textAnchor: "middle", fontSize: 10.5, fill: "var(--suave)" }, cbMesTxt(d.m).slice(0, 1))),
+    datos.map((d, i) => (d.m.endsWith("-01") || i === 0) && gfH("text", { key: "a" + i, x: pl + i * bw + bw / 2, y: H - 6, textAnchor: "middle", fontSize: 11, fontWeight: 600, fill: "var(--tinta)" }, d.m.slice(0, 4))));
 }
 /* descarga en PDF con el mismo formato de las comunicaciones */
 async function gfPdf(ses, config, notificar, titulo, sub, html, horizontal) {
   try { let doc = cmDoc({ html, tituloDoc: titulo.toUpperCase(), subDoc: sub, orientacion: horizontal ? "landscape" : "portrait" }, config); await BL(ses, titulo.replace(/[^\wÁÉÍÓÚÑáéíóúñ]+/g, "_") + ".pdf", await en(doc), notificar); }
   catch (e) { console.error(e); notificar("error", "No se pudo generar el PDF: " + (e?.message ?? e)); }
 }
-var gfHtmlTabla = (cols, filas) => `<table><thead><tr>${cols.map(c => `<th>${cmEsc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas.map(f => `<tr${f.rojo ? ' class="rojo"' : ""}>${f.c.map(v => `<td>${f.b ? "<strong>" : ""}${cmEsc(v)}${f.b ? "</strong>" : ""}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+var gfHtmlTabla = (cols, filas) => `<table><thead><tr>${cols.map(c => `<th>${cmEsc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas.map(f => `<tr${f.rojo ? ' class="rojo"' : ""}>${f.c.map(v => `<td>${f.b ? "<strong>" : ""}${cmEsc(gfSinPeso(v))}${f.b ? "</strong>" : ""}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 /* ---------- 1. Resultados comparativos */
 var gfParcial = (B, ym) => !!(B.corte?.parcial && ym === B.corte.ym);
 var gfFechaCorte = B => { let f = B.corte.fecha; return `${+f.slice(8, 10)} de ${cbMesLargo(f.slice(0, 7))}`; };
@@ -6214,11 +6233,11 @@ function GfErMes({ B, ym, pdf }) {
   let sec = (pref, signo) => gfHijos(B, pref, 4).map(p => ({ ...fila(p, signo), nombre: gfNom(B, p), hijos: gfHijos(B, p, 6).map(q => ({ ...fila(q, signo), nombre: gfNom(B, q) })).filter(vivo) })).filter(vivo);
   let R = Ve.useMemo(() => { let ing = sec("4", "c"), gas = sec("5", "d"), tot = L => ({ v: meses.map((_, i) => L.reduce((s, r) => s + r.v[i], 0)), t: L.reduce((s, r) => s + r.t, 0) }); let ti = tot(ing), tg = tot(gas); return { ing, gas, ti, tg, ex: { v: ti.v.map((x, i) => x - tg.v[i]), t: ti.t - tg.t } }; }, [B, ym]);
   let cols = [{ t: "Concepto" }, ...meses.map(m => ({ t: cbMesTxt(m).slice(0, 3) + (par && m === ym ? ` (1–${B.corte.dia})` : ""), num: 1 })), { t: `Total ${a}`, num: 1 }, { t: "Promedio mensual", num: 1 }];
-  let fl = (r, sub, b) => ({ c: [(sub ? "   " : "") + r.nombre + (r.hijos?.length && !sub ? (abierto[r.pref] ? " ▾" : " ▸") : ""), ...r.v.map(gfP), gfP(r.t), gfP(r.t / nMes)], b, pref: sub ? null : r.pref, estilo: sub ? { color: "var(--suave)", fontSize: 12.5 } : null });
+  let fl = (r, sub, b) => ({ c: [r.nombre + (r.hijos?.length && !sub ? (abierto[r.pref] ? " ▾" : " ▸") : ""), ...r.v.map(gfP), gfP(r.t), gfP(r.t / nMes)], b, sub, pref: sub || b ? null : r.pref });
   let filas = [];
   let bloque = (tit, L, t) => { filas.push({ c: [tit, ...meses.map(() => ""), "", ""], b: 1 }); for (const r of L) { filas.push(fl(r, !1)); if (abierto[r.pref]) r.hijos.forEach(h => filas.push(fl(h, !0))); } filas.push(fl({ ...t, nombre: "Total " + tit.toLowerCase() }, !1, 1)); };
   bloque("INGRESOS", R.ing, R.ti); bloque("GASTOS", R.gas, R.tg);
-  let fe = fl({ ...R.ex, nombre: "EXCEDENTE (DÉFICIT)" }, !1, 1); fe.estilo = { borderTop: "2px solid var(--acento)" }; fe.neg = Object.fromEntries(R.ex.v.map((x, i) => [i + 1, x < 0]).concat([[meses.length + 1, R.ex.t < 0]])); filas.push(fe);
+  let fe = fl({ ...R.ex, nombre: "EXCEDENTE (DÉFICIT)" }, !1, 1); fe.neg = Object.fromEntries(R.ex.v.map((x, i) => [i + 1, x < 0]).concat([[meses.length + 1, R.ex.t < 0]])); filas.push(fe);
   let peor = meses.map((m, i) => ({ m, v: R.ex.v[i] })).filter(x => !(par && x.m === ym)).sort((x, y) => x.v - y.v)[0], mejor = meses.map((m, i) => ({ m, v: R.ex.v[i] })).filter(x => !(par && x.m === ym)).sort((x, y) => y.v - x.v)[0];
   return gfH("div", { className: "panel" },
     gfH("h2", null, `Estado de resultados mes a mes ${a}`),
@@ -6230,18 +6249,18 @@ function GfErMes({ B, ym, pdf }) {
 function GfEr(p) {
   let [modo, setModo] = Ve.useState("mes");
   return gfH("div", null,
-    gfH("div", { className: "fila", style: { gap: 8, marginBottom: 10 } }, [["mes", "Mes a mes del año"], ["anual", "Frente al año anterior"]].map(([k, t]) => gfH("button", { key: k, type: "button", className: "btn btn-sm" + (modo === k ? " btn-pri" : ""), onClick: () => setModo(k) }, t))),
+    gfH("div", { className: "fila", style: { gap: 8, marginBottom: 10 } }, [["mes", "Mes a mes del año"], ["anual", "Frente al año anterior"]].map(([k, t]) => gfH("button", { key: k, type: "button", className: "btn btn-sm" + (modo === k ? " btn-primario" : ""), onClick: () => setModo(k) }, t))),
     gfH(modo === "mes" ? GfErMes : GfErAnual, p));
 }
 function GfErAnual({ B, ym, pdf }) {
   let [abierto, setAb] = Ve.useState({}); let R = Ve.useMemo(() => gfEr(B, ym), [B, ym]);
   let dd = gfParcial(B, ym) ? ` (1–${B.corte.dia})` : "", cols = [{ t: "Concepto" }, { t: cbMesTxt(ym) + dd, num: 1 }, { t: R.hayAnt ? cbMesTxt(R.ymA) + dd : "—", num: 1 }, { t: "Var. mes", num: 1 }, { t: `Ene–${cbMesTxt(ym).slice(0, 3)} ${ym.slice(0, 4)}`, num: 1 }, { t: R.hayAnt ? `Ene–${cbMesTxt(ym).slice(0, 3)} ${R.ymA.slice(0, 4)}` : "—", num: 1 }, { t: "Var. acumulada", num: 1 }];
   let fl = (r, sub, esGasto) => { let vm = r.m - r.mA, va = r.ac - r.acA, malo = v => esGasto ? v > 0 : v < 0, al = gfMat(r.ac, r.acA, GF_MAT.acum) || gfMat(r.m, r.mA, GF_MAT.mes);
-    return { c: [(sub ? "   " : "") + r.nombre + (r.hijos?.length && !sub ? (abierto[r.pref] ? " ▾" : " ▸") : ""), gfP(r.m), gfP(r.mA), R.hayAnt ? gfPctTxt(gfPct(r.m, r.mA)) : "—", gfP(r.ac), gfP(r.acA), R.hayAnt ? `${gfP(va)} (${gfPctTxt(gfPct(r.ac, r.acA))})` : "—"], neg: { 3: R.hayAnt && malo(vm) && gfMat(r.m, r.mA, GF_MAT.mes), 6: R.hayAnt && malo(va) && gfMat(r.ac, r.acA, GF_MAT.acum) }, estilo: sub ? { color: "var(--suave)", fontSize: 12.5 } : al ? { background: "var(--acento-suave)" } : null, pref: r.pref }; };
+    return { c: [(sub ? "   " : "") + r.nombre + (r.hijos?.length && !sub ? (abierto[r.pref] ? " ▾" : " ▸") : ""), gfP(r.m), gfP(r.mA), R.hayAnt ? gfPctTxt(gfPct(r.m, r.mA)) : "—", gfP(r.ac), gfP(r.acA), R.hayAnt ? `${gfP(va)} (${gfPctTxt(gfPct(r.ac, r.acA))})` : "—"], neg: { 3: R.hayAnt && malo(vm) && gfMat(r.m, r.mA, GF_MAT.mes), 6: R.hayAnt && malo(va) && gfMat(r.ac, r.acA, GF_MAT.acum) }, sub: sub, res: !sub && al, pref: sub ? null : r.pref }; };
   let filas = [], H = [];
-  let bloque = (tit, L, t, esGasto) => { filas.push({ c: [tit, "", "", "", "", "", ""], b: 1 }); for (const r of L) { filas.push(fl(r, !1, esGasto)); if (abierto[r.pref]) r.hijos.forEach(h => filas.push(fl(h, !0, esGasto))); } filas.push({ ...fl({ ...t, nombre: "Total " + tit.toLowerCase() }, !1, esGasto), b: 1, estilo: null }); };
+  let bloque = (tit, L, t, esGasto) => { filas.push({ c: [tit, "", "", "", "", "", ""], b: 1 }); for (const r of L) { filas.push(fl(r, !1, esGasto)); if (abierto[r.pref]) r.hijos.forEach(h => filas.push(fl(h, !0, esGasto))); } filas.push({ ...fl({ ...t, nombre: "Total " + tit.toLowerCase() }, !1, esGasto), b: 1, res: !1, pref: null }); };
   bloque("INGRESOS", R.ing, R.ti, !1); bloque("GASTOS", R.gas, R.tg, !0);
-  filas.push({ ...fl({ ...R.ex, nombre: "EXCEDENTE (DÉFICIT)" }, !1, !1), b: 1, estilo: { borderTop: "2px solid var(--acento)" } });
+  filas.push({ ...fl({ ...R.ex, nombre: "EXCEDENTE (DÉFICIT)" }, !1, !1), b: 1, res: !1 });
   let alertas = [...R.ing.map(r => [r, !1]), ...R.gas.map(r => [r, !0])].filter(([r]) => R.hayAnt && gfMat(r.ac, r.acA, GF_MAT.acum)).sort((a, b) => Math.abs(b[0].ac - b[0].acA) - Math.abs(a[0].ac - a[0].acA)).slice(0, 6);
   return gfH("div", { className: "panel" },
     gfH("h2", null, "Estado de resultados comparativo"),
@@ -6268,7 +6287,7 @@ function GfGastos({ B, ym, pdf }) {
   return gfH("div", { className: "panel" },
     gfH("h2", null, "Tendencia de gastos por rubro"),
     gfH("p", { className: "sub" }, `Gasto de cada rubro por año (el año en curso hasta ${cbMesLargo(ym)}) y el promedio mensual, para comparar años incompletos. «Cambio» compara los promedios mensuales; se marca en rojo cuando sube más de ${GF_MAT.pct} % y más de $ 1 M al mes. Haga clic en un rubro para ver su comportamiento mes a mes.`),
-    gfH("div", { onClick: e => { let tr = e.target.closest("tbody tr"); if (!tr) return; let i = [...tr.parentNode.children].indexOf(tr); filas[i]?.p && setSel(filas[i].p); } }, gfTabla(cols, filas.map(f => ({ ...f, estilo: f.p === sel ? { background: "var(--acento-suave)", cursor: "pointer" } : { cursor: "pointer" } })))),
+    gfH("div", { onClick: e => { let tr = e.target.closest("tbody tr"); if (!tr) return; let i = [...tr.parentNode.children].indexOf(tr); filas[i]?.p && setSel(filas[i].p); } }, gfTabla(cols, filas.map(f => ({ ...f, res: f.p === sel, pref: f.p})))),
     sel && gfH("div", { className: "espacio" }, gfH("h3", { className: "h-sec" }, `${gfNom(B, sel)} · mes a mes (últimos ${serie.length} meses)`),
       gfBarras(serie.map(d => ({ ...d, alerta: atS.has(d.m) })), { titulo: gfNom(B, sel) }),
       atip.length ? gfH("div", null, gfH("p", null, gfH("b", null, "Meses atípicos"), ` (más de ${GF_MAT.atip * 100} % y ${cbCorto(GF_MAT.atipMin)} por encima del promedio de los 12 meses anteriores):`),
@@ -6454,7 +6473,7 @@ function GfPantalla({ ses, config, notificar, vista }) {
   let cuerpo = err ? gfH("div", { className: "panel" }, gfH("p", null, "No se pudo armar el informe: " + err))
     : !B ? gfH("div", { className: "panel" }, gfH("p", { className: "tenue" }, av, " La primera vez puede tardar unos segundos."))
     : gfH(vista === "gf_er" ? GfEr : vista === "gf_gastos" ? GfGastos : vista === "gf_prov" ? GfProv : vista === "gf_recaudo" ? GfRecaudo : vista === "gf_cartera" ? GfCartera : vista === "gf_caja" ? GfCaja : vista === "gf_fondo" ? GfFondo : vista === "gf_costo" ? GfCosto : GfMes, { B, ym, pdf, ses });
-  return gfH("div", { className: "pantalla" },
+  return gfH("div", { className: "pantalla gf-pant" }, gfH("style", null, GF_CSS),
     gfH("div", { className: "pantalla-enc" }, gfH("div", null, gfH("h2", { className: "h-sec" }, "Gestión financiera · " + tit), gfH("p", { className: "lead" }, "Informes de análisis para revisar la información financiera. Se calculan con los libros auxiliares cargados en Verificación; no reemplazan los estados financieros.")),
       B && gfH("label", { className: "campo" }, gfH("span", null, "Mes de corte"), gfH("select", { value: ym, onChange: e => setYm(e.target.value) }, [...B.meses].reverse().map(m => gfH("option", { key: m, value: m }, cbMesLargo(m)))))),
     B && gfParcial(B, ym) && gfH("div", { className: "panel", style: { borderLeft: "4px solid var(--acento)" } }, gfH("p", null, gfH("b", null, `Mes en curso: ${cbMesLargo(ym)} va hasta el ${gfFechaCorte(B)}. `), `Los valores del mes son parciales. En los resultados comparativos el mes y el acumulado se comparan con el mismo corte del año anterior (1 al ${B.corte.dia} de ${cbMesLargo(cmYm(ym, -12))}); los promedios mensuales cuentan el mes en curso por los días transcurridos. La facturación del mes se registra completa el día 1, mientras el recaudo sigue entrando hasta fin de mes.`)),
