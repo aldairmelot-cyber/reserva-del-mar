@@ -6647,6 +6647,7 @@ var DK_CSS = `.dk{position:fixed;inset:0;z-index:99999;background:#1f2229;displa
 .dk-ctrl select{max-width:360px;font-size:13px;padding:4px;background:#2a2d35;color:#eee;border:1px solid #444}
 .dk-barra{position:absolute;left:0;bottom:0;height:5px;background:#c8904f}`;
 var dkH = Ve.createElement;
+var dkTc = t => { t = String(t ?? "").trim(); return t && t === t.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{3}/.test(t) ? t.charAt(0) + t.slice(1).toLowerCase() : t; };
 var dkNum = t => /^\s*\(?-?\$?\s*[\d.,]+%?\)?\s*$|^\s*-\s*$|^N\/A$/.test(String(t ?? ""));
 /* tabla del documento (celdas con t, bold, color, fondo) en formato de proyección */
 function dkTabla(t, chica) {
@@ -6680,7 +6681,7 @@ function dkSecciones(doc) {
     if (!cur) continue;
     if (b.tipo === "tabla") cur.tablas.push(b);
     else if (b.tipo === "parrafo" && b.estilo === "clave" && !cur.clave) cur.clave = b.texto;
-    else if (b.tipo === "parrafo" && b.texto) cur.vin.push(b.texto);
+    else if (b.tipo === "parrafo" && b.texto) { let v = String(b.texto).replace(/\s*La tabla siguiente[^.]*\.\s*$/, "").replace(/^Análisis:\s*/, ""); v && cur.vin.push(v.charAt(0).toUpperCase() + v.slice(1)); }
   }
   return out;
 }
@@ -6696,13 +6697,13 @@ function dkArmar({ R, cj, sem, entidad }) {
       tile("Efectivo y equivalentes", E.r.EFECTIVO ?? 0, Ea.r.EFECTIVO ?? 0), tile("Cartera (deudores)", E.r.DEUDORES ?? 0, Ea.r.DEUDORES ?? 0, !0), tile("Patrimonio", E.TPat, Ea.TPat)] });
   if (sem?.length) S.push({ id: "semaforo", menu: "Semáforo de gestión", kick: "Resumen ejecutivo", tit: "Semáforo de gestión", sem });
   let det = re => (R.doc?.secciones || []).find(x => re.test(x.nombre || "") || re.test(x.titulo || ""));
-  let detalle = (s, kick, max) => { if (!s) return; let tabs = (s.bloques || []).filter(b => b.tipo === "tabla"); tabs.forEach(t => dkPartir(t, max || 14).forEach((p, k) => S.push({ id: "ef_" + s.id, menu: (s.nombre || s.titulo) + (k ? " (cont.)" : ""), kick, tit: (s.titulo || s.nombre) + (k ? " (continuación)" : ""), tabla: p, chica: (p.columnas || []).length > 5, efId: s.id }))); };
+  let detalle = (s, kick, max) => { if (!s) return; let tabs = (s.bloques || []).filter(b => b.tipo === "tabla"); tabs.forEach(t => dkPartir(t, max || 14).forEach((p, k) => { if (k) p = { ...p, columnas: p.columnas.map((c, j) => ({ ...c, titulo: j === 0 ? "" : /^NOTA/.test(c.titulo) ? "NOTA" : c.titulo })) }; S.push({ id: "ef_" + s.id, menu: dkTc(s.nombre || s.titulo) + (k ? " (cont.)" : ""), kick, tit: dkTc(s.titulo || s.nombre) + (k ? " (continuación)" : ""), tabla: p, chica: (p.columnas || []).length > 5, efId: s.id }); })); };
   let tema = (x, kick, efDet) => {
     if (!x) { efDet && efDet(); return; }
     let tabs = x.tablas.flatMap(t => dkPartir(t, x.clave ? 9 : 13));
-    if (tabs.length) tabs.forEach((t, k) => S.push({ id: "cj_" + x.tit, menu: x.tit + (k ? " (cont.)" : ""), kick, tit: (t.etiqueta ? cjCap(t.etiqueta.toLowerCase()) : x.tit) + (k && !t.etiqueta ? " (continuación)" : ""), clave: k ? null : x.clave, tabla: t, chica: (t.columnas || []).length > 6 }));
-    else if (x.clave) S.push({ id: "cj_" + x.tit, menu: x.tit, kick, tit: cjCap(x.tit.toLowerCase()), clave: x.clave, grande: !x.vin.length });
-    for (let k = 0; k < x.vin.length; k += 3) S.push({ id: "cj_" + x.tit + "_a", menu: x.tit + " · análisis", kick, tit: cjCap(x.tit.toLowerCase()) + (x.tablas.length || x.clave ? " · análisis" : ""), lista: x.vin.slice(k, k + 3).map(v => v.replace(/^([A-ZÁÉÍÓÚÑa-záéíóúñ ]{3,40})\.\s/, "$1: ")), num: /RECOMENDA/.test(x.tit) });
+    if (tabs.length) tabs.forEach((t, k) => S.push({ id: "cj_" + x.tit, menu: dkTc(x.tit) + (k ? " (cont.)" : ""), kick, tit: (t.etiqueta ? cjCap(t.etiqueta.toLowerCase()) : dkTc(x.tit)) + (k && !t.etiqueta ? " (continuación)" : ""), clave: k ? null : x.clave, tabla: t, chica: (t.columnas || []).length > 6 }));
+    else if (x.clave) S.push({ id: "cj_" + x.tit, menu: dkTc(x.tit), kick, tit: cjCap(x.tit.toLowerCase()), clave: x.clave, grande: !x.vin.length });
+    for (let k = 0; k < x.vin.length; k += 3) S.push({ id: "cj_" + x.tit + "_a", menu: dkTc(x.tit) + (x.tablas.length || x.clave ? " · análisis" : ""), kick, tit: cjCap(x.tit.toLowerCase()) + (x.tablas.length || x.clave ? " · análisis" : ""), lista: x.vin.slice(k, k + 3).map(v => /RESULTADOS|SITUACI/.test(x.tit) ? v.replace(/^([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?: [a-záéíóúñ]+){0,3})\.\s/, "$1: ") : v), num: /RECOMENDA/.test(x.tit) });
     efDet && efDet();
   };
   tema(sec(/RESULTADOS/), "Resultados", () => { detalle(det(/acumulado/i), "Estados financieros", 13); });
