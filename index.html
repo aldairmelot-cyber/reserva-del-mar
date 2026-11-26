@@ -7330,6 +7330,7 @@ var cjMin = s => s ? s.toLowerCase() : s;
 var cjCap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
 /* --- generador del documento --- */
+var cjNomP = n => { let x = String(Ua(n) ?? "").replace(/^\s*[ií]tem\s*\d+\s*[-–]\s*/i, "").trim(); return x ? x.charAt(0).toUpperCase() + x.slice(1).toLowerCase() : x; };
 function cjDoc({ R, config: t, reglas, P, notasPpto, umbral, extra }) {
   let { esf, eri, eriMes, flujo, indicadores } = R.calc, { anio, anioAnt, mes, dia } = R.periodo;
   let E = esf.act, Ea = esf.ant, A = eri.act, Aa = eri.ant, F = flujo.act, I = indicadores.act, Ia = indicadores.ant;
@@ -7395,7 +7396,7 @@ function cjDoc({ R, config: t, reglas, P, notasPpto, umbral, extra }) {
     let rit = P.mes / 12, cons = P.gastos.anual ? P.gastos.acum.ejec / P.gastos.anual : null, dRN = P.resultadoNeto.proyeccion - P.resultadoNeto.anual;
     con.push(`Presupuesto. Transcurrido el ${St(rit, 0, !1)} del año se ha consumido el ${cjInd("pct", cons)} del presupuesto anual de gastos` +
       (cons != null ? (cons > rit + 0.02 ? ", más rápido de lo previsto" : ", dentro del ritmo esperado") : "") +
-      (gSobre.length ? `; los excesos se concentran en ${cjLista(gSobre.slice(0, 2).map(x => Ua(x.l.nombre)))}` : "") + ". " +
+      (gSobre.length ? `; los excesos se concentran en ${cjLista(gSobre.slice(0, 2).map(x => cjNomP(x.l.nombre)))}` : "") + ". " +
       `Si se mantiene el ritmo actual, el año cerraría con un resultado neto de ${cjM(P.resultadoNeto.proyeccion)} frente a ${cjM(P.resultadoNeto.anual)} aprobados` +
       (Math.abs(dRN) >= Math.max(1, Math.abs(P.resultadoNeto.anual) * 0.05) ? ` (${dRN < 0 ? "por debajo" : "por encima"} en ${cjM(Math.abs(dRN))}).` : ", en línea con lo aprobado."));
   }
@@ -7424,7 +7425,7 @@ function cjDoc({ R, config: t, reglas, P, notasPpto, umbral, extra }) {
   let cA = cjCambios(ru, ["AC", "ANC"], E.r, Ea.r), cP = cjCambios(ru, ["PC", "PNC"], E.r, Ea.r);
   let txC = L => cjLista(L.map(x => `${cjMin(x.n)} (${x.d >= 0 ? "+" : "-"}${cjM(Math.abs(x.d))})`));
   let anEsf = [
-    `Activo. El activo total ${E.TA >= Ea.TA ? "crece" : "disminuye"} ${cjM(Math.abs(E.TA - Ea.TA))} (${cjVar(E.TA, Ea.TA)})` + (cA.length ? `, principalmente por ${txC(cA)}` : "") +
+    `Activo. El activo total ${E.TA >= Ea.TA ? "crece" : "disminuye"} ${cjM(Math.abs(E.TA - Ea.TA))} (${cjVar(E.TA, Ea.TA)})` + ((up, dn) => up.length ? `, principalmente por el aumento de ${txC(up)}` + (dn.length ? `; en sentido contrario disminuyó ${txC(dn)}` : "") : dn.length ? `; disminuyó ${txC(dn)}` : "")(cA.filter(x => x.d > 0), cA.filter(x => x.d < 0)) +
       `. El ${cjInd("pct", E.TA ? E.AC / E.TA : NaN)} corresponde a activo corriente, realizable en un plazo inferior a doce meses.`,
     `Pasivo. El pasivo total asciende a ${cjM(E.TPas)} (${cjVar(E.TPas, Ea.TPas)})` + (cP.length ? `; los cambios más relevantes son ${txC(cP)}` : "") +
       `. El ${cjInd("pct", I.cp)} es exigible en el corto plazo y se encuentra cubierto ${cjFin(I.rc) ? ia(I.rc, 1) + " veces" : ""} por los activos corrientes.`,
@@ -7506,7 +7507,7 @@ function cjDoc({ R, config: t, reglas, P, notasPpto, umbral, extra }) {
       let corto = s => { s = String(s ?? "").replace(/\s+/g, " ").trim(); let f = (s.match(/^.+?\.(?=\s|$)/)?.[0] ?? s).replace(/\s*\([^)]*\)\.$/, "."); return f.length > 140 ? f.slice(0, 137).replace(/\s+\S*$/, "") + "…" : f; };
       s3.push({ tipo: "tabla", columnas: colD, cabecera: !0, etiqueta: "PRINCIPALES DESVIACIONES (MAYOR IMPACTO)", filas: top.map(x => {
         let n = notas[x.l.codigo]?.texto?.trim();
-        return { estilo: "detalle", celdas: [cjT(Ua(x.l.nombre)), cjT((x.dif > 0 ? "+" : x.dif < 0 ? "-" : "") + pe(Math.abs(x.dif))),
+        return { estilo: "detalle", celdas: [cjT(cjNomP(x.l.nombre)), cjT((x.dif > 0 ? "+" : x.dif < 0 ? "-" : "") + pe(Math.abs(x.dif))),
           cjT(x.efecto.texto, { color: x.efecto.clave === "favorable" ? "verde" : x.efecto.clave === "desfavorable" ? "rojo" : "gris", bold: !0 }),
           cjT(n ? "Administración: " + corto(n) : "Sin explicar. " + corto(x.explicacion), { italic: !n })] };
       }) });
@@ -7533,8 +7534,8 @@ function cjDoc({ R, config: t, reglas, P, notasPpto, umbral, extra }) {
   let rec = [];
   if (est["Cartera"] === "cr" || est["Cartera"] === "at") rec.push("Intensificar el cobro a los mayores deudores (acuerdos de pago con plazos y cobro prejurídico o jurídico según el reglamento), con el fin de recuperar la cartera y prevenir su deterioro.");
   if (est["Liquidez"] === "cr" || est["Liquidez"] === "at") rec.push("Solicitar a la Administración un flujo de caja proyectado a seis meses y priorizar los pagos esenciales, para anticipar meses de estrechez y evitar compromisos no presupuestados.");
-  if (gSobre.length) rec.push(`Solicitar a la administración un plan de ajuste para ${cjLista(gSobre.slice(0, 3).map(x => Ua(x.l.nombre)))}, con el fin de cerrar el año dentro del presupuesto aprobado por la asamblea${P && sinExpl ? `, junto con la explicación de las ${sinExpl} desviaciones aún sin justificar` : ""}.`);
-  if (iBajo.length) rec.push(`Analizar con la Administración las causas por las cuales ${iBajo.length > 1 ? "están" : "está"} por debajo de lo previsto ${cjLista(iBajo.slice(0, 2).map(x => Ua(x.l.nombre)))} y si el valor presupuestado sigue siendo realista.`);
+  if (gSobre.length) rec.push(`Solicitar a la administración un plan de ajuste para ${cjLista(gSobre.slice(0, 3).map(x => cjNomP(x.l.nombre)))}, con el fin de cerrar el año dentro del presupuesto aprobado por la asamblea${P && sinExpl ? `, junto con la explicación de las ${sinExpl} desviaciones aún sin justificar` : ""}.`);
+  if (iBajo.length) rec.push(`Analizar con la Administración las causas por las cuales ${iBajo.length > 1 ? "están" : "está"} por debajo de lo previsto ${cjLista(iBajo.slice(0, 2).map(x => cjNomP(x.l.nombre)))} y si el valor presupuestado sigue siendo realista.`);
   if (P && sinExpl && !gSobre.length) rec.push(`Requerir la explicación de las ${sinExpl} desviaciones significativas pendientes antes de la próxima sesión, para que el consejo pueda evaluar si son puntuales o permanentes.`);
   if (est["Fondo de imprevistos"] === "cr" || est["Fondo de imprevistos"] === "at") rec.push("Trasladar a la fiducia del Fondo de Imprevistos la diferencia pendiente, para que su saldo esté disponible ante una emergencia (Ley 675 de 2001, art. 35).");
   if (est["Resultado del período"] === "cr") rec.push("Adoptar medidas de contención del gasto para revertir el déficit y evitar cuotas extraordinarias.");
@@ -7600,7 +7601,7 @@ function CjSeccion({ ses, notificar, soloLectura, ir, entidad, R, actual, pptoMe
       cjH("span", { className: "cj-punto", "aria-hidden": "true" }), cjH("div", null, cjH("b", null, s.area), cjH("small", null, cjSem[s.e][0]))))),
     cjH("section", { className: "panel" },
       cjH("h2", null, "Aportes de la contaduría"),
-      cjH("p", { className: "sub" }, "El análisis y las alertas se generan solos con las cifras. El informe no incluye recomendaciones automáticas; si escribe recomendaciones aquí (una por línea), se agregan como sección 3.4. Las observaciones se guardan con este periodo."),
+      cjH("p", { className: "sub" }, "El análisis y las alertas se generan solos con las cifras. El informe no incluye recomendaciones automáticas; si escribe recomendaciones aquí (una por línea), se agregan en la sección «Recomendaciones al consejo», antes de las observaciones. Las observaciones se guardan con este periodo."),
       cjH("div", { className: "cj-campos" },
         cjH("label", { className: "campo" }, cjH("span", null, "Recomendaciones (opcional)"),
           cjH("textarea", { rows: 4, value: ex.recomendaciones, disabled: soloLectura, placeholder: "Ej.: Aprobar la cotización de impermeabilización de la torre 2 con cargo al Fondo de Imprevistos.", onChange: e => setEx({ ...ex, recomendaciones: e.target.value }) })),
