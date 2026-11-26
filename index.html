@@ -6697,7 +6697,7 @@ function dkArmar({ R, cj, sem, entidad }) {
       tile("Efectivo y equivalentes", E.r.EFECTIVO ?? 0, Ea.r.EFECTIVO ?? 0), tile("Cartera (deudores)", E.r.DEUDORES ?? 0, Ea.r.DEUDORES ?? 0, !0), tile("Patrimonio", E.TPat, Ea.TPat)] });
   if (sem?.length) S.push({ id: "semaforo", menu: "Semáforo de gestión", kick: "Resumen ejecutivo", tit: "Semáforo de gestión", sem });
   let det = re => (R.doc?.secciones || []).find(x => re.test(x.nombre || "") || re.test(x.titulo || ""));
-  let detalle = (s, kick, max) => { if (!s) return; let tabs = (s.bloques || []).filter(b => b.tipo === "tabla"); tabs.forEach(t => dkPartir(t, max || 14).forEach((p, k) => { if (k) p = { ...p, columnas: p.columnas.map((c, j) => ({ ...c, titulo: j === 0 ? "" : /^NOTA/.test(c.titulo) ? "NOTA" : c.titulo })) }; S.push({ id: "ef_" + s.id, menu: dkTc(s.nombre || s.titulo) + (k ? " (cont.)" : ""), kick, tit: dkTc(s.titulo || s.nombre) + (k ? " (continuación)" : ""), tabla: p, chica: (p.columnas || []).length > 5, efId: s.id }); })); };
+  let detalle = (s, kick, max) => { if (!s) return; let tabs = (s.bloques || []).filter(b => b.tipo === "tabla"); tabs.forEach(t => dkPartir(t, max || 14).forEach((p, k) => { if (k) p = { ...p, columnas: p.columnas.map((c, j) => ({ ...c, titulo: j === 0 ? "" : /^NOTA/.test(c.titulo) ? "NOTA" : c.titulo })) }; S.push({ id: "ef_" + s.id, menu: dkTc(s.nombre || s.titulo) + (k ? " (cont.)" : ""), kick, tit: dkTc(s.titulo || s.nombre) + (k ? " (continuación)" : ""), tabla: p, chica: (p.columnas || []).length > 5 || p.filas.length > 11, efId: s.id }); })); };
   let tema = (x, kick, efDet) => {
     if (!x) { efDet && efDet(); return; }
     let tabs = x.tablas.flatMap(t => dkPartir(t, x.clave ? 9 : 13));
@@ -6716,7 +6716,7 @@ function dkArmar({ R, cj, sem, entidad }) {
 }
 function DkDeck({ S, entidad, inicio, cerrar }) {
   let [i, setI] = Ve.useState(() => { let k = inicio ? S.findIndex(x => x.efId === inicio || x.id === inicio) : -1; return k > 0 ? k : 0; });
-  let vp = Ve.useRef(null), [esc, setEsc] = Ve.useState({ k: 1, x: 0, y: 0 }), [tam, setTam] = Ve.useState(0);
+  let vp = Ve.useRef(null), cu = Ve.useRef(null), [esc, setEsc] = Ve.useState({ k: 1, x: 0, y: 0 }), [tam, setTam] = Ve.useState(0);
   let ir = n => setI(x => Math.max(0, Math.min(S.length - 1, typeof n === "function" ? n(x) : n)));
   Ve.useEffect(() => {
     let tecla = e => { if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); ir(x => x + 1); } else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); ir(x => x - 1); } else if (e.key === "Home") ir(0); else if (e.key === "End") ir(S.length - 1); else if (e.key === "Escape" && !document.fullscreenElement) cerrar(); };
@@ -6724,13 +6724,15 @@ function DkDeck({ S, entidad, inicio, cerrar }) {
     window.addEventListener("keydown", tecla); window.addEventListener("resize", rs); document.addEventListener("fullscreenchange", rs);
     return () => { window.removeEventListener("keydown", tecla); window.removeEventListener("resize", rs); document.removeEventListener("fullscreenchange", rs); };
   }, [S]);
+  /* si el contenido no cabe en la diapositiva, se reduce para que se vea completo */
+  Ve.useLayoutEffect(() => { let c = cu.current; if (!c) return; c.style.zoom = 1; let a = c.clientHeight, b = c.scrollHeight; if (b > a + 2) c.style.zoom = Math.max(.6, a / b); }, [i]);
   Ve.useLayoutEffect(() => { let v = vp.current; if (!v) return; let W = v.clientWidth, H = v.clientHeight, k = Math.min(W / 1280, H / 720); setEsc({ k, x: (W - 1280 * k) / 2, y: (H - 720 * k) / 2 }); }, [tam]);
   let d = S[i] || S[0], logo = typeof entidad.logo === "string" ? entidad.logo : null;
   let cab = d.tipo ? null : dkH("div", { className: "dk-cab" }, dkH("div", { className: "dk-kick" }, d.kick), dkH("div", { className: "dk-tit" }, d.tit));
   let cuerpo;
   if (d.tipo === "portada") cuerpo = dkH("div", { className: "dk-port" }, logo && dkH("img", { src: logo, alt: "" }), dkH("div", { className: "e" }, entidad.entidad), dkH("div", { className: "n" }, "NIT " + (entidad.nit || "")), dkH("div", { className: "t" }, "INFORME FINANCIERO AL CONSEJO DE ADMINISTRACIÓN"), ...d.sub.map((x, j) => dkH("div", { key: j, className: "s" }, x)));
   else if (d.tipo === "fin") cuerpo = dkH("div", { className: "dk-port" }, logo && dkH("img", { src: logo, alt: "" }), dkH("div", { className: "t", style: { marginTop: 10 } }, "PREGUNTAS Y COMENTARIOS"), dkH("div", { className: "s" }, entidad.entidad));
-  else cuerpo = dkH("div", { className: "dk-cuerpo" },
+  else cuerpo = dkH("div", { className: "dk-cuerpo", ref: cu },
     d.clave && dkH("div", { className: "dk-clave" + (d.grande ? " grande" : "") }, d.clave),
     d.kpis && dkH("div", { className: "dk-kpis" }, d.kpis.map((k, j) => dkH("div", { key: j, className: "dk-kpi" }, dkH("div", { className: "t" }, k.t), dkH("div", { className: "v" }, k.v), k.s && dkH("div", { className: "s" }, dkH("b", { className: k.s[2] ? "up" : "dn" }, `${k.s[1]} ${k.s[0]}`), ` frente a ${S[0].sub[1].slice(-4)}`)))),
     d.sem && dkH("div", { className: "dk-sem" }, d.sem.map((x, j) => { let c = "c-" + (cjSem[x.e]?.[1] ?? "gris"); return dkH("div", { key: j, className: "it" }, dkH("span", { className: "pt " + c }), dkH("div", null, dkH("span", { className: "a" }, x.area), dkH("span", { className: "e " + c }, cjSem[x.e]?.[0] ?? ""), dkH("div", { className: "l" }, String(x.lect || "").split(/(?<=\.)\s/)[0]))); })),
