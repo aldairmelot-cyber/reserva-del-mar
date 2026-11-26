@@ -1687,6 +1687,8 @@ async function ejGenerar(ses, config, anio, mes) {
   return ejDoc(ppCalc(base, cfg), base, config);
 }
 function PpPantalla({ ses, config, notificar, soloLectura }) {
+  let [zoomP, setZoomP] = Ve.useState(null), [, setAnchoP] = Ve.useState(0);
+  Ve.useEffect(() => { let f = () => setAnchoP(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
   let [pres, setPres] = Ve.useState(!1), [vistaU, setVistaU] = Ve.useState("uni"), [qU, setQU] = Ve.useState(""), [base, setBase] = Ve.useState(null), [cfg, setCfg] = Ve.useState(null), [tab, setTab] = Ve.useState("gas"), [prog, setProg] = Ve.useState(""), [edit, setEdit] = Ve.useState(!1), [abG, setAbG] = Ve.useState(() => new Set()), refV = Ve.useRef(null), tGuard = Ve.useRef(null), [rowEd, setRowEd] = Ve.useState(null), [fCrit, setFCrit] = Ve.useState(null);
   Ve.useEffect(() => { Promise.all([ses.store.get(PP_BASE).catch(() => null), ses.store.get(PP_DOC).catch(() => null)]).then(([b, c]) => { setBase(b ? ppUnirBase(JSON.parse(b.j)) : !1); setCfg(c ? { ...PP_DEF, ...JSON.parse(c.j) } : { ...PP_DEF }); }); }, [ses]);
   let guardar = n => { setCfg(n); if (soloLectura) return; clearTimeout(tGuard.current); tGuard.current = setTimeout(() => ses.store.set(PP_DOC, { j: JSON.stringify(n) }).catch(e => notificar("error", "No se pudo guardar: " + (e?.message ?? e))), 600); };
@@ -1878,6 +1880,8 @@ let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
   let vista = tab === "res" ? vRes : tab === "pyg" ? vPyg : tab === "gas" ? vGas : tab === "ing" ? vIng : tab === "cuo" ? vCuo : vSup;
   if (pres) {
     let iT = PP_PASOS.findIndex(p => p[0] === tab);
+    /* misma pantalla, ampliada para proyectar: se ajusta al ancho disponible (A−/A+ para corregir) */
+    let zP = zoomP ?? Math.min(1.7, Math.max(1, (window.innerWidth - 60) / 1150));
     return h("div", { className: "pp-pres" }, h("style", null, PP_CSS + PP_PRES_CSS),
       h("div", { className: "pp-pres-top" },
         h("div", { className: "pp-pres-tit" }, h("span", null, config?.entidad || ""), h("b", null, "Presupuesto 2027")),
@@ -1885,8 +1889,10 @@ let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
         h("span", { style: { flex: 1 } }),
         h("button", { type: "button", className: "btn btn-sm", disabled: iT <= 0, onClick: () => setTab(PP_PASOS[iT - 1][0]), title: "Pestaña anterior (←)" }, "←"),
         h("button", { type: "button", className: "btn btn-sm", disabled: iT >= PP_PASOS.length - 1, onClick: () => setTab(PP_PASOS[iT + 1][0]), title: "Pestaña siguiente (→)" }, "→"),
+        h("button", { type: "button", className: "btn btn-sm", onClick: () => setZoomP(Math.max(.8, +(zP - .1).toFixed(2))), title: "Letra más pequeña" }, "A−"),
+        h("button", { type: "button", className: "btn btn-sm", onClick: () => setZoomP(Math.min(2.2, +(zP + .1).toFixed(2))), title: "Letra más grande" }, "A+"),
         h("button", { type: "button", className: "btn btn-sm btn-primario", onClick: salirPres, title: "Salir de la presentación (Esc)" }, "Salir")),
-      h("div", { className: "pp-pres-cuerpo" }, h("div", { className: "pantalla pp-pres-hoja" }, guia, manCuo, vista)));
+      h("div", { className: "pp-pres-cuerpo" }, h("div", { className: "pantalla pp-pres-hoja", style: { zoom: zP, width: `${100 / zP}%`, maxWidth: "none" } }, guia, manCuo, vista)));
   }
   return h("div", { className: "pantalla" }, h("style", null, PP_CSS), enc, barra, tabs, guia, manCuo, vista);
 }
