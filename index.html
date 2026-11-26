@@ -6100,13 +6100,15 @@ async function gfBase(ses, avance) {
     let metas = (await ses.store.list("verif_idx").catch(() => [])).map(x => x.data).filter(m => m && m.desde && m.hasta).sort((a, b) => a.desde.localeCompare(b.desde) || b.hasta.localeCompare(a.hasta));
     let usar = [], tope = ""; for (const m of metas) if (m.desde > tope) { usar.push(m); tope = m.hasta; }
     if (!usar.length) throw new Error("No hay libros auxiliares cargados en Verificación.");
+    let fin = usar[usar.length - 1].hasta, finYm = fin.slice(0, 7), dia = +fin.slice(8, 10), diasMes = new Date(+fin.slice(0, 4), +fin.slice(5, 7), 0).getDate(), Mc = {};
+    let corte = { fecha: fin, ym: finYm, dia, parcial: dia < diasMes, fr: dia / diasMes };
     let nombres = {}, M = {}, SI = {}, P = {}, FV = {}, RC = {}, flujo = {}, notas = {}, meses = new Set(), libros = [];
     let suma = (o, k, d, c) => { let r = o[k] || (o[k] = [0, 0]); r[0] += d; r[1] += c; };
     for (let n = 0; n < usar.length; n++) {
       let meta = usar[n]; avance?.(`Leyendo ${meta.etiqueta || meta.id} (${n + 1} de ${usar.length})…`);
       let X = await vxCargar(ses.store, meta), C = typeof meta.cuentas === "string" ? JSON.parse(meta.cuentas) : meta.cuentas, anio = meta.desde.slice(0, 4);
       libros.push({ desde: meta.desde, hasta: meta.hasta, etiqueta: meta.etiqueta || meta.id });
-      SI[anio] = {}; for (const c of C) { nombres[c[0]] ??= c[1]; SI[anio][c[0]] = (/^[234]/.test(String(c[0])) ? -1 : 1) * (+c[2] || 0); /* el libro trae el saldo según su naturaleza; aquí todo queda como débito − crédito */ }
+      let nuevoAnio = !SI[anio]; SI[anio] ||= {}; for (const c of C) { nombres[c[0]] ??= c[1]; if (nuevoAnio) SI[anio][c[0]] = (/^[234]/.test(String(c[0])) ? -1 : 1) * (+c[2] || 0); /* el libro trae el saldo según su naturaleza; aquí todo queda como débito − crédito */ }
       let docs = new Map();
       for (const x of X.movs) {
         let cod = String(C[x[0]]?.[0] ?? ""), ym = gfYm(x[1]); if (!cod || !ym) continue;
@@ -6114,6 +6116,8 @@ async function gfBase(ses, avance) {
         if (tipo === "CCR") continue;
         meses.add(ym);
         (M[cod] || (M[cod] = {}))[ym] ??= [0, 0]; M[cod][ym][0] += d; M[cod][ym][1] += c;
+        /* mismo mes de otros años hasta el día de corte, para comparar un mes en curso con el mismo corte */
+        if (corte.parcial && ym.slice(5) === finYm.slice(5) && +String(x[1]).slice(6, 8) <= dia) { let r = (Mc[cod] ||= {})[ym] ||= [0, 0]; r[0] += d; r[1] += c; }
         let ter = gfTer(X.strs[x[2]]), nota = String(X.strs[x[3]] ?? "").trim();
         /* gasto por tercero (sin depreciaciones, impuestos ni renta) */
         if (/^5[13]/.test(cod) && !/^(5160|5115|5405)/.test(cod) && ter) { let p = P[ter] || (P[ter] = {}); let r = p[ym] || (p[ym] = {}); r[cod.slice(0, 4)] = (r[cod.slice(0, 4)] || 0) + d - c; }
@@ -6140,7 +6144,7 @@ async function gfBase(ses, avance) {
     let grupos = {};
     try { let B = (await ses.store.list("balances")).map(x => x.data).filter(Boolean).sort((a, b) => String(a.fechaFin).localeCompare(String(b.fechaFin))).pop(); for (const c of B?.cuentas || []) for (const p of c[2] || []) { let m = String(p).match(/^(\d+)\s+(.+)$/); m && (grupos[m[1]] ??= m[2]); } } catch { }
     let L = [...meses].sort();
-    return { nombres, grupos, M, SI, P, FV, RC, flujo, notas, meses: L, ult: L[L.length - 1], libros };
+    return { nombres, grupos, M, Mc, corte, SI, P, FV, RC, flujo, notas, meses: L, ult: L[L.length - 1], libros };
   })();
   try { return await GF_CACHE.p; } catch (e) { GF_CACHE.p = null; throw e; }
 }
@@ -6185,21 +6189,25 @@ async function gfPdf(ses, config, notificar, titulo, sub, html, horizontal) {
 }
 var gfHtmlTabla = (cols, filas) => `<table><thead><tr>${cols.map(c => `<th>${cmEsc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas.map(f => `<tr${f.rojo ? ' class="rojo"' : ""}>${f.c.map(v => `<td>${f.b ? "<strong>" : ""}${cmEsc(v)}${f.b ? "</strong>" : ""}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 /* ---------- 1. Resultados comparativos */
+var gfParcial = (B, ym) => !!(B.corte?.parcial && ym === B.corte.ym);
+var gfFechaCorte = B => { let f = B.corte.fecha; return `${+f.slice(8, 10)} de ${cbMesLargo(f.slice(0, 7))}`; };
 function gfEr(B, ym) {
   let a = ym.slice(0, 4), ant = String(+a - 1), ymA = ant + ym.slice(4), ini = a + "-01", iniA = ant + "-01";
-  let hayAnt = !!B.SI[ant];
-  let fila = (pref, signo) => { let m = gfNeto(B, pref, ym, ym, signo), mA = hayAnt ? gfNeto(B, pref, ymA, ymA, signo) : 0, ac = gfNeto(B, pref, ini, ym, signo), acA = hayAnt ? gfNeto(B, pref, iniA, ymA, signo) : 0; return { pref, m, mA, ac, acA }; };
+  let hayAnt = !!B.SI[ant], par = gfParcial(B, ym);
+  /* si el mes está en curso, el año anterior se toma hasta el mismo día */
+  let nA = (pref, d, h, signo) => { let s = gfNeto(B, pref, d, h, signo); if (par && ymA >= d && ymA <= h) { let c = 0; for (const [cod, m] of Object.entries(B.Mc)) if (cod.startsWith(pref) && m[ymA]) c += m[ymA][0] - m[ymA][1]; s += -gfNeto(B, pref, ymA, ymA, signo) + (signo === "c" ? -c : c); } return s; };
+  let fila = (pref, signo) => { let m = gfNeto(B, pref, ym, ym, signo), mA = hayAnt ? nA(pref, ymA, ymA, signo) : 0, ac = gfNeto(B, pref, ini, ym, signo), acA = hayAnt ? nA(pref, iniA, ymA, signo) : 0; return { pref, m, mA, ac, acA }; };
   let sec = (pref, signo) => gfHijos(B, pref, 4).map(p => ({ ...fila(p, signo), nombre: gfNom(B, p), hijos: gfHijos(B, p, 6).map(q => ({ ...fila(q, signo), nombre: gfNom(B, q) })).filter(r => Math.abs(r.m) + Math.abs(r.mA) + Math.abs(r.ac) + Math.abs(r.acA) >= 1) })).filter(r => Math.abs(r.m) + Math.abs(r.mA) + Math.abs(r.ac) + Math.abs(r.acA) >= 1);
   let ing = sec("4", "c"), gas = sec("5", "d"), tot = L => L.reduce((s, r) => ({ m: s.m + r.m, mA: s.mA + r.mA, ac: s.ac + r.ac, acA: s.acA + r.acA }), { m: 0, mA: 0, ac: 0, acA: 0 });
   let ti = tot(ing), tg = tot(gas), ex = { m: ti.m - tg.m, mA: ti.mA - tg.mA, ac: ti.ac - tg.ac, acA: ti.acA - tg.acA };
   /* últimos 12 meses contra los 12 anteriores */
   let d12 = cmYm(ym, -11), d24 = cmYm(ym, -23), h24 = cmYm(ym, -12), hay24 = B.meses.includes(d24);
-  let u12 = { ing: gfNeto(B, "4", d12, ym, "c"), gas: gfNeto(B, "5", d12, ym, "d"), ingA: hay24 ? gfNeto(B, "4", d24, h24, "c") : null, gasA: hay24 ? gfNeto(B, "5", d24, h24, "d") : null };
+  let u12 = { ing: gfNeto(B, "4", d12, ym, "c"), gas: gfNeto(B, "5", d12, ym, "d"), ingA: hay24 ? nA("4", d24, h24, "c") : null, gasA: hay24 ? nA("5", d24, h24, "d") : null };
   return { ym, ymA, hayAnt, ing, gas, ti, tg, ex, u12 };
 }
 function GfEr({ B, ym, pdf }) {
   let [abierto, setAb] = Ve.useState({}); let R = Ve.useMemo(() => gfEr(B, ym), [B, ym]);
-  let cols = [{ t: "Concepto" }, { t: cbMesTxt(ym), num: 1 }, { t: R.hayAnt ? cbMesTxt(R.ymA) : "—", num: 1 }, { t: "Var. mes", num: 1 }, { t: `Ene–${cbMesTxt(ym).slice(0, 3)} ${ym.slice(0, 4)}`, num: 1 }, { t: R.hayAnt ? `Ene–${cbMesTxt(ym).slice(0, 3)} ${R.ymA.slice(0, 4)}` : "—", num: 1 }, { t: "Var. acumulada", num: 1 }];
+  let dd = gfParcial(B, ym) ? ` (1–${B.corte.dia})` : "", cols = [{ t: "Concepto" }, { t: cbMesTxt(ym) + dd, num: 1 }, { t: R.hayAnt ? cbMesTxt(R.ymA) + dd : "—", num: 1 }, { t: "Var. mes", num: 1 }, { t: `Ene–${cbMesTxt(ym).slice(0, 3)} ${ym.slice(0, 4)}`, num: 1 }, { t: R.hayAnt ? `Ene–${cbMesTxt(ym).slice(0, 3)} ${R.ymA.slice(0, 4)}` : "—", num: 1 }, { t: "Var. acumulada", num: 1 }];
   let fl = (r, sub, esGasto) => { let vm = r.m - r.mA, va = r.ac - r.acA, malo = v => esGasto ? v > 0 : v < 0, al = gfMat(r.ac, r.acA, GF_MAT.acum) || gfMat(r.m, r.mA, GF_MAT.mes);
     return { c: [(sub ? "   " : "") + r.nombre + (r.hijos?.length && !sub ? (abierto[r.pref] ? " ▾" : " ▸") : ""), gfP(r.m), gfP(r.mA), R.hayAnt ? gfPctTxt(gfPct(r.m, r.mA)) : "—", gfP(r.ac), gfP(r.acA), R.hayAnt ? `${gfP(va)} (${gfPctTxt(gfPct(r.ac, r.acA))})` : "—"], neg: { 3: R.hayAnt && malo(vm) && gfMat(r.m, r.mA, GF_MAT.mes), 6: R.hayAnt && malo(va) && gfMat(r.ac, r.acA, GF_MAT.acum) }, estilo: sub ? { color: "var(--suave)", fontSize: 12.5 } : al ? { background: "var(--acento-suave)" } : null, pref: r.pref }; };
   let filas = [], H = [];
@@ -6220,7 +6228,7 @@ function GfGastos({ B, ym, pdf }) {
   let anios = [...new Set(B.meses.map(m => m.slice(0, 4)))].filter(a => a <= ym.slice(0, 4));
   let rubros = Ve.useMemo(() => gfHijos(B, "5", 4).filter(p => !/^5405/.test(p)).map(p => ({ p, nombre: gfNom(B, p), por: anios.map(a => gfNeto(B, p, a + "-01", a === ym.slice(0, 4) ? ym : a + "-12", "d")) })).filter(r => r.por.some(v => Math.abs(v) >= 1)), [B, ym]);
   let [sel, setSel] = Ve.useState(""); Ve.useEffect(() => { rubros.length && !sel && setSel([...rubros].sort((a, b) => b.por[b.por.length - 1] - a.por[a.por.length - 1])[0].p); }, [rubros]);
-  let nm = a => a === ym.slice(0, 4) ? gfMesesDe(B, a).filter(m => m <= ym).length : gfMesesDe(B, a).length;
+  let nm = a => a === ym.slice(0, 4) ? gfMesesDe(B, a).filter(m => m <= ym).length - (gfParcial(B, ym) ? 1 - B.corte.fr : 0) : gfMesesDe(B, a).length;
   let cols = [{ t: "Rubro" }, ...anios.map(a => ({ t: a === ym.slice(0, 4) ? `${a} (ene–${cbMesTxt(ym).slice(0, 3).toLowerCase()})` : a, num: 1 })), { t: "Promedio mensual " + (anios[anios.length - 2] || ""), num: 1 }, { t: "Promedio mensual " + anios[anios.length - 1], num: 1 }, { t: "Cambio", num: 1 }];
   let filas = rubros.map(r => { let n1 = nm(anios[anios.length - 2]) || 1, n2 = nm(anios[anios.length - 1]) || 1, p1 = anios.length > 1 ? r.por[r.por.length - 2] / n1 : null, p2 = r.por[r.por.length - 1] / n2, pc = p1 != null ? gfPct(p2, p1) : null;
     return { c: [r.nombre, ...r.por.map(gfP), p1 != null ? gfP(p1) : "—", gfP(p2), gfPctTxt(pc)], neg: { [cols.length - 1]: pc != null && pc > GF_MAT.pct && Math.abs(p2 - p1) >= 1e6 }, p: r.p }; });
@@ -6332,8 +6340,8 @@ function GfCaja({ B, ym, pdf }) {
     fl("Flujo neto del mes", (r, raw) => num(r.n, raw), 1), fl("Saldo en bancos y caja al cierre", (r, raw) => raw ? 0 : gfP(gfSaldo(B, "11", r.m)), 1)];
   filas[filas.length - 1].c[filas[filas.length - 1].c.length - 1] = gfP(gfSaldo(B, "11", ym));
   /* proyección: mismo mes del año anterior, ajustado por el crecimiento del año */
-  let a = ym.slice(0, 4), ant = String(+a - 1), sumE = (d, h) => B.meses.filter(m => m >= d && m <= h).reduce((s, m) => s + gfFlujoMes(B, m).e, 0), sumS = (d, h) => B.meses.filter(m => m >= d && m <= h).reduce((s, m) => s + gfFlujoMes(B, m).s, 0);
-  let gE = sumE(ant + "-01", ant + ym.slice(4)) ? sumE(a + "-01", ym) / sumE(ant + "-01", ant + ym.slice(4)) : 1, gS = sumS(ant + "-01", ant + ym.slice(4)) ? sumS(a + "-01", ym) / sumS(ant + "-01", ant + ym.slice(4)) : 1;
+  let yb = gfParcial(B, ym) ? cmYm(ym, -1) : ym, a = ym.slice(0, 4), ant = String(+a - 1), sumE = (d, h) => B.meses.filter(m => m >= d && m <= h).reduce((s, m) => s + gfFlujoMes(B, m).e, 0), sumS = (d, h) => B.meses.filter(m => m >= d && m <= h).reduce((s, m) => s + gfFlujoMes(B, m).s, 0);
+  let gE = sumE(ant + "-01", ant + yb.slice(4)) ? sumE(a + "-01", yb) / sumE(ant + "-01", ant + yb.slice(4)) : 1, gS = sumS(ant + "-01", ant + yb.slice(4)) ? sumS(a + "-01", yb) / sumS(ant + "-01", ant + yb.slice(4)) : 1;
   let caja = gfSaldo(B, "11", ym), cxp = -(gfSaldo(B, "2335", ym) + gfSaldo(B, "2205", ym)), imp = -(gfSaldo(B, "24", ym) + gfSaldo(B, "2365", ym) + gfSaldo(B, "2367", ym) + gfSaldo(B, "2368", ym));
   let pro = []; let c = caja; for (let i = 1; i <= 3; i++) { let m = cmYm(ym, i), mA = cmYm(m, -12), b = gfFlujoMes(B, mA), hay = B.meses.includes(mA); let e = hay ? b.e * gE : null, s = hay ? b.s * gS : null; if (hay) c += e - s; pro.push({ m, e, s, c: hay ? c : null }); }
   let colsP = [{ t: "Mes" }, { t: "Entradas estimadas", num: 1 }, { t: "Salidas estimadas", num: 1 }, { t: "Saldo estimado al cierre", num: 1 }];
@@ -6367,7 +6375,7 @@ function GfCosto({ B, ym, pdf }) {
   let cuotaCtas = Object.keys(B.nombres).filter(c => /^4170/.test(c) && /CUOTA|RETROACT/i.test(B.nombres[c]));
   let [coef, setCoef] = Ve.useState("0,175");
   let anios = [...new Set(B.meses.map(m => m.slice(0, 4)))].filter(a => a <= ym.slice(0, 4));
-  let R = anios.map(a => { let h = a === ym.slice(0, 4) ? ym : a + "-12", n = B.meses.filter(m => m.startsWith(a) && m <= h).length || 1; let gas = gfNeto(B, "5", a + "-01", h, "d"), cuo = cuotaCtas.reduce((s, c) => s + gfNeto(B, c, a + "-01", h, "c"), 0), desc = gfNeto(B, "4175", a + "-01", h, "d"), otros = gfNeto(B, "4", a + "-01", h, "c") - cuo + desc;
+  let R = anios.map(a => { let h = a === ym.slice(0, 4) ? ym : a + "-12", n = (B.meses.filter(m => m.startsWith(a) && m <= h).length - (gfParcial(B, h) ? 1 - B.corte.fr : 0)) || 1; let gas = gfNeto(B, "5", a + "-01", h, "d"), cuo = cuotaCtas.reduce((s, c) => s + gfNeto(B, c, a + "-01", h, "c"), 0), desc = gfNeto(B, "4175", a + "-01", h, "d"), otros = gfNeto(B, "4", a + "-01", h, "c") - cuo + desc;
     return { a, n, gas: gas / n, cuo: (cuo - desc) / n, otros: otros / n, cob: gas > .5 ? (cuo - desc) / gas * 100 : null }; });
   let cols = [{ t: "Año" }, { t: "Gasto mensual promedio", num: 1 }, { t: "Cuotas netas de descuento (mes)", num: 1 }, { t: "Otros ingresos (mes)", num: 1 }, { t: "Las cuotas cubren", num: 1 }];
   let filas = R.map(r => ({ c: [r.a + (r.a === ym.slice(0, 4) ? ` (ene–${cbMesTxt(ym).slice(0, 3).toLowerCase()})` : ""), gfP(r.gas), gfP(r.cuo), gfP(r.otros), r.cob == null ? "—" : r.cob.toFixed(1).replace(".", ",") + " %"], neg: { 4: r.cob != null && r.cob < 100 } }));
@@ -6414,13 +6422,14 @@ function GfPantalla({ ses, config, notificar, vista }) {
   let [B, setB] = Ve.useState(null), [err, setErr] = Ve.useState(""), [av, setAv] = Ve.useState("Cargando los libros auxiliares…"), [ym, setYm] = Ve.useState("");
   Ve.useEffect(() => { let vivo = !0; gfBase(ses, t => vivo && setAv(t)).then(b => { if (!vivo) return; setB(b); setYm(y => y || b.ult); }).catch(e => vivo && setErr(e?.message ?? String(e))); return () => { vivo = !1; }; }, [ses]);
   let tit = (GF_MENU.find(x => x[0] === vista) || [])[1] || "Gestión financiera";
-  let pdf = (t, html, horiz) => gfPdf(ses, config, notificar, t, ["Gestión financiera · información de análisis, no reemplaza los estados financieros", `Fuente: libros auxiliares de World Office · corte ${cbMesLargo(ym)}`], html, horiz);
+  let pdf = (t, html, horiz) => gfPdf(ses, config, notificar, t, ["Gestión financiera · información de análisis, no reemplaza los estados financieros", `Fuente: libros auxiliares de World Office · corte ${B && gfParcial(B, ym) ? gfFechaCorte(B) : cbMesLargo(ym)}`], html, horiz);
   let cuerpo = err ? gfH("div", { className: "panel" }, gfH("p", null, "No se pudo armar el informe: " + err))
     : !B ? gfH("div", { className: "panel" }, gfH("p", { className: "tenue" }, av, " La primera vez puede tardar unos segundos."))
     : gfH(vista === "gf_er" ? GfEr : vista === "gf_gastos" ? GfGastos : vista === "gf_prov" ? GfProv : vista === "gf_recaudo" ? GfRecaudo : vista === "gf_cartera" ? GfCartera : vista === "gf_caja" ? GfCaja : vista === "gf_fondo" ? GfFondo : vista === "gf_costo" ? GfCosto : GfMes, { B, ym, pdf, ses });
   return gfH("div", { className: "pantalla" },
     gfH("div", { className: "pantalla-enc" }, gfH("div", null, gfH("h2", { className: "h-sec" }, "Gestión financiera · " + tit), gfH("p", { className: "lead" }, "Informes de análisis para revisar la información financiera. Se calculan con los libros auxiliares cargados en Verificación; no reemplazan los estados financieros.")),
       B && gfH("label", { className: "campo" }, gfH("span", null, "Mes de corte"), gfH("select", { value: ym, onChange: e => setYm(e.target.value) }, [...B.meses].reverse().map(m => gfH("option", { key: m, value: m }, cbMesLargo(m)))))),
+    B && gfParcial(B, ym) && gfH("div", { className: "panel", style: { borderLeft: "4px solid var(--acento)" } }, gfH("p", null, gfH("b", null, `Mes en curso: ${cbMesLargo(ym)} va hasta el ${gfFechaCorte(B)}. `), `Los valores del mes son parciales. En los resultados comparativos el mes y el acumulado se comparan con el mismo corte del año anterior (1 al ${B.corte.dia} de ${cbMesLargo(cmYm(ym, -12))}); los promedios mensuales cuentan el mes en curso por los días transcurridos. La facturación del mes se registra completa el día 1, mientras el recaudo sigue entrando hasta fin de mes.`)),
     cuerpo,
     B && gfH("p", { className: "tenue espacio" }, `Libros usados: ${B.libros.map(l => l.etiqueta).join(" · ")}.`));
 }
