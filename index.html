@@ -6731,7 +6731,7 @@ function DkDeck({ S, entidad, inicio, cerrar }) {
   let d = S[i] || S[0], logo = typeof entidad.logo === "string" ? entidad.logo : null;
   let cab = d.tipo ? null : dkH("div", { className: "dk-cab" }, dkH("div", { className: "dk-kick" }, d.kick), dkH("div", { className: "dk-tit" }, d.tit));
   let cuerpo;
-  if (d.tipo === "portada") cuerpo = dkH("div", { className: "dk-port" }, logo && dkH("img", { src: logo, alt: "" }), dkH("div", { className: "e" }, entidad.entidad), dkH("div", { className: "n" }, "NIT " + (entidad.nit || "")), dkH("div", { className: "t" }, "INFORME FINANCIERO AL CONSEJO DE ADMINISTRACIÓN"), ...d.sub.map((x, j) => dkH("div", { key: j, className: "s" }, x)));
+  if (d.tipo === "portada") cuerpo = dkH("div", { className: "dk-port" }, logo && dkH("img", { src: logo, alt: "" }), dkH("div", { className: "e" }, entidad.entidad), dkH("div", { className: "n" }, "NIT " + (entidad.nit || "")), dkH("div", { className: "t" }, "INFORME FINANCIERO"), ...d.sub.map((x, j) => dkH("div", { key: j, className: "s" }, x)));
   else if (d.tipo === "fin") cuerpo = dkH("div", { className: "dk-port" }, logo && dkH("img", { src: logo, alt: "" }), dkH("div", { className: "t", style: { marginTop: 10 } }, "PREGUNTAS Y COMENTARIOS"), dkH("div", { className: "s" }, entidad.entidad));
   else cuerpo = dkH("div", { className: "dk-cuerpo", ref: cu },
     d.clave && dkH("div", { className: "dk-clave" + (d.grande ? " grande" : "") }, d.clave),
