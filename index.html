@@ -8047,7 +8047,7 @@ function cjDoc({ R, config: t, reglas, P, notasPpto, umbral, extra }) {
         let n = notas[x.l.codigo]?.texto?.trim();
         return { estilo: "detalle", celdas: [cjT(cjNomP(x.l.nombre)), cjT((x.dif > 0 ? "+" : x.dif < 0 ? "-" : "") + pe(Math.abs(x.dif))),
           cjT(x.efecto.texto, { color: x.efecto.clave === "favorable" ? "verde" : x.efecto.clave === "desfavorable" ? "rojo" : "gris", bold: !0 }),
-          cjT(n ? "Administración: " + corto(n) : "Sin explicar. " + corto(x.explicacion), { italic: !n })] };
+          cjT(n ? "Administración: " + corto(n) : corto(x.explicacion))] };
       }) });
     }
   } else {
