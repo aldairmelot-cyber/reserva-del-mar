@@ -43,7 +43,8 @@
   /* cartera escribe su gestión de las consignaciones por identificar (las reglas de Firestore lo limitan a su correo)
      y su informe mensual de recaudo (cr_inf: observaciones, comentarios y casos especiales) */
   const puedeEscribir = (ruta) => esEditor() || String(ruta).startsWith("_usuarios/") || (!!perfil.firma && String(ruta).startsWith("firmas/"))
-    || (perfil.rol === "cartera" && /^(cxi_gest|cxi_sop|cr_inf)\//.test(String(ruta)));
+    || (perfil.rol === "cartera" && /^(cxi_gest|cxi_sop|cr_inf)\//.test(String(ruta)))
+    || (perfil.rol === "admin" && /^ig_inf\//.test(String(ruta)));
   const sinPermiso = () => { const e = new Error("Su perfil es de solo consulta."); e.code = "not_granted"; return e; };
   const negado = (e) => !!e && (e.code === "permission-denied" || e.code === "not_granted");
   if (MODO === "local") {
