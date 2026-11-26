@@ -5997,7 +5997,7 @@ function CmImpPanel({ ses, imp, setImp, res, B, soloLectura, onGuardar, onRecarg
    unidad (se usa solo en la respuesta, no se guarda). La carta se descarga en Word/PDF, el auxiliar de la unidad en Excel,
    y se puede registrar en Comunicaciones con el consecutivo siguiente. */
 /* Intereses de mora tal como se cobraron: uno por cuenta de cobro, con la tasa certificada del mes, lo pagado y lo pendiente. */
-var RP_FORMULA_INT = "Fórmula aplicada. El interés que se cobra en la cuenta de cobro de cada mes corresponde a la mora del mes anterior: se liquida sobre el saldo de capital pendiente al cierre de ese mes (cuotas no pagadas y multas en firme), con la tasa de usura vigente en el mes en que se factura, y se factura el primer día del mes siguiente. No se cobra ningún interés por anticipado. Los intereses no causan nuevos intereses.";
+var RP_FORMULA_INT = "Fórmula aplicada. El interés que se cobra en la cuenta de cobro de cada mes corresponde a la mora del mes anterior: se liquida sobre el saldo de capital pendiente al cierre de ese mes (cuotas de administración no pagadas; no incluye multas, sanciones, otros cobros ni intereses), con la tasa de usura vigente en el mes en que se factura, y se factura el primer día del mes siguiente. No se cobra ningún interés por anticipado. Los intereses no causan nuevos intereses.";
 function cmIntCobrados(items, usura) {
   let T = { ...CM_USURA, ...(usura || {}) };
   let filas = items.filter(it => it.k === "int").map(it => { let ea = it.ini ? null : (T[it.mes] != null && T[it.mes] !== "" ? +T[it.mes] : null), pag = it.pag.reduce((s, p) => s + p.v, 0); return { mes: it.mes, ini: !!it.ini, doc: it.ini ? "Saldo anterior" : (it.F?.doc || it.doc || ""), ea, tm: ea != null ? (Math.pow(1 + ea / 100, 1 / 12) - 1) * 100 : null, cob: it.monto, pag, saldo: it.monto - pag }; }).sort((a, b) => (a.ini ? 0 : 1) - (b.ini ? 0 : 1) || a.mes.localeCompare(b.mes));
@@ -6117,7 +6117,7 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas, excl = {} }) {
       let L = F.con.filter(x => kc(F, x.cta) === k), v = L.reduce((s, x) => s + x.v, 0); if (Math.abs(v) < .5) continue;
       tot[k] += v;
       let notas = k === "san" ? [...new Set(u.M.filter(x => x.doc === F.doc && rpTipo(x.cta) === "san" && /^1305/.test(x.cta) && x.db > 0).map(x => x.nota).filter(Boolean))] : [];
-      let it = { k, mes, monto: v, pag: [], F, et, f: F.f, doc: F.doc, notas, ctas: [...new Set(L.map(x => x.cta))], exSan: k === "otr" && L.some(x => rpTipo(x.cta) === "san") }; items.push(it); porF.set(F.doc + "|" + k, it);
+      let it = { k, mes, monto: v, baseMonto: L.filter(x => !/^1305050[6-9]/.test(x.cta)).reduce((s, x) => s + x.v, 0), pag: [], F, et, f: F.f, doc: F.doc, notas, ctas: [...new Set(L.map(x => x.cta))], exSan: k === "otr" && L.some(x => rpTipo(x.cta) === "san") }; items.push(it); porF.set(F.doc + "|" + k, it);
     }
   }
   /* pagos: la imputación que registró la contabilidad, repartida entre las partidas pendientes de cada concepto */
@@ -6129,8 +6129,8 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas, excl = {} }) {
     for (const a of R.apl) {
       let k = kc(a.F, a.cta), Fit = a.F && porF.get(a.F.doc + "|" + k), v = a.v, usados = [];
       let porMes = (x, y) => x.mes.localeCompare(y.mes), cola = [...(Fit ? [Fit] : []), ...items.filter(x => x.k === k && x !== Fit && (x.ini || x.f <= R.f)).sort(porMes)];
-      if (v > 0) for (const it of cola) { if (v <= .5) break; let q = Math.min(v, Math.max(0, resta(it))); if (q > .5) { it.pag.push({ f: R.f, v: q, doc: R.doc }); det.push({ k, it, v: q }); v -= q; usados.push(it); } }
-      if (Math.abs(v) > .5) { let it = Fit || items.find(x => x.ini && x.k === k) || items.find(x => x.ini) || usados[usados.length - 1] || cola[0]; if (!it) { it = { k, mes: abre.slice(0, 7), monto: 0, pag: [], ini: !0, et: "saldo anterior" }; items.push(it); } it.pag.push({ f: R.f, v, doc: R.doc }); det.push({ k, it, v }); usados.includes(it) || usados.push(it); }
+      if (v > 0) for (const it of cola) { if (v <= .5) break; let q = Math.min(v, Math.max(0, resta(it))); if (q > .5) { it.pag.push({ f: R.f, v: q, doc: R.doc, cta: a.cta }); det.push({ k, it, v: q }); v -= q; usados.push(it); } }
+      if (Math.abs(v) > .5) { let it = Fit || items.find(x => x.ini && x.k === k) || items.find(x => x.ini) || usados[usados.length - 1] || cola[0]; if (!it) { it = { k, mes: abre.slice(0, 7), monto: 0, pag: [], ini: !0, et: "saldo anterior" }; items.push(it); } it.pag.push({ f: R.f, v, doc: R.doc, cta: a.cta }); det.push({ k, it, v }); usados.includes(it) || usados.push(it); }
       sum[k] += a.v; usados.length ? usados.forEach(it => ets.add(it.et)) : ets.add("—");
     }
     let imput = sum.cap + sum.san + sum.int + sum.otr + R.antRec;
@@ -6149,11 +6149,11 @@ function rpCalcular({ u, abre, hasta, desde, ini, tasas, excl = {} }) {
     mensual.push({ M, ini: saldo, ord, ext, otr, san: c("san"), int: c("int"), pagos, desc, aj, fin: saldo + net }); saldo += net;
   }
   let saldoFin = saldo;
-  /* liquidación de intereses: capital vencido de cada día (cuotas, extraordinarias, multas; sin interés sobre interés) */
-  let liq = [], falta = [], baseInt = items.filter(it => it.k === "cap" || it.k === "san");
+  /* liquidación de intereses: como la liquida la contabilidad, solo sobre cuotas de administración pendientes (subcuentas distintas de 13050506-09): sin multas, sanciones, otros cobros ni intereses */
+  let liq = [], falta = [], baseInt = items.filter(it => it.k === "cap" && it.baseMonto > .5);
   for (let M = desde; M <= hm; M = cmYm(M, 1)) {
     let dm = cmDiasMes(M), ult = M === hm ? Math.min(dm, +hasta.slice(8, 10)) : dm, ea = tasas[M] != null && tasas[M] !== "" ? +tasas[M] : null, tm = ea != null ? Math.pow(1 + ea / 100, 1 / 12) - 1 : null;
-    let venc = baseInt.filter(it => it.mes < M), cap = D => venc.reduce((s, it) => s + Math.max(0, it.monto - it.pag.filter(p => p.f < D).reduce((t, p) => t + p.v, 0)), 0);
+    let venc = baseInt.filter(it => it.mes < M), cap = D => venc.reduce((s, it) => s + Math.max(0, it.baseMonto - it.pag.filter(p => p.f < D && !/^1305050[6-9]/.test(p.cta || "")).reduce((t, p) => t + p.v, 0)), 0);
     let suma = 0, dias = 0;
     for (let d = 1; d <= ult; d++) { let v = cap(cmIso(M, d)); if (v > .5) { dias++; suma += v; } }
     let Fs = u.facs.filter(F => cmImpMesF(F) === M);
@@ -6402,7 +6402,7 @@ function rpHtml(D, op, firma) {
     else h.push(`<table><thead><tr><th>Mora de</th><th>Facturado en la cuenta de cobro de</th><th>Cuenta de cobro</th><th>Saldo de capital al cierre del mes de la mora</th><th>Usura EA</th><th>Tasa mensual</th><th>Interés cobrado</th><th>Pagado</th><th>Saldo</th></tr></thead><tbody>` +
       R.filas.map(x => `<tr><td>${x.ini ? "Anterior" : cbMesTxt(cmYm(x.mes, -1))}</td><td>${x.ini ? "—" : cbMesTxt(x.mes)}</td><td>${cmEsc(x.doc)}</td><td>${x.ini || B.get(x.mes) == null ? "—" : $s(B.get(x.mes))}</td><td>${x.ini ? "—" : cmPct(x.ea)}</td><td>${x.ini ? "—" : cmPct(x.tm, 4)}</td><td>${$(x.cob)}</td><td>${$(x.pag)}</td><td>${$(x.saldo)}</td></tr>`).join("") +
       `<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td></td><td></td><td>${$b(R.cob)}</td><td>${$b(R.pag)}</td><td>${$b(R.cob - R.pag)}</td></tr></tbody></table>`);
-    R.filas.length && h.push(`<p>En el período se cobraron intereses de mora por ${$s(R.cob)} y se pagaron ${$s(R.pag)}; quedan pendientes ${$s(R.cob - R.pag)}. Los valores son los registrados en las cuentas de cobro de la unidad. La base es el saldo de capital pendiente al cierre del mes de la mora (cuotas y multas en firme sin pagar); no incluye intereses.</p>`);
+    R.filas.length && h.push(`<p>En el período se cobraron intereses de mora por ${$s(R.cob)} y se pagaron ${$s(R.pag)}; quedan pendientes ${$s(R.cob - R.pag)}. Los valores son los registrados en las cuentas de cobro de la unidad. La base es el saldo de cuotas de administración pendiente al cierre del mes de la mora; no incluye multas, sanciones, otros cobros ni intereses.</p>`);
     if (IC) {
       let mL = cbMesLargo(IC.hm), mes = mL.replace(/ de \d{4}$/, ""), mA = cbMesLargo(cmYm(IC.hm, -1)), ant = cbFechaLarga(cmIso(cmYm(IC.hm, -1), cmDiasMes(cmYm(IC.hm, -1)))), sig = cbFechaLarga(cmIso(cmYm(IC.hm, 1), 1)), docs = IC.docs.length ? ` (${IC.docs.join(", ")})` : "";
       h.push(`<p><strong>Interés cobrado en la cuenta de cobro de ${mL}.</strong> El interés de ${$s(IC.v)} de la cuenta de cobro de ${mes}${docs} corresponde a la mora de ${mA}: se liquidó sobre el saldo de capital pendiente al ${ant} y se facturó el primer día de ${mes}. No es un cobro anticipado. Los intereses de ${mes}, si el saldo no se paga durante ${mes}, se facturarán en la cuenta de cobro del ${sig}.</p>`);
