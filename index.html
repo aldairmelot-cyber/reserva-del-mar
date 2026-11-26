@@ -12632,7 +12632,6 @@ function CmFirmaContador({ ses, c, notificar, onCambio }) {
     : !puede ? h("p", { className: "tenue" }, "Pendiente de la firma del contador.")
     : !abierto ? h("div", null, h("p", { className: "tenue" }, "Esta comunicación aún no tiene la firma del contador."), h("button", { type: "button", className: "btn btn-primario", onClick: () => setAb(!0) }, "Firmar esta comunicación"))
     : h("div", null,
-        h("p", { className: "tenue" }, "Firme en el recuadro con el mouse o el dedo, o cargue una imagen de su firma (fondo blanco)."),
         h(EfPad, { onCambio: setImg, inicial: previa }),
         h("label", { className: "check", style: { display: "block", margin: "10px 0" } }, h("input", { type: "checkbox", checked: ok, onChange: e => setOk(e.target.checked) }), ` Revisé la comunicación ${cmNumero(c)} y la firmo como Contador Público.`),
         h("div", { className: "fila", style: { gap: 8 } }, h("button", { type: "button", className: "btn btn-primario", disabled: !img || !ok || oc, onClick: firmar }, oc ? "Guardando…" : "Firmar"), h("button", { type: "button", className: "btn", onClick: () => { setAb(!1); setImg(null); } }, "Cancelar"))));
