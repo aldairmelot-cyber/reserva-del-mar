@@ -5760,7 +5760,7 @@ var CM_INICIALES = [
     destinatario: "Carolina Lasso Arce y Andrés Alberto Valencia Martínez · Apto 521 T3", origen: "Fallo de tutela del 18-11-2026, Juzgado Séptimo Penal Municipal de Santa Marta, Rad. 47-001-40-09-007-2026-00595-00",
     asunto: "Estado de cuenta, imputación de pagos e intereses de mora · Apto 521 T3 (anexo de la respuesta complementaria)", estado: "Borrador",
     resumen: "Estado de cuenta del 1-ene-2022 al 30-nov-2026 (saldo $ 3.205.682), imputación de cada recibo por concepto y mes, intereses de mora (mora del mes facturada en el mes siguiente) y multas con su resolución. Texto tal como lo entregó el abogado; firma Dairo Ortega Palomino, C.P.",
-    enlace: "", html: CM_CARTA_010, htmlVer: 13 }
+    enlace: "", html: CM_CARTA_010, htmlVer: 13, orientacion: "landscape" }
 
 ];
 var cmNumero = c => `${CM_PREFIJO}-${c.anio}-${String(c.consecutivo).padStart(3, "0")}`;
@@ -6648,8 +6648,8 @@ function cmDoc(c, entidad) {
     else if (tag === "table") {
       let th = [...el.querySelectorAll("thead th")].map(x => limpio(x)), n = th.length;
       let cel = [...el.querySelectorAll("tbody tr")].map(tr => [...tr.children].map(td => limpio(td)));
-      let esDin = t => /^\(?-?\$\s?[\d.,]+\)?$/.test(t), num = th.map((_, k) => { let v = cel.map(r => r[k] ?? "").filter(Boolean); return v.length > 0 && v.filter(esDin).length >= v.length * .8; });
-      let palabra = k => Math.max(th[k].length * 1.6 + 3, ...cel.map(r => { let t = String(r[k] ?? ""); return (t.length <= 12 ? t.length : Math.max(0, ...t.split(/\s+/).map(w => w.length))) * 1.4; }));
+      /* columnas de valores: pesos o porcentajes; los guiones (sin valor) no cuentan */ let esDin = t => /^\(?-?\$\s?[\d.,]+\)?$/.test(t) || /^-?[\d.,]+\s?%$/.test(t), vacio = t => !t || /^[—–-]$/.test(t), num = th.map((_, k) => { let v = cel.map(r => r[k] ?? "").filter(t => !vacio(t)); return v.length > 0 && v.filter(esDin).length >= v.length * .8; });
+      let palabra = k => Math.max(th[k].length * 1.6 + 3, ...cel.map(r => { let t = String(r[k] ?? ""); return (t.length <= 12 ? t.length * 1.25 : Math.max(0, ...t.split(/\s+/).map(w => w.length))) * 1.4; }));
       let peso = th.map((t, k) => num[k] ? Math.max(18, palabra(k)) : Math.min(60, Math.max(t.length + 2, palabra(k), ...cel.map(r => (r[k] ?? "").length).sort((x, y) => y - x).slice(0, 3).map(v => Math.min(v, 90) * .55), 8)));
       let tot = peso.reduce((x, y) => x + y, 0), anchos = peso.map(p => p / tot * 100);
       b.push({ tipo: "tabla", cabecera: !0, columnas: th.map((t, k) => ({ titulo: t.toUpperCase(), ancho: anchos[k], alin: num[k] ? "right" : "left" })),
@@ -6665,7 +6665,7 @@ function cmDoc(c, entidad) {
     }
   }
   return { entidad: entidad?.entidad ?? "AGRUPACIÓN RESERVA DEL MAR P.H.", nit: "NIT. " + (entidad?.nit ?? ""), logo: entidad?.logo || void 0, firmantes: entidad?.firmantes, firmasImg: fimg ? { unico: fimg } : {}, leyendas: [],
-    secciones: [{ id: "comunicacion", nombre: "Comunicación", titulo: c.tituloDoc ?? ("COMUNICACIÓN No. " + cmNumero(c)), subtitulos: c.subDoc ?? [c.asunto || "", "Santa Marta, " + cmFechaLarga(c.fecha)], orientacion: "portrait", bloques: b }] };
+    secciones: [{ id: "comunicacion", nombre: "Comunicación", titulo: c.tituloDoc ?? ("COMUNICACIÓN No. " + cmNumero(c)), subtitulos: c.subDoc ?? [c.asunto || "", "Santa Marta, " + cmFechaLarga(c.fecha)], orientacion: c.orientacion || "portrait", bloques: b }] };
 }
 async function cmBajar(c, entidad, ses, notificar, tipo) {
   try { if (c.imp && !c.impListo) c = { ...c, html: (await cmImpArmar(ses, await cmImpBase(ses), c, c.imp)).html };
