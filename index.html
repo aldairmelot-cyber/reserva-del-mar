@@ -6106,7 +6106,7 @@ async function gfBase(ses, avance) {
       let meta = usar[n]; avance?.(`Leyendo ${meta.etiqueta || meta.id} (${n + 1} de ${usar.length})…`);
       let X = await vxCargar(ses.store, meta), C = typeof meta.cuentas === "string" ? JSON.parse(meta.cuentas) : meta.cuentas, anio = meta.desde.slice(0, 4);
       libros.push({ desde: meta.desde, hasta: meta.hasta, etiqueta: meta.etiqueta || meta.id });
-      SI[anio] = {}; for (const c of C) { nombres[c[0]] ??= c[1]; SI[anio][c[0]] = +c[2] || 0; }
+      SI[anio] = {}; for (const c of C) { nombres[c[0]] ??= c[1]; SI[anio][c[0]] = (/^[234]/.test(String(c[0])) ? -1 : 1) * (+c[2] || 0); /* el libro trae el saldo según su naturaleza; aquí todo queda como débito − crédito */ }
       let docs = new Map();
       for (const x of X.movs) {
         let cod = String(C[x[0]]?.[0] ?? ""), ym = gfYm(x[1]); if (!cod || !ym) continue;
@@ -6144,7 +6144,8 @@ async function gfBase(ses, avance) {
   })();
   try { return await GF_CACHE.p; } catch (e) { GF_CACHE.p = null; throw e; }
 }
-var gfNom = (B, cod) => { let t = B.grupos[cod] || B.nombres[cod] || ""; return t ? t.charAt(0) + t.slice(1).toLowerCase() : cod; };
+var GF_PUC = { "5105": "GASTOS DE PERSONAL", "5110": "HONORARIOS", "5115": "IMPUESTOS", "5120": "ARRENDAMIENTOS", "5125": "CONTRIBUCIONES Y AFILIACIONES", "5130": "SEGUROS", "5135": "SERVICIOS", "5140": "GASTOS LEGALES", "5145": "MANTENIMIENTO Y REPARACIONES", "5150": "ADECUACIÓN E INSTALACIÓN", "5155": "GASTOS DE VIAJE", "5160": "DEPRECIACIONES", "5165": "AMORTIZACIONES", "5195": "DIVERSOS", "5199": "PROVISIONES", "5305": "FINANCIEROS", "5310": "PÉRDIDA EN VENTA Y RETIRO DE BIENES", "5315": "GASTOS EXTRAORDINARIOS", "5395": "GASTOS DIVERSOS", "5405": "IMPUESTO DE RENTA Y COMPLEMENTARIOS" };
+var gfNom = (B, cod) => { let t = B.grupos[cod] || B.nombres[cod] || GF_PUC[cod] || ""; return t ? t.charAt(0) + t.slice(1).toLowerCase() : cod; };
 /* movimiento neto de un prefijo en un rango de meses: ingreso (crédito − débito) o gasto/activo (débito − crédito) */
 function gfNeto(B, pref, desde, hasta, signo) {
   let s = 0;
@@ -6220,7 +6221,7 @@ function GfGastos({ B, ym, pdf }) {
   let rubros = Ve.useMemo(() => gfHijos(B, "5", 4).filter(p => !/^5405/.test(p)).map(p => ({ p, nombre: gfNom(B, p), por: anios.map(a => gfNeto(B, p, a + "-01", a === ym.slice(0, 4) ? ym : a + "-12", "d")) })).filter(r => r.por.some(v => Math.abs(v) >= 1)), [B, ym]);
   let [sel, setSel] = Ve.useState(""); Ve.useEffect(() => { rubros.length && !sel && setSel([...rubros].sort((a, b) => b.por[b.por.length - 1] - a.por[a.por.length - 1])[0].p); }, [rubros]);
   let nm = a => a === ym.slice(0, 4) ? gfMesesDe(B, a).filter(m => m <= ym).length : gfMesesDe(B, a).length;
-  let cols = [{ t: "Rubro" }, ...anios.map(a => ({ t: a === ym.slice(0, 4) ? `${a} (ene–${cbMesTxt(ym).slice(0, 3)})` : a, num: 1 })), { t: "Promedio mensual " + (anios[anios.length - 2] || ""), num: 1 }, { t: "Promedio mensual " + anios[anios.length - 1], num: 1 }, { t: "Cambio", num: 1 }];
+  let cols = [{ t: "Rubro" }, ...anios.map(a => ({ t: a === ym.slice(0, 4) ? `${a} (ene–${cbMesTxt(ym).slice(0, 3).toLowerCase()})` : a, num: 1 })), { t: "Promedio mensual " + (anios[anios.length - 2] || ""), num: 1 }, { t: "Promedio mensual " + anios[anios.length - 1], num: 1 }, { t: "Cambio", num: 1 }];
   let filas = rubros.map(r => { let n1 = nm(anios[anios.length - 2]) || 1, n2 = nm(anios[anios.length - 1]) || 1, p1 = anios.length > 1 ? r.por[r.por.length - 2] / n1 : null, p2 = r.por[r.por.length - 1] / n2, pc = p1 != null ? gfPct(p2, p1) : null;
     return { c: [r.nombre, ...r.por.map(gfP), p1 != null ? gfP(p1) : "—", gfP(p2), gfPctTxt(pc)], neg: { [cols.length - 1]: pc != null && pc > GF_MAT.pct && Math.abs(p2 - p1) >= 1e6 }, p: r.p }; });
   /* detalle del rubro elegido: meses y meses atípicos */
@@ -6324,7 +6325,7 @@ function GfCaja({ B, ym, pdf }) {
   let cats = (k) => [...new Set(R.flatMap(r => Object.keys(r.f[k])))].sort((x, y) => R.reduce((s, r) => s + (r.f[k][y] || 0), 0) - R.reduce((s, r) => s + (r.f[k][x] || 0), 0));
   let ce = cats("ent"), cs = cats("sal");
   let cols = [{ t: "Concepto" }, ...R.map(r => ({ t: cbMesTxt(r.m), num: 1 })), { t: "Total 12 meses", num: 1 }];
-  let fl = (t, f, b) => ({ c: [t, ...R.map(f), gfP(R.reduce((s, r) => s + (+f(r, !0) || 0), 0))], b });
+  let fl = (t, f, b) => ({ c: [t, ...R.map(r => f(r)), gfP(R.reduce((s, r) => s + (+f(r, !0) || 0), 0))], b });
   let num = (v, raw) => raw ? v : gfP(v);
   let filas = [{ c: ["ENTRADAS", ...R.map(() => ""), ""], b: 1 }, ...ce.map(k => fl(k, (r, raw) => num(r.f.ent[k] || 0, raw))), fl("Total entradas", (r, raw) => num(r.e, raw), 1),
     { c: ["SALIDAS", ...R.map(() => ""), ""], b: 1 }, ...cs.map(k => fl(k, (r, raw) => num(r.f.sal[k] || 0, raw))), fl("Total salidas", (r, raw) => num(r.s, raw), 1),
@@ -6369,7 +6370,7 @@ function GfCosto({ B, ym, pdf }) {
   let R = anios.map(a => { let h = a === ym.slice(0, 4) ? ym : a + "-12", n = B.meses.filter(m => m.startsWith(a) && m <= h).length || 1; let gas = gfNeto(B, "5", a + "-01", h, "d"), cuo = cuotaCtas.reduce((s, c) => s + gfNeto(B, c, a + "-01", h, "c"), 0), desc = gfNeto(B, "4175", a + "-01", h, "d"), otros = gfNeto(B, "4", a + "-01", h, "c") - cuo + desc;
     return { a, n, gas: gas / n, cuo: (cuo - desc) / n, otros: otros / n, cob: gas > .5 ? (cuo - desc) / gas * 100 : null }; });
   let cols = [{ t: "Año" }, { t: "Gasto mensual promedio", num: 1 }, { t: "Cuotas netas de descuento (mes)", num: 1 }, { t: "Otros ingresos (mes)", num: 1 }, { t: "Las cuotas cubren", num: 1 }];
-  let filas = R.map(r => ({ c: [r.a + (r.a === ym.slice(0, 4) ? ` (ene–${cbMesTxt(ym).slice(0, 3)})` : ""), gfP(r.gas), gfP(r.cuo), gfP(r.otros), r.cob == null ? "—" : r.cob.toFixed(1).replace(".", ",") + " %"], neg: { 4: r.cob != null && r.cob < 100 } }));
+  let filas = R.map(r => ({ c: [r.a + (r.a === ym.slice(0, 4) ? ` (ene–${cbMesTxt(ym).slice(0, 3).toLowerCase()})` : ""), gfP(r.gas), gfP(r.cuo), gfP(r.otros), r.cob == null ? "—" : r.cob.toFixed(1).replace(".", ",") + " %"], neg: { 4: r.cob != null && r.cob < 100 } }));
   let u = R[R.length - 1], k = parseFloat(String(coef).replace(",", ".")) || 0;
   return gfH("div", { className: "panel" },
     gfH("h2", null, "Costo real por unidad"),
