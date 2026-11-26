@@ -1092,16 +1092,17 @@ function ppCalc(base, cfgIn) {
     let pctO = x => x.b === "val" ? 0 : x.crit === "sml" ? pPer : x.crit === "ipc" ? pGas : x.pct;
     for (const x of gastos) (x.v27o ??= [])[i] = x.fuera ? 0 : ppR(x.bv * (1 + pctO(x)));
     let Go = gastos.reduce((a, x) => a + x.v27o[i], 0), fondoO = ppR(Go * (+cfg.fondoPct || 0) / 100);
-    if (tOn) pm = o.baja != null && o.baja !== "" ? +o.baja / 100 : 0;
+    let tO = tOn && i > 0; /* la opción 1 conserva el incremento fijo de todo el año */
+    if (tO) pm = o.baja != null && o.baja !== "" ? +o.baja / 100 : 0;
     let precio27 = precio26 ? ppR(precio26 * (1 + pm), 100) : 0, pmReal = precio26 ? precio27 / precio26 - 1 : pm;
-    let pA = o.alta != null && o.alta !== "" ? +o.alta / 100 : PP_TEMP_ALTA[i] / 100, precioAlta = tOn && precio26 ? ppR(precio26 * (1 + pA), 100) : 0, paReal = tOn ? (precio26 ? precioAlta / precio26 - 1 : pA) : 0;
+    let pA = o.alta != null && o.alta !== "" ? +o.alta / 100 : PP_TEMP_ALTA[i] / 100, precioAlta = tO && precio26 ? ppR(precio26 * (1 + pA), 100) : 0, paReal = tO ? (precio26 ? precioAlta / precio26 - 1 : pA) : 0;
     /* con temporadas, el ingreso por manillas pondera cada precio por el peso de sus fechas */
-    let fMan = tOn ? (1 - tw) * (1 + pmReal) + tw * (1 + paReal) : 1 + pmReal;
+    let fMan = tO ? (1 - tw) * (1 + pmReal) + tw * (1 + paReal) : 1 + pmReal;
     let man27 = ppR(manProy * fMan * (1 + cr));
     let neto = Go - man27 - (O - ET), cuotas = ppR(neto / (1 - descPct)), desc = neto - cuotas;
     let mes = (cuotas + fondoO) / 12, inc = cuotaMes26 ? mes / cuotaMes26 - 1 : null;
     let ing = cuotas + fondoO + desc + man27 + O; // la cuota incluye la parte del fondo: ingresos − gastos = excedente = fondo de imprevistos
-    return { ...o, i, pm: fMan - 1, pmBaja: pmReal, pmAlta: paReal, precioAlta, temp: tOn, pPer, pGas, G: Go, neto, precio27, man27, cuotas, desc, fondo: fondoO, mes, inc, ing, res: ing - Go, fondoT: fondoO + ET, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
+    return { ...o, i, pm: fMan - 1, pmBaja: pmReal, pmAlta: paReal, precioAlta, temp: tO, pPer, pGas, G: Go, neto, precio27, man27, cuotas, desc, fondo: fondoO, mes, inc, ing, res: ing - Go, fondoT: fondoO + ET, unid27: unid26 ? Math.round(unid26 * (1 + cr)) : null };
   });
   let porGrupo = {};
   for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; o.v27o = ops.map((op, i) => (o.v27o?.[i] ?? 0) + (x.v27o?.[i] ?? 0)); }
@@ -1217,9 +1218,9 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
       let bt = (activo, txt, v) => h("button", { type: "button", disabled: soloLectura, onClick: () => setT({ on: v }), style: { padding: "8px 14px", borderRadius: 10, cursor: soloLectura ? "default" : "pointer", fontWeight: 700, border: activo ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: activo ? "var(--acento, #1f6f78)" : "var(--hoja, #fff)", color: activo ? "#fff" : "inherit" } }, txt);
       return h("div", { style: { border: "1px solid var(--linea, #ddd)", borderRadius: 12, padding: "12px 14px", margin: "0 0 14px", background: on ? "var(--aviso-suave, #fff8e6)" : "var(--hoja, #fff)" } },
         h("div", { style: { fontWeight: 700, marginBottom: 6 } }, "Precio de la manilla"),
-        h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } }, bt(!on, "El mismo precio todo el año", !1), bt(on, "Sube solo en temporada alta", !0)),
+        h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } }, bt(!on, "El mismo precio todo el año", !1), bt(on, "Opciones 2 y 3 por temporadas (la 1 fija)", !0)),
         on && h(Ve.Fragment, null,
-          h("p", { className: "tenue", style: { margin: "8px 0", fontSize: 13 } }, `El precio de temporada baja aplica todo el año, salvo estas fechas, en las que rige el de temporada alta. En 2024 esas fechas reunieron el ${String(+(T.peso ?? 30)).replace(".", ",")} % del ingreso por manillas; con ese peso se calcula el ingreso de cada opción.`),
+          h("p", { className: "tenue", style: { margin: "8px 0", fontSize: 13 } }, `La opción 1 mantiene un precio fijo todo el año, como hoy. En las opciones 2 y 3 el precio de temporada baja aplica todo el año, salvo estas fechas, en las que rige el de temporada alta. En 2024 esas fechas reunieron el ${String(+(T.peso ?? 30)).replace(".", ",")} % del ingreso por manillas; con ese peso se calcula el ingreso de cada opción.`),
           h("table", { className: "t-datos", style: { maxWidth: 820 } }, h("thead", null, h("tr", null, h("th", null, "Temporada alta"), h("th", null, "Fechas en que rige el precio de temporada"), h("th", { className: "a-right" }, "Días"))),
             h("tbody", null, PP_TEMP_FECHAS.map((f, k) => h("tr", { key: k }, h("td", null, f[0]), h("td", null, f[1]), h("td", { className: "a-right num" }, f[2]))),
               h("tr", { style: { fontWeight: 700 } }, h("td", null, "Total"), h("td", null, "El resto del año rige el precio de temporada baja"), h("td", { className: "a-right num" }, PP_TEMP_FECHAS.reduce((a, f) => a + f[2], 0))))),
@@ -1231,8 +1232,9 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
         grupo("1. Lo que usted decide: cuánto sube cada cosa"),
         fila("Rubros que suben con el salario mínimo", `${gr("sml").n} rubros (${ppP(gr("sml").v / 12)} al mes en 2026), como aseo, recepción y asesorías atadas al salario. Referencia: ${String(sml).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "per", o.per ?? sml)))),
         fila("Rubros que suben con el IPC", `${gr("ipc").n} rubros (${ppP(gr("ipc").v / 12)} al mes en 2026): servicios, mantenimiento, seguros y otros. Referencia: ${String(ipc).replace(".", ",")} %.`, M.ops.map(o => td(inp(o, "gas", o.gas ?? ipc)))),
-        ...(M.temp.on ? [fila("Manilla en temporada baja", `Precio vigente ${ppP(M.precio26)}. Cero = no cambia; un valor negativo la rebaja (p. ej. −5 % = ${ppP(ppR(M.precio26 * .95, 100))}).`, M.ops.map(o => td(inp(o, "baja", o.baja ?? 0)))),
-          fila("Manilla en temporada alta", "Solo en las fechas de temporada (ver arriba).", M.ops.map((o, k) => td(inp(o, "alta", o.alta ?? PP_TEMP_ALTA[k]))))]
+        ...(M.temp.on ? [fila("Manilla todo el año (incremento fijo)", `Precio vigente ${ppP(M.precio26)}. La opción 1 conserva el esquema actual: un solo precio todo el año.`, M.ops.map((o, k) => td(k === 0 ? inp(o, "pct", o.pct ?? +(o.pm * 100).toFixed(2)) : "—"))),
+          fila("Manilla en temporada baja", `Opciones 2 y 3. Cero = no cambia; un valor negativo la rebaja (p. ej. −5 % = ${ppP(ppR(M.precio26 * .95, 100))}).`, M.ops.map((o, k) => td(k === 0 ? "—" : inp(o, "baja", o.baja ?? 0)))),
+          fila("Manilla en temporada alta", "Opciones 2 y 3: solo en las fechas de temporada (ver arriba).", M.ops.map((o, k) => td(k === 0 ? "—" : inp(o, "alta", o.alta ?? PP_TEMP_ALTA[k]))))]
         : [fila("Precio de la manilla de acceso", M.precio26 ? `Precio vigente ${ppP(M.precio26)} (IVA incluido).` : "", M.ops.map(o => td(inp(o, "pct", o.pct ?? +(o.pm * 100).toFixed(2)))))]),
         propios.length ? h("tr", null, h("td", { colSpan: 1 + M.ops.length, className: "tenue", style: { fontSize: 13 } }, `Estos porcentajes no tocan ${propios.length} rubros que tienen su propio cálculo (propuesta del proveedor, dos incrementos, valor fijo o sin incremento): ${propios.slice(0, 6).map(x => ppxCap(x.n).replace(/^Item [\d,.]+ - /i, "")).join(", ")}${propios.length > 6 ? "…" : ""}. Se ajustan en la pestaña Gastos.`)) : null,
         grupo("2. Lo que resulta cada mes"),
@@ -1243,9 +1245,9 @@ function ppOpcionesPanel(h, M, base, cfg, guardar, soloLectura) {
         fila("Lo que falta lo pagan los propietarios", null, M.ops.map(o => td(mill(o.G / 12 + o.fondoT / 12 - (o.man27 + M.O) / 12)))),
         fila("Cuota a facturar", `Es un poco más porque quien paga en los primeros 15 días tiene ${ppPct(M.descTasa, 0)} de descuento (se estima que paga a tiempo el ${ppPct(M.descUso, 1)}). Hoy se facturan ${mill(M.cuotaMes26)} al mes.`, M.ops.map(o => td(mill(o.mes))), fuerte),
         fila("La cuota sube", null, M.ops.map(o => td(ppSig(o.inc), { fontSize: 20, fontWeight: 800 })), fuerte),
-        fila("La manilla sube", M.temp.on ? "Promedio del año, ponderando las fechas de temporada" : null, M.ops.map(o => td(ppSig(o.pm), { fontSize: 20, fontWeight: 800 })), fuerte),
+        fila("La manilla sube", M.temp.on ? "En las opciones 2 y 3, promedio del año ponderando las fechas de temporada" : null, M.ops.map(o => td(ppSig(o.pm), { fontSize: 20, fontWeight: 800 })), fuerte),
         ...(M.temp.on ? [fila("Precio en temporada baja", `Hoy vale ${ppP(M.precio26)} (IVA incluido)${M.ops.some(o => o.pmBaja < -0.0005) ? ". Las opciones con valor menor bajan la manilla fuera de temporada" : ""}`, M.ops.map(o => td(o.precio27 ? ppP(o.precio27) : "—", { fontWeight: 700 })), fuerte),
-          fila("Precio en temporada alta", `${PP_TEMP_FECHAS.reduce((a, f) => a + f[2], 0)} días del año`, M.ops.map(o => td(o.precioAlta ? ppP(o.precioAlta) : "—", { fontWeight: 700 })), fuerte)]
+          fila("Precio en temporada alta", `${PP_TEMP_FECHAS.reduce((a, f) => a + f[2], 0)} días del año. En la opción 1 rige el mismo precio todo el año`, M.ops.map(o => td(o.precioAlta ? ppP(o.precioAlta) : o.precio27 ? ppP(o.precio27) : "—", { fontWeight: 700 })), fuerte)]
         : [fila("Precio de la manilla", M.precio26 ? `Hoy vale ${ppP(M.precio26)} (IVA incluido)` : null, M.ops.map(o => td(o.precio27 ? ppP(o.precio27) : "—", { fontWeight: 700 })), fuerte)]),
         grupo(`3. Ejemplo: apartamento con coeficiente ${String(c).replace(".", ",")} %`),
         fila("Cuota al mes", `Hoy paga ${ppP(a26)}`, M.ops.map(o => td(ppP(ppR(o.mes * c / 100, 1))))),
