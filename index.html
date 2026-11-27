@@ -7351,50 +7351,6 @@ function igpArmar({ inf, auto: a, ym, fotos }) {
   return S;
 }
 
-/* ---------- ilustraciones propias de cada tema (SVG plano), para los posts de la presentación */
-var igpArte = (n, c) => {
-  let s = "", W = (x) => s += x;
-  let fondo = `<circle cx="250" cy="250" r="220" fill="${c}" opacity=".12"/><circle cx="395" cy="105" r="34" fill="${c}" opacity=".18"/><circle cx="95" cy="410" r="22" fill="${c}" opacity=".2"/>`;
-  let piso = `<ellipse cx="250" cy="430" rx="190" ry="18" fill="#000" opacity=".07"/>`;
-  W(fondo);
-  switch (n) {
-    case 1: W(`${piso}<circle cx="370" cy="130" r="38" fill="#f6c343"/><rect x="120" y="170" width="80" height="255" rx="6" fill="#3e424f"/><rect x="215" y="110" width="90" height="315" rx="6" fill="${c}"/><rect x="320" y="200" width="70" height="225" rx="6" fill="#6b7080"/>`);
-      for (let y = 190; y < 400; y += 28) W(`<rect x="134" y="${y}" width="18" height="14" rx="2" fill="#f6e7c8"/><rect x="168" y="${y}" width="18" height="14" rx="2" fill="#f6e7c8" opacity=".7"/>`);
-      for (let y = 130; y < 400; y += 28) W(`<rect x="230" y="${y}" width="22" height="14" rx="2" fill="#fff" opacity=".85"/><rect x="268" y="${y}" width="22" height="14" rx="2" fill="#fff" opacity=".6"/>`);
-      for (let y = 220; y < 400; y += 28) W(`<rect x="334" y="${y}" width="16" height="14" rx="2" fill="#f6e7c8" opacity=".8"/><rect x="362" y="${y}" width="16" height="14" rx="2" fill="#f6e7c8" opacity=".5"/>`);
-      W(`<path d="M95 425 C100 360 92 320 80 285" stroke="#8a5a2b" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M80 285 q-45 -5 -60 25 M80 285 q40 -25 70 -5 M80 285 q-25 -35 -10 -60 M80 285 q25 -30 55 -25" stroke="#2e7d4f" stroke-width="14" fill="none" stroke-linecap="round"/>`); break;
-    case 2: W(`${piso}<rect x="95" y="300" width="310" height="22" rx="6" fill="#8a5a2b"/><rect x="115" y="322" width="16" height="105" fill="#6b4421"/><rect x="370" y="322" width="16" height="105" fill="#6b4421"/><rect x="165" y="170" width="170" height="115" rx="10" fill="#3e424f"/><rect x="178" y="183" width="144" height="88" rx="4" fill="#cfe6f5"/><rect x="190" y="200" width="60" height="9" rx="4" fill="${c}"/><rect x="190" y="218" width="110" height="7" rx="3" fill="#fff"/><rect x="190" y="232" width="90" height="7" rx="3" fill="#fff"/><rect x="190" y="246" width="100" height="7" rx="3" fill="#fff"/><rect x="238" y="285" width="24" height="16" fill="#3e424f"/><rect x="345" y="230" width="44" height="70" rx="4" fill="${c}"/><rect x="352" y="222" width="44" height="78" rx="4" fill="#f6c343"/><rect x="360" y="214" width="44" height="86" rx="4" fill="#e07b39"/><path d="M118 300 v-40 h40 v40" fill="#2e7d4f"/><path d="M138 262 q-20 -40 0 -70 q20 30 0 70 M138 262 q-35 -20 -38 -50 M138 262 q35 -20 38 -50" stroke="#2e7d4f" stroke-width="9" fill="none" stroke-linecap="round"/>`); break;
-    case 3: W(`${piso}<rect x="140" y="95" width="220" height="320" rx="16" fill="#3e424f"/><rect x="158" y="120" width="184" height="280" rx="8" fill="#fff"/><rect x="205" y="80" width="90" height="38" rx="10" fill="${c}"/>`);
-      [160, 220, 280, 340].forEach((y, k) => W(`<rect x="178" y="${y - 14}" width="30" height="30" rx="7" fill="${k < 3 ? c : "#ddd"}"/>${k < 3 ? `<path d="M185 ${y + 1} l7 7 l13 -15" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` : ""}<rect x="222" y="${y - 6}" width="${[100, 80, 92, 70][k]}" height="11" rx="5" fill="#cfd3da"/>`));
-      W(`<path d="M360 330 l40 -150 l18 5 l-40 150 z" fill="#f6c343"/><path d="M360 330 l18 5 l-14 18 z" fill="#3e424f"/>`); break;
-    case 4: W(`${piso}<rect x="110" y="300" width="280" height="125" rx="14" fill="${c}"/><rect x="110" y="300" width="280" height="34" rx="10" fill="#174f4b"/><rect x="200" y="270" width="100" height="40" rx="10" fill="none" stroke="#174f4b" stroke-width="12"/><rect x="235" y="345" width="30" height="22" rx="4" fill="#f6c343"/><path d="M150 230 a100 100 0 0 1 200 0 z" fill="#f6c343"/><rect x="130" y="222" width="240" height="20" rx="10" fill="#e0a21b"/><rect x="238" y="140" width="24" height="60" rx="8" fill="#e0a21b"/><path d="M330 120 l60 60 M318 132 a18 18 0 1 1 24 -24 M402 168 a18 18 0 1 1 -24 24" stroke="#6b7080" stroke-width="14" fill="none" stroke-linecap="round"/>`); break;
-    case 5: W(`${piso}<rect x="110" y="200" width="280" height="225" rx="8" fill="#fff" stroke="#e6dccb" stroke-width="4"/>`);
-      for (let k = 0; k < 7; k++) W(`<path d="M${110 + k * 40} 160 h40 v42 a20 20 0 0 1 -40 0 z" fill="${k % 2 ? "#fff" : c}" stroke="${c}" stroke-width="3"/>`);
-      W(`<rect x="100" y="140" width="300" height="24" rx="6" fill="#3e424f"/><rect x="140" y="270" width="90" height="155" rx="6" fill="#cfe6f5"/><rect x="255" y="270" width="110" height="80" rx="6" fill="#cfe6f5"/><path d="M290 375 h50 l-25 28 z" fill="#f6c343"/><rect x="312" y="400" width="6" height="25" fill="#3e424f"/><circle cx="330" cy="370" r="7" fill="#d33"/><path d="M405 300 q40 -60 80 0 z" fill="#e07b39"/><rect x="443" y="300" width="5" height="125" fill="#6b4421"/>`); break;
-    case 6: W(`${piso}<ellipse cx="230" cy="300" rx="130" ry="105" fill="#f29bb0"/><circle cx="330" cy="275" r="10" fill="#3e424f"/><ellipse cx="355" cy="305" rx="30" ry="24" fill="#f6b8c6"/><circle cx="350" cy="303" r="5" fill="#a85870"/><circle cx="364" cy="303" r="5" fill="#a85870"/><path d="M190 200 l25 -35 l20 38" fill="#f29bb0"/><rect x="150" y="380" width="30" height="45" rx="8" fill="#e27f98"/><rect x="270" y="380" width="30" height="45" rx="8" fill="#e27f98"/><rect x="200" y="195" width="60" height="10" rx="5" fill="#a85870"/>`);
-      [0, 1, 2, 3].forEach(k => W(`<ellipse cx="400" cy="${400 - k * 22}" rx="48" ry="14" fill="${k % 2 ? "#e0a21b" : "#f6c343"}" stroke="#c88b12" stroke-width="3"/>`));
-      W(`<circle cx="225" cy="130" r="34" fill="#f6c343" stroke="#c88b12" stroke-width="5"/><text x="225" y="143" font-size="38" font-weight="800" text-anchor="middle" fill="#c88b12">$</text>`); break;
-    case 7: W(`${piso}<rect x="244" y="110" width="12" height="290" fill="#3e424f"/><rect x="180" y="400" width="140" height="22" rx="8" fill="#3e424f"/><rect x="120" y="140" width="260" height="12" rx="6" fill="#3e424f"/><circle cx="250" cy="120" r="16" fill="${c}"/><path d="M140 152 l-40 110 M140 152 l40 110 M360 152 l-40 110 M360 152 l40 110" stroke="#6b7080" stroke-width="4"/><path d="M90 262 a50 30 0 0 0 100 0 z" fill="${c}"/><path d="M310 262 a50 30 0 0 0 100 0 z" fill="${c}"/><rect x="60" y="360" width="120" height="60" rx="6" fill="#8a5a2b" transform="rotate(-8 120 390)"/><rect x="60" y="360" width="120" height="12" fill="#f6c343" transform="rotate(-8 120 390)"/>`); break;
-    case 8: W(`<circle cx="360" cy="130" r="50" fill="#f6c343"/><path d="M40 330 q55 -30 110 0 t110 0 t110 0 t110 0 v130 h-440 z" fill="#4aa3d8"/><path d="M40 360 q55 -30 110 0 t110 0 t110 0 t110 0 v100 h-440 z" fill="#2f7fb8"/><path d="M40 400 h440 v60 h-440 z" fill="#f1d8a8"/><path d="M130 400 C135 320 125 270 110 230" stroke="#8a5a2b" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M110 230 q-55 -5 -72 30 M110 230 q50 -30 85 -5 M110 230 q-30 -42 -12 -72 M110 230 q30 -36 66 -30" stroke="#2e7d4f" stroke-width="15" fill="none" stroke-linecap="round"/><path d="M290 400 l40 -120" stroke="#3e424f" stroke-width="6"/><path d="M250 290 a85 50 0 0 1 165 -10 z" fill="${c}"/><path d="M290 290 a40 50 0 0 1 80 -6" fill="#fff" opacity=".35"/><rect x="360" y="410" width="90" height="26" rx="13" fill="#2f5d8a" transform="rotate(-10 405 423)"/><rect x="392" y="408" width="24" height="30" rx="4" fill="#fff" transform="rotate(-10 405 423)"/>`); break;
-    case 9: W(`${piso}<path d="M250 90 l120 45 v95 c0 85 -55 140 -120 170 c-65 -30 -120 -85 -120 -170 v-95 z" fill="${c}"/><path d="M250 120 l92 35 v75 c0 66 -42 110 -92 135 z" fill="#fff" opacity=".15"/><path d="M200 245 l35 35 l70 -80" stroke="#fff" stroke-width="22" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="385" y="260" width="55" height="160" rx="22" fill="#d33"/><rect x="398" y="235" width="30" height="30" rx="6" fill="#3e424f"/><path d="M428 245 h28 l10 -10" stroke="#3e424f" stroke-width="8" fill="none" stroke-linecap="round"/><rect x="390" y="300" width="45" height="40" rx="4" fill="#fff"/><rect x="50" y="330" width="95" height="55" rx="6" fill="#2e9d4f"/><text x="97" y="366" font-size="22" font-weight="800" fill="#fff" text-anchor="middle">SALIDA</text>`); break;
-    case 10: { W(piso); let g = (cx, cy, r, n, col) => { let p = ""; for (let k = 0; k < n; k++) { let a = k / n * Math.PI * 2; p += `<rect x="${cx - r * .16}" y="${cy - r - r * .22}" width="${r * .32}" height="${r * .4}" rx="4" fill="${col}" transform="rotate(${a * 180 / Math.PI} ${cx} ${cy})"/>`; } return p + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${col}"/><circle cx="${cx}" cy="${cy}" r="${r * .38}" fill="#f6f3ee"/>`; };
-      W(g(210, 230, 100, 10, c) + g(345, 330, 62, 8, "#6b7080")); W(`<path d="M95 410 l120 -120 M80 395 a26 26 0 1 1 30 -30 M232 272 a26 26 0 1 1 -30 30" stroke="#e0a21b" stroke-width="20" fill="none" stroke-linecap="round"/>`); break; }
-    case 11: W(`${piso}<path d="M100 250 h300" stroke="#cfd3da" stroke-width="6" stroke-dasharray="4 14" stroke-linecap="round"/>`);
-      W(`<circle cx="120" cy="190" r="70" fill="#f6c343" opacity=".25"/><path d="M120 120 a55 55 0 0 1 32 100 v22 h-64 v-22 a55 55 0 0 1 32 -100 z" fill="#f6c343"/><rect x="90" y="246" width="60" height="12" rx="4" fill="#6b7080"/><rect x="94" y="262" width="52" height="12" rx="4" fill="#6b7080"/><rect x="104" y="278" width="32" height="10" rx="5" fill="#3e424f"/><path d="M108 185 l12 22 l12 -22" stroke="#e0a21b" stroke-width="5" fill="none"/>`);
-      W(`<path d="M250 120 c40 60 62 95 62 128 a62 62 0 0 1 -124 0 c0 -33 22 -68 62 -128 z" fill="#4aa3d8"/><path d="M220 255 a32 32 0 0 0 30 30" stroke="#fff" stroke-width="9" fill="none" stroke-linecap="round" opacity=".8"/><rect x="200" y="350" width="100" height="22" rx="8" fill="#6b7080"/><rect x="238" y="320" width="24" height="34" rx="6" fill="#6b7080"/><path d="M250 380 c8 12 12 18 12 24 a12 12 0 0 1 -24 0 c0 -6 4 -12 12 -24 z" fill="#4aa3d8"/>`);
-      W(`<path d="M385 300 c-55 -10 -60 -70 -30 -110 c5 30 20 38 30 40 c-10 -40 10 -80 40 -100 c-5 40 35 60 35 110 c0 40 -30 60 -75 60 z" fill="#e07b39"/><path d="M392 300 c-25 -5 -28 -35 -12 -55 c4 15 12 20 18 20 c-4 -20 6 -38 20 -48 c-2 20 16 30 16 52 c0 20 -14 31 -42 31 z" fill="#f6c343"/><rect x="345" y="305" width="100" height="18" rx="6" fill="#3e424f"/>`); break;
-    case 12: W(`${piso}<rect x="70" y="270" width="300" height="150" rx="20" fill="#4aa3d8"/><path d="M70 300 q38 -16 75 0 t75 0 t75 0 t75 0" stroke="#fff" stroke-width="6" fill="none" opacity=".7"/><path d="M70 345 q38 -16 75 0 t75 0 t75 0 t75 0" stroke="#fff" stroke-width="5" fill="none" opacity=".45"/><path d="M320 270 v-70 a20 20 0 0 1 40 0 M345 270 v-70 a20 20 0 0 1 40 0" stroke="#6b7080" stroke-width="8" fill="none"/><path d="M410 410 v-170 h30 v170" fill="#e6f2ea"/><path d="M405 240 h40 l-6 -22 h-28 z" fill="#6b7080"/><path d="M412 330 h26 v80 h-26 z" fill="${c}" opacity=".6"/><path d="M110 200 c-10 -60 40 -100 100 -100 c0 60 -40 100 -100 100 z" fill="${c}"/><path d="M110 200 l70 -70" stroke="#fff" stroke-width="4"/><path d="M200 230 c10 -50 55 -70 100 -60 c-12 48 -55 70 -100 60 z" fill="#2e9d4f"/>`); break;
-    case 13: W(`${piso}<rect x="160" y="270" width="180" height="155" rx="6" fill="#fff" stroke="#e6dccb" stroke-width="4"/><path d="M145 280 l105 -75 l105 75 z" fill="#3e424f"/><rect x="225" y="345" width="50" height="80" rx="4" fill="${c}"/><rect x="180" y="300" width="36" height="30" rx="3" fill="#cfe6f5"/><rect x="284" y="300" width="36" height="30" rx="3" fill="#cfe6f5"/><path d="M70 190 a180 120 0 0 1 360 0 q-30 -22 -60 0 q-30 -22 -60 0 q-30 -22 -60 0 q-30 -22 -60 0 q-30 -22 -60 0 q-30 -22 -60 0 z" fill="${c}"/><path d="M130 190 a120 110 0 0 1 120 -110" stroke="#fff" stroke-width="5" fill="none" opacity=".35"/><rect x="246" y="70" width="8" height="20" rx="3" fill="#3e424f"/>`);
-      [90, 150, 360, 420].forEach(x => W(`<path d="M${x} 230 l-8 18" stroke="#4aa3d8" stroke-width="5" stroke-linecap="round"/>`)); break;
-    case 14: W(`${piso}<rect x="80" y="110" width="340" height="250" rx="18" fill="#3e424f"/><rect x="98" y="128" width="304" height="214" rx="10" fill="#fff"/><path d="M130 260 a70 70 0 0 1 140 0" stroke="#ebe5da" stroke-width="22" fill="none"/><path d="M130 260 a70 70 0 0 1 118 -50" stroke="#2e9d4f" stroke-width="22" fill="none"/><path d="M200 260 l35 -40" stroke="#3e424f" stroke-width="7" stroke-linecap="round"/><circle cx="200" cy="260" r="10" fill="#3e424f"/>`);
-      [[300, 70, "#2e9d4f"], [330, 110, "#e0a21b"], [360, 50, "#2e9d4f"]].forEach(([x, h, f]) => W(`<rect x="${x}" y="${310 - h}" width="22" height="${h}" rx="4" fill="${f}"/>`));
-      W(`<rect x="125" y="295" width="120" height="10" rx="5" fill="#cfd3da"/><rect x="125" y="315" width="80" height="10" rx="5" fill="#cfd3da"/><rect x="225" y="360" width="50" height="45" fill="#3e424f"/><rect x="180" y="400" width="140" height="18" rx="8" fill="#3e424f"/>`); break;
-    case 15: W(`${piso}<circle cx="250" cy="255" r="170" fill="none" stroke="${c}" stroke-width="3" opacity=".25"/><circle cx="250" cy="255" r="115" fill="none" stroke="${c}" stroke-width="3" opacity=".35"/><path d="M250 105 l140 245 h-280 z" fill="#f6c343" stroke="#e0a21b" stroke-width="10" stroke-linejoin="round"/><rect x="238" y="180" width="24" height="95" rx="12" fill="#3e424f"/><circle cx="250" cy="310" r="15" fill="#3e424f"/><circle cx="410" cy="170" r="14" fill="#d33"/><circle cx="95" cy="200" r="11" fill="#e0a21b"/><circle cx="400" cy="380" r="10" fill="#2e9d4f"/>`); break;
-    case 16: W(`${piso}<rect x="140" y="260" width="220" height="165" rx="12" fill="${c}"/><rect x="140" y="260" width="220" height="30" rx="10" fill="#6b4421"/><rect x="195" y="268" width="110" height="12" rx="6" fill="#2b2e36"/><rect x="200" y="140" width="100" height="135" rx="6" fill="#fff" stroke="#e6dccb" stroke-width="4" transform="rotate(-6 250 200)"/><path d="M222 200 l20 22 l40 -48" stroke="#2e9d4f" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round" transform="rotate(-6 250 200)"/>`);
-      [[95, 200, -15], [405, 190, 15]].forEach(([x, y, r]) => W(`<g transform="rotate(${r} ${x} ${y})"><rect x="${x - 22}" y="${y - 10}" width="44" height="80" rx="18" fill="#f2c9a5"/><rect x="${x - 22}" y="${y - 52}" width="12" height="50" rx="6" fill="#f2c9a5"/><rect x="${x - 8}" y="${y - 62}" width="12" height="60" rx="6" fill="#f2c9a5"/><rect x="${x + 6}" y="${y - 56}" width="12" height="54" rx="6" fill="#f2c9a5"/><rect x="${x - 24}" y="${y + 60}" width="48" height="40" rx="6" fill="#3e424f"/></g>`)); break;
-  }
-  return `<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">${s}</svg>`;
-};
 Object.assign(IGP_ICO, {
   bulb: "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z",
   drop: "M12 3c4 5 6 8.5 6 11a6 6 0 0 1-12 0c0-2.5 2-6 6-11z",
@@ -7414,95 +7370,124 @@ Object.assign(IGP_ICO, {
   up: "M12 19V5M5 12l7-7 7 7", down: "M12 5v14M5 12l7 7 7-7",
 });
 
-/* datos de cada post: titular, mensaje y 3-4 cifras con su ícono */
+/* datos de cada post ejecutivo: titular, mensaje, cifras clave y puntos clave que resumen la sección */
+var IGP_TEMA = { 1: ["building", "chart", "coins"], 2: ["building", "clip", "gear"], 3: ["flag", "clip", "check"], 4: ["people", "handshake", "clip"], 5: ["store", "coins", "handshake"], 6: ["coins", "home", "gavel"], 7: ["scale", "gavel", "doc"], 8: ["sun", "bed", "band"], 9: ["shield", "people", "alert"], 10: ["wrench", "gear", "clip"], 11: ["bulb", "drop", "flame"], 12: ["pool", "leaf", "drop"], 13: ["umbrella", "shield", "cal"], 14: ["gauge", "chart", "check"], 15: ["alert", "shield", "chart"], 16: ["check", "flag", "people"] };
 function igpPosts({ inf, auto: a, ym }) {
   let rows = (L, ks) => (L || []).filter(r => ks.some(k => String(r[k] ?? "").trim()));
-  let P = {}, mes = igMesTxt(ym), Mes = mes.charAt(0).toUpperCase() + mes.slice(1), corto = (t, n = 44) => { t = String(t ?? "").trim(); return t.length > n ? t.slice(0, n - 1).replace(/\s\S*$/, "") + "…" : t; };
-  let pctS = p => p == null ? "—" : igPct(p).replace(",00 ", " ");
+  let P = {}, mes = igMesTxt(ym), corto = (t, n = 44) => { t = String(t ?? "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1).replace(/[\s,;:]+\S*$/, "") + "…" : t; };
+  let cl = t => corto(igpFrase(t).replace(/\.$/, ""), 150), par = (t, x) => ({ t: corto(t, 60), x: x ? corto(String(x).replace(/\.$/, ""), 100) : "" });
+  let pctS = p => p == null ? "—" : igPct(p);
   let sp = (a?.servicios || []).filter(x => x.ppto), spP = sp.reduce((s, x) => s + x.ppto, 0), spE = sp.reduce((s, x) => s + x.ejec, 0);
   let rec = a?.recaudo?.fac ? (a.recaudo.rec + a.recaudo.desc) / a.recaudo.fac : null;
-  let casos = rows(inf.casos, ["caso"]).map(r => ({ ...r, u: igBuscarUnidad(a, r.caso) })), sumE = e => casos.filter(r => r.etapa === e).reduce((s, r) => s + Math.max(0, r.u?.saldo || 0), 0);
+  let casos = rows(inf.casos, ["caso"]).map(r => ({ ...r, u: igBuscarUnidad(a, r.caso) })), deE = e => casos.filter(r => r.etapa === e), sumE = e => deE(e).reduce((s, r) => s + Math.max(0, r.u?.saldo || 0), 0);
+  let est = e => ({ VERDE: "ok", AMARILLO: "med", ROJO: "mal" })[String(e || "").toUpperCase()] || "";
   /* 1 */
-  if (a?.resultado) P[1] = { h: `Así cerró ${mes}`, m: a.resultado.excMes < 0 ? `El mes tuvo un déficit de ${igpM(-a.resultado.excMes)}, pero el año acumula un excedente de ${igpM(a.resultado.excAcum)}.` : `El mes dejó un excedente de ${igpM(a.resultado.excMes)}.`,
-    st: [{ i: "chart", v: igpM(a.resultado.excMes), t: "Resultado del mes", c: a.resultado.excMes < 0 ? "#d33" : "#2e9d4f" }, { i: "piggy", v: igpM(a.resultado.excAcum), t: "Acumulado del año", c: a.resultado.excAcum < 0 ? "#d33" : "#2e9d4f" }, rec != null && { i: "coins", v: pctS(rec), t: "Recaudo sobre lo facturado", c: rec >= .95 ? "#2e9d4f" : "#e0a21b" }, a.cartera && { i: "home", v: igpM(a.cartera.totVenc), t: `Cartera vencida · ${a.cartera.nVenc} unidades`, c: "#a8742f" }].filter(Boolean) };
-  else if (inf.resIntro) P[1] = { h: "Resumen del mes", m: igpFrase(inf.resIntro), st: [] };
+  let al = rows(inf.alertas, ["tema"]);
+  P[1] = { h: a?.resultado ? (a.resultado.excMes < 0 ? `Déficit de ${igpM(-a.resultado.excMes)} en el mes; excedente acumulado de ${igpM(a.resultado.excAcum)}` : `Excedente de ${igpM(a.resultado.excMes)} en el mes`) : "Resumen ejecutivo del mes", m: cl(inf.resIntro),
+    st: [a?.resultado && { v: igpM(a.resultado.excMes), t: "Resultado del mes", e: a.resultado.excMes < 0 ? "mal" : "ok" }, a?.resultado && { v: igpM(a.resultado.excAcum), t: "Acumulado del año", e: a.resultado.excAcum < 0 ? "mal" : "ok" }, rec != null && { v: pctS(rec), t: "Recaudo / facturado", e: rec >= .95 ? "ok" : "med" }, a?.cartera && { v: igpM(a.cartera.totVenc), t: `Cartera vencida (${a.cartera.nVenc} und.)`, e: "med" }].filter(Boolean),
+    pk: [...igLineas(inf.logros).slice(0, 6).map(x => ({ t: cl(x), e: "ok" })), ...al.slice(0, 2).map(r => ({ t: `Alerta: ${r.tema}`, x: corto(r.respuesta, 90), e: "mal" }))] };
   /* 2 */
   let ai = rows(inf.admInd, ["ind"]), acc = igLineas(inf.admAcc);
-  if (a?.fondo || ai.length || acc.length) P[2] = { h: "Gestión que no se ve, pero se nota", m: igpFrase(inf.admIntro) || `${acc.length} actividades administrativas en ${mes}.`,
-    st: [a?.fondo && { i: "piggy", v: igpM(a.fondo.apMes), t: "Apropiado al Fondo de Imprevistos", c: "#a8742f" }, a?.fondo && { i: "coins", v: igpM(a.fondo.fiducia), t: "Saldo del fondo en fiducia", c: "#2f5d8a" }, acc.length && { i: "clip", v: String(acc.length), t: "Actividades administrativas", c: "#2e7d4f" }, ...ai.filter(r => /Huésped|digital|plataforma/i.test(r.ind)).slice(0, 1).map(r => { let m = String(r.res).match(/^\s*([\d.,]+\s*%?)\s*(.*)$/); return { i: "gear", v: m ? m[1] : corto(r.res, 14), t: m ? `${m[2]} · ${r.ind}` : r.ind, c: "#6a4c93" }; })].filter(Boolean).slice(0, 4) };
+  P[2] = { h: "Control documental, operativo y herramientas digitales", m: cl(inf.admIntro),
+    st: [a?.fondo && { v: igpM(a.fondo.apMes), t: "Apropiado al fondo en el mes" }, a?.fondo && { v: igpM(a.fondo.apAnio), t: "Apropiado en el año" }, a?.fondo && { v: igpM(a.fondo.fiducia), t: "Saldo del fondo en fiducia" }, !a?.fondo && acc.length && { v: String(acc.length), t: "Actividades del mes" }].filter(Boolean),
+    pk: [...acc.slice(0, 6).map(x => ({ t: cl(x) })), ...ai.filter(r => !/servicios|mantenimiento|simulacro/i.test(r.ind)).slice(0, 2).map(r => ({ t: `${r.ind}: ${corto(r.res, 40)}`, x: corto(r.com, 80) }))] };
   /* 3 */
   let de = rows(inf.decisiones, ["asunto"]);
-  if (de.length) P[3] = { h: "Decisiones en marcha", m: `${de.length} decisiones del Consejo tienen seguimiento este mes.`, st: [{ i: "flag", v: String(de.length), t: "Decisiones en seguimiento", c: "#2f5d8a" }], ch: de.slice(0, 4).map(r => ({ t: r.asunto, x: corto(r.estado, 60) })) };
+  if (de.length) P[3] = { h: `${de.length} decisiones del Consejo con seguimiento`, m: "Estado de cada decisión y siguiente paso.", st: [{ v: String(de.length), t: "Decisiones en seguimiento" }], pk: de.slice(0, 8).map(r => par(r.asunto, r.estado)) };
   /* 4 */
-  let ct = a?.contratistas || [], gc = rows(inf.contratistas, ["prov"]);
-  if (ct.length || gc.length) P[4] = { h: "Quienes cuidan la copropiedad", m: ct.length ? `En ${mes} se causaron ${igpM(ct.reduce((s, x) => s + x.v, 0))} a los principales contratistas.` : `${gc.length} contratistas con seguimiento.`,
-    st: [ct[0] && { i: "people", v: igpM(ct[0].v), t: dkTc(ct[0].t), c: "#1f7a74" }, ct[1] && { i: "shield", v: igpM(ct[1].v), t: dkTc(ct[1].t), c: "#1f7a74" }, gc.length && { i: "clip", v: String(gc.length), t: "Contratistas con seguimiento", c: "#2f5d8a" }].filter(Boolean) };
+  let ct = a?.contratistas || [], gc = rows(inf.contratistas, ["prov"]), tc = ct.reduce((s, x) => s + x.v, 0);
+  if (ct.length || gc.length) P[4] = { h: ct.length ? `${igpM(tc)} causados a los principales contratistas` : "Seguimiento a contratistas", m: gc.length ? `${gc.length} contratistas con seguimiento de cumplimiento en ${mes}.` : "",
+    st: ct.slice(0, 3).map(x => ({ v: igpM(x.v), t: dkTc(x.t) })), pk: gc.slice(0, 8).map(r => par(r.prov, r.obs || r.gestion)) };
   /* 5 */
-  let co = a?.concesiones || [], gco = rows(inf.concesiones, ["con"]);
-  if (co.length || gco.length) P[5] = { h: "Concesiones que generan ingresos", m: co.length ? `Las concesiones aportaron ${igpM(co.reduce((s, x) => s + x.v, 0))} en ${mes}.` : "", st: [co.length && { i: "coins", v: igpM(co.reduce((s, x) => s + x.v, 0)), t: "Ingresos del mes", c: "#8a5a2b" }, co[0] && { i: "store", v: igpM(co[0].v), t: dkTc(co[0].t), c: "#e07b39" }].filter(Boolean), ch: gco.slice(0, 3).map(r => ({ t: r.con, x: corto(r.pend, 60) })) };
+  let co = a?.concesiones || [], gco = rows(inf.concesiones, ["con"]), tco = co.reduce((s, x) => s + x.v, 0);
+  if (co.length || gco.length) P[5] = { h: co.length ? `Las concesiones aportaron ${igpM(tco)} en el mes` : "Concesiones", m: gco.length ? `${gco.length} frentes de concesión en gestión.` : "",
+    st: [co.length && { v: igpM(tco), t: "Ingresos por concesiones" }, ...co.slice(0, 2).map(x => ({ v: igpM(x.v), t: dkTc(x.t) }))].filter(Boolean), pk: gco.slice(0, 5).map(r => par(r.con, r.pend)) };
   /* 6 */
-  if (a?.cartera || casos.length) P[6] = { h: "Cartera bajo control", m: a?.cartera ? `${a.cartera.nVenc} unidades tienen saldo vencido por ${igpM(a.cartera.totVenc)}.` : igpFrase(inf.carIntro),
-    st: [a?.cartera && { i: "coins", v: igpM(a.cartera.totVenc), t: "Cartera vencida", c: "#a8742f" }, a?.cartera && { i: "home", v: String(a.cartera.nVenc), t: "Unidades con saldo vencido", c: "#2f5d8a" }, sumE("Prejurídico") && { i: "clip", v: igpM(sumE("Prejurídico")), t: "En cobro prejurídico", c: "#e0a21b" }, (sumE("Ejecutivo") + sumE("Judicial")) && { i: "gavel", v: igpM(sumE("Ejecutivo") + sumE("Judicial")), t: "En procesos ejecutivos y judiciales", c: "#d33" }].filter(Boolean) };
+  if (a?.cartera || casos.length) P[6] = { h: a?.cartera ? `Cartera vencida de ${igpM(a.cartera.totVenc)} en ${a.cartera.nVenc} unidades` : "Gestión de cartera", m: cl(inf.carIntro),
+    st: [a?.cartera && { v: igpM(a.cartera.totVenc), t: "Cartera vencida", e: "med" }, sumE("Prejurídico") && { v: igpM(sumE("Prejurídico")), t: `Prejurídico (${deE("Prejurídico").length} und.)`, e: "med" }, sumE("Ejecutivo") && { v: igpM(sumE("Ejecutivo")), t: `Ejecutivo (${deE("Ejecutivo").length} und.)`, e: "mal" }, sumE("Judicial") && { v: igpM(sumE("Judicial")), t: `Judicial (${deE("Judicial").length} und.)`, e: "mal" }].filter(Boolean),
+    pk: [...(a?.cartera?.edades || []).filter(g => g.v > 0).map(g => ({ t: `${g.t}: ${igpM(g.v)}`, x: `${g.n} unidades · ${Math.round(g.v / (a.cartera.totVenc || 1) * 100)} % del vencido` })), ...casos.filter(r => !["Prejurídico", "Ejecutivo", "Judicial"].includes(r.etapa)).slice(0, 2).map(r => par(`${r.caso} (${String(r.etapa).toLowerCase()})`, r.resultado))] };
   /* 7 */
   let ju = rows(inf.juridica, ["proc"]);
-  if (ju.length) P[7] = { h: "Frente jurídico", m: `${ju.length} actuaciones jurídicas en curso.`, st: [{ i: "scale", v: String(ju.length), t: "Actuaciones en curso", c: "#5b4a8a" }], ch: ju.slice(0, 4).map(r => ({ t: r.proc, x: corto(r.estado, 60) })) };
+  if (ju.length) P[7] = { h: `${ju.length} actuaciones jurídicas en curso`, m: "Procesos, reclamaciones y su estado al cierre del mes.", st: [{ v: String(ju.length), t: "Actuaciones" }, { v: String(ju.filter(r => /tr[aá]mite|pendiente/i.test(r.estado)).length), t: "En trámite o pendientes", e: "med" }], pk: ju.slice(0, 8).map(r => par(r.proc, r.estado)) };
   /* 8 */
-  let ti = rows(inf.turInd, ["ind"]), bus = re => ti.find(r => re.test(r.ind));
-  if (ti.length) { let oc = bus(/ocupaci[oó]n promedio/i), ma = bus(/manillas azules/i), li = ti.find(r => /limpieza/i.test(r.res)), re = bus(/^recomendaci/i);
-    let lim = li ? String(li.res).match(/(\d+,\d+) %\s*limpieza/i)?.[1] : null;
-    P[8] = { h: "Turismo y experiencia", m: igpFrase(inf.turIntro) || "", st: [oc && { i: "bed", v: corto(oc.res, 12), t: "Ocupación promedio", c: "#c26a2e" }, ma && { i: "band", v: corto(String(ma.res).split(" en ")[0], 10), t: `Manillas azules · ${corto(ma.lect, 32)}`, c: "#2f5d8a" }, lim && { i: "star", v: lim + " %", t: "Limpieza calificada excelente", c: "#2e9d4f" }, re && { i: "people", v: String(re.res).match(/\d+(?:,\d+)?\s*%/)?.[0] || corto(re.res, 10), t: "Recomendaría la copropiedad", c: "#6a4c93" }].filter(Boolean) }; }
+  let ti = rows(inf.turInd, ["ind"]), ta = igLineas(inf.turAcc), bus = re => ti.find(r => re.test(r.ind)), n1 = t => String(t ?? "").match(/\d[\d.]*(?:,\d+)?\s*%?/)?.[0];
+  if (ti.length || ta.length) { let oc = bus(/ocupaci[oó]n promedio/i), ma = bus(/manillas azules/i), sa = bus(/^satisfacci[oó]n$/i) || bus(/satisfacci/i), re = bus(/^recomendaci/i);
+    P[8] = { h: ma ? `${n1(ma.res)} manillas azules en el corte; ${corto(ma.lect, 30).toLowerCase()}` : "Gestión turística y recepción", m: cl(inf.turIntro),
+      st: [oc && { v: n1(oc.res), t: "Ocupación promedio" }, ma && { v: n1(ma.res), t: "Manillas azules", e: /disminuc/i.test(ma.lect) ? "med" : "ok" }, sa && { v: String(sa.res).match(/(\d+,\d+) %\s*limpieza/i)?.[1] + " %", t: "Limpieza excelente", e: "ok" }, re && { v: n1(re.res), t: "Recomendación", e: "ok" }].filter(x => x && x.v && !/undefined/.test(x.v)),
+      pk: [...ti.filter(r => !/ocupaci[oó]n promedio|manillas azules|^satisfacci[oó]n$|^recomendaci[oó]n$/i.test(r.ind)).slice(0, 6).map(r => ({ t: `${r.ind}: ${corto(r.res, 36)}`, x: corto(r.lect, 70) })), ...ta.slice(0, 2).map(x => ({ t: cl(x) }))] }; }
   /* 9 */
   let ss = rows(inf.sst, ["tema"]);
-  if (ss.length) { let br = ss.find(r => /brigada|simulacro/i.test(r.tema) && igpPct(r.res) != null); P[9] = { h: "Seguridad primero", m: `${ss.length} temas de seguridad y salud en el trabajo revisados.`, st: [br && igpPct(br.res) != null && { i: "people", v: igpPct(br.res) + " %", t: "Desempeño de la brigada", c: "#2e9d4f" }, { i: "shield", v: String(ss.length), t: "Temas revisados", c: "#b23a3a" }].filter(Boolean), ch: ss.filter(r => /riesgo grave|prioritari/i.test(r.res + r.accion)).slice(0, 3).map(r => ({ t: r.tema, x: corto(r.res, 70) })) }; }
+  if (ss.length) { let br = ss.find(r => /brigada|simulacro/i.test(r.tema) && igpPct(r.res) != null), gr = ss.filter(r => /riesgo grave/i.test(r.res));
+    P[9] = { h: gr.length ? `Simulacro con buen desempeño; ${gr.length === 1 ? "un riesgo grave" : gr.length + " riesgos graves"} por atender` : "Seguridad y salud en el trabajo", m: `${ss.length} temas de seguridad revisados en ${mes}.`,
+      st: [br && { v: igpPct(br.res) + " %", t: "Desempeño de la brigada", e: "ok" }, { v: String(ss.length), t: "Temas revisados" }, gr.length && { v: String(gr.length), t: "Riesgos graves", e: "mal" }].filter(Boolean), pk: ss.slice(0, 8).map(r => ({ ...par(r.tema, r.accion), e: /riesgo grave/i.test(r.res) ? "mal" : "" })) }; }
   /* 10 */
   let pr = igNum(inf.mantProg), ej = igNum(inf.mantEjec), pl = igNum(inf.mantPlan), ma = rows(inf.mantAct, ["act"]), mc = igLineas(inf.mantCorr);
-  if (pr || ma.length) { let ok = ma.filter(r => igpPct(r.estado) >= 100).length, pend = ma.filter(r => igpPct(r.estado) != null && igpPct(r.estado) < 100);
-    P[10] = { h: "Mantenimiento al día", m: pr ? `Se ejecutaron ${ej} de ${pr} inspecciones programadas.` : "", st: [pr && { i: "clip", v: pctS((ej ?? 0) / pr), t: `Inspecciones (${ej} de ${pr})`, c: "#2e9d4f" }, pl != null && { i: "gear", v: String(pl).replace(".", ",") + " %", t: "Plan preventivo", c: "#2f5d8a" }, ma.length && { i: "check", v: `${ok}/${ma.length}`, t: "Frentes al 100 %", c: "#2e9d4f" }, mc.length && { i: "wrench", v: String(mc.length), t: "Correctivos y proyectos", c: "#e07b39" }].filter(Boolean), ch: pend.map(r => ({ t: "Pendiente: " + r.act, x: corto(r.res, 60) })) }; }
+  if (pr || ma.length || mc.length) { let ok = ma.filter(r => igpPct(r.estado) >= 100).length, pend = ma.filter(r => igpPct(r.estado) != null && igpPct(r.estado) < 100);
+    P[10] = { h: pr ? `${pctS((ej ?? 0) / pr)} de cumplimiento en inspecciones` : "Mantenimiento", m: pr ? `${ej} de ${pr} inspecciones programadas${pl != null ? ` y ${String(pl).replace(".", ",")} % del plan preventivo` : ""}.` : "",
+      st: [pr && { v: pctS((ej ?? 0) / pr), t: "Inspecciones ejecutadas", e: (ej ?? 0) / pr >= .9 ? "ok" : "med" }, pl != null && { v: String(pl).replace(".", ",") + " %", t: "Plan preventivo", e: pl >= 90 ? "ok" : "med" }, ma.length && { v: `${ok} de ${ma.length}`, t: "Frentes al 100 %" }, mc.length && { v: String(mc.length), t: "Correctivos y proyectos" }].filter(Boolean),
+      pk: [...pend.map(r => ({ t: `Pendiente: ${r.act}`, x: corto(r.res, 80), e: "mal" })), ...mc.slice(0, 8 - pend.length).map(x => ({ t: cl(x) }))] }; }
   /* 11 */
-  if (sp.length) { let g = re => sp.find(x => re.test(x.n)), ico = { energ: "bulb", acue: "drop", gas: "flame" };
-    P[11] = { h: "Luz, agua y gas", m: `Ejecutamos el ${pctS(spE / spP)} del presupuesto de servicios públicos de ${mes}.`, st: sp.map(x => { let p = x.ejec / x.ppto; return { i: /energ/i.test(x.n) ? "bulb" : /acue/i.test(x.n) ? "drop" : "flame", v: pctS(p), t: `${x.n.split(" (")[0]} · ${/energ/i.test(x.n) ? "energía" : /acue/i.test(x.n) ? "agua" : "gas"} · ${igpM(x.ejec)}`, c: igpCol(igEstServ(p)) }; }).concat([{ i: "chart", v: igpM(spP - spE), t: "Saldo disponible", c: "#2e9d4f" }]) }; }
+  if (sp.length) { let nom = x => /energ/i.test(x.n) ? "Energía (Air-e)" : /acue/i.test(x.n) ? "Agua (ESSMAR)" : /gas/i.test(x.n) ? "Gas (Gases del Caribe)" : x.n, sob = sp.filter(x => x.ejec > x.ppto);
+    P[11] = { h: `Servicios públicos al ${pctS(spE / spP)} del presupuesto${sob.length ? `; ${nom(sob[0]).split(" (")[0].toLowerCase()} lo superó` : ""}`, m: cl(inf.spCom) || `Saldo disponible de ${igpM(spP - spE)} en ${mes}.`,
+      st: sp.map(x => { let p = x.ejec / x.ppto; return { v: pctS(p), t: nom(x), e: est(igEstServ(p)) }; }).concat([{ v: igpM(spP - spE), t: "Saldo disponible", e: spP - spE >= 0 ? "ok" : "mal" }]),
+      pk: [...sp.map(x => ({ t: `${nom(x)}: ${igpM(x.ejec)} de ${igpM(x.ppto)}`, x: x.ejec > x.ppto ? `Superó el presupuesto en ${igpM(x.ejec - x.ppto)}` : `Saldo de ${igpM(x.ppto - x.ejec)}`, e: x.ejec > x.ppto ? "mal" : "ok" })), ...rows(inf.juridica, ["proc"]).filter(r => /ESSMAR/i.test(r.proc)).slice(0, 2).map(r => par(r.proc, r.estado))] }; }
   /* 12 */
-  let mu = rows(inf.muestras, ["muestra"]).map(r => { let v = igNum(r.valor), lo = igNum(r.min), hi = igNum(r.max); return v != null && ((lo != null && v < lo) || (hi != null && v > hi)); }), ag = igLineas(inf.ambGes);
-  if (mu.length || ag.length) P[12] = { h: "Piscinas y entorno", m: mu.length ? `${mu.filter(Boolean).length} de ${mu.length} parámetros de laboratorio quedaron fuera del rango.` : "", st: [mu.length && { i: "pool", v: `${mu.filter(x => !x).length}/${mu.length}`, t: "Parámetros dentro del rango", c: mu.some(Boolean) ? "#e0a21b" : "#2e9d4f" }, ag.length && { i: "leaf", v: String(ag.length), t: "Acciones ambientales", c: "#2e7d4f" }].filter(Boolean), ch: rows(inf.otras, ["titulo"]).slice(0, 2).map(o => ({ t: o.titulo.replace(/^\d+(\.\d+)*\s*/, ""), x: corto(String(o.texto).split(/\n\s*\n/)[0], 80) })) };
+  let mu = rows(inf.muestras, ["muestra"]).map(r => { let v = igNum(r.valor), lo = igNum(r.min), hi = igNum(r.max); return { ...r, fuera: v != null && ((lo != null && v < lo) || (hi != null && v > hi)) }; }), ag = igLineas(inf.ambGes), ot = rows(inf.otras, ["titulo"]);
+  if (mu.length || ag.length || ot.length) P[12] = { h: mu.length ? `${mu.filter(x => x.fuera).length} de ${mu.length} parámetros de piscinas fuera de rango` : "Gestión ambiental", m: cl(ag[0]),
+    st: [mu.length && { v: `${mu.filter(x => !x.fuera).length} de ${mu.length}`, t: "Parámetros dentro del rango", e: mu.some(x => x.fuera) ? "med" : "ok" }, ag.length && { v: String(ag.length), t: "Acciones ambientales" }, ot.length && { v: String(ot.length), t: "Otros temas" }].filter(Boolean),
+    pk: [mu.some(x => x.fuera) && { t: "Fuera de rango: " + corto(mu.filter(x => x.fuera).map(x => x.muestra.replace(/\s*\(.*\)/, "")).join(", "), 120), e: "mal" }, ...ag.slice(1, 4).map(x => ({ t: cl(x) })), ...ot.map(o => ({ t: o.titulo.replace(/^\d+(\.\d+)*\s*/, ""), x: corto(String(o.texto).split(/\n\s*\n/).slice(-1)[0], 100) }))].filter(Boolean).slice(0, 8) };
   /* 13 */
   let ph = rows(inf.polHitos, ["hito"]);
-  if (ph.length || inf.polIntro) P[13] = { h: "Protegiendo el patrimonio", m: igpFrase(inf.polIntro), st: [{ i: "cal", v: String(ph.length), t: "Hitos del proceso de seguros", c: "#6a4c93" }], ch: ph.slice(0, 4).map(r => ({ t: r.hito, x: corto(r.res, 70) })) };
+  if (ph.length || inf.polIntro) P[13] = { h: "Renovación del programa de seguros en curso", m: cl(inf.polIntro), st: [{ v: String(ph.length), t: "Hitos del proceso" }], pk: ph.slice(0, 8).map(r => par(r.hito, r.res)) };
   /* 14 */
-  let k = []; if (pr) k.push((ej ?? 0) / pr >= .9 ? "VERDE" : "AMARILLO"); if (pl != null) k.push(pl >= 90 ? "VERDE" : "AMARILLO"); if (spP) k.push(igEstServ(spE / spP)); sp.forEach(x => k.push(igEstServ(x.ejec / x.ppto))); if (rec != null) k.push(rec >= .95 ? "VERDE" : "AMARILLO");
-  ["Prejurídico", "Ejecutivo", "Judicial"].forEach(e => sumE(e) && k.push(e === "Prejurídico" ? "AMARILLO" : "ROJO")); rows(inf.kpi, ["ind"]).forEach(r => k.push(String(r.estado).toUpperCase()));
-  if (k.length) { let n = e => k.filter(x => x === e).length; P[14] = { h: "El tablero del mes", m: `${k.length} indicadores medidos en ${mes}.`, st: [{ i: "check", v: String(n("VERDE")), t: "En verde", c: "#2e9d4f" }, { i: "alert", v: String(n("AMARILLO")), t: "En amarillo", c: "#e0a21b" }, { i: "alert", v: String(n("ROJO")), t: "En rojo", c: "#d33" }] }; }
+  let K = []; if (pr) K.push({ ind: "Inspecciones", res: pctS((ej ?? 0) / pr), estado: (ej ?? 0) / pr >= .9 ? "VERDE" : "AMARILLO" }); if (pl != null) K.push({ ind: "Plan preventivo", res: pl + " %", estado: pl >= 90 ? "VERDE" : "AMARILLO" });
+  if (spP) K.push({ ind: "Servicios públicos", res: pctS(spE / spP), estado: igEstServ(spE / spP) }); sp.forEach(x => K.push({ ind: x.n.split(" (")[0], res: pctS(x.ejec / x.ppto), estado: igEstServ(x.ejec / x.ppto) }));
+  if (rec != null) K.push({ ind: "Recaudo", res: pctS(rec), estado: rec >= .95 ? "VERDE" : "AMARILLO" }); ["Prejurídico", "Ejecutivo", "Judicial"].forEach(e => sumE(e) && K.push({ ind: "Cartera " + e.toLowerCase(), res: igpM(sumE(e)), estado: e === "Prejurídico" ? "AMARILLO" : "ROJO" }));
+  K.push(...rows(inf.kpi, ["ind"]));
+  if (K.length) { let n = e => K.filter(r => String(r.estado).toUpperCase() === e).length; P[14] = { h: `${n("VERDE")} indicadores en verde, ${n("AMARILLO")} en amarillo y ${n("ROJO")} en rojo`, m: `${K.length} indicadores medidos en ${mes}.`,
+    st: [{ v: String(n("VERDE")), t: "En verde", e: "ok" }, { v: String(n("AMARILLO")), t: "En amarillo", e: "med" }, { v: String(n("ROJO")), t: "En rojo", e: "mal" }], pk: K.filter(r => String(r.estado).toUpperCase() === "ROJO").slice(0, 8).map(r => ({ t: `${r.ind}: ${r.res}`, x: r.dim || "", e: "mal" })) }; }
   /* 15 */
   let rg = rows(inf.riesgos, ["riesgo"]);
-  if (rg.length) { let n = e => rg.filter(r => String(r.estado).toUpperCase() === e).length; P[15] = { h: "Riesgos en el radar", m: `${rg.length} riesgos identificados; ${n("ROJO")} requieren atención prioritaria.`, st: [{ i: "alert", v: String(n("ROJO")), t: "Riesgos en rojo", c: "#d33" }, { i: "alert", v: String(n("AMARILLO")), t: "Riesgos en amarillo", c: "#e0a21b" }], ch: rg.filter(r => String(r.estado).toUpperCase() === "ROJO").slice(0, 4).map(r => ({ t: r.riesgo, x: corto(r.mitig, 60) })) }; }
+  if (rg.length) { let n = e => rg.filter(r => String(r.estado).toUpperCase() === e).length; P[15] = { h: `${n("ROJO")} riesgos en rojo requieren atención prioritaria`, m: `${rg.length} riesgos identificados con su mitigación.`,
+    st: [{ v: String(n("ROJO")), t: "En rojo", e: "mal" }, { v: String(n("AMARILLO")), t: "En amarillo", e: "med" }, { v: String(rg.length), t: "Riesgos identificados" }], pk: [...rg].sort((x, y) => IG_EST.indexOf(String(y.estado).toUpperCase()) - IG_EST.indexOf(String(x.estado).toUpperCase())).slice(0, 10).map(r => ({ t: `${r.riesgo} · impacto ${String(r.impacto).toLowerCase()}`, x: corto(r.mitig, 90), e: est(r.estado) })) }; }
   /* 16 */
   let dr = rows(inf.decReq, ["dec"]);
-  if (dr.length) P[16] = { h: "Lo que necesitamos decidir", m: `${dr.length} decisiones requieren al Consejo.`, st: [{ i: "check", v: String(dr.length), t: "Decisiones requeridas", c: "#a8742f" }], ch: dr.slice(0, 4).map(r => ({ t: corto(r.dec, 70), x: corto(r.just, 60) })) };
-  return { P, Mes };
+  if (dr.length) P[16] = { h: `${dr.length} decisiones requeridas al Consejo`, m: "Asuntos que necesitan definición en esta sesión.", st: [], pk: dr.slice(0, 8).map((r, j) => ({ t: corto(r.dec, 90), x: corto(r.just, 80), n: j + 1 })) };
+  for (const k in P) P[k].st = (P[k].st || []).filter(Boolean).slice(0, 4);
+  return { P };
 }
 
-var IGP_POST_CSS = `.igq{position:absolute;inset:0;overflow:hidden}
-.igq-arte{position:absolute;right:24px;top:40px;width:560px;height:560px;animation:igpSube .7s both}
-.igq-foto{position:absolute;right:40px;top:70px;width:500px;height:500px;border-radius:40px;background-size:cover;background-position:center;box-shadow:0 20px 50px rgba(0,0,0,.25);transform:rotate(2deg);transition:background-image .6s}
-.igq-foto:after{content:"";position:absolute;inset:-14px;border-radius:48px;border:6px solid var(--c);opacity:.35;transform:rotate(-4deg)}
-.igq-tx{position:absolute;left:64px;top:40px;width:640px;bottom:96px;display:flex;flex-direction:column;justify-content:center}
-.igq-k{display:flex;align-items:center;gap:12px;font-size:15px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--c)}
-.igq-k b{font-size:15px;color:#fff;background:var(--c);border-radius:20px;padding:4px 12px;letter-spacing:.04em}
-.igq-h{font-size:54px;font-weight:800;line-height:1.04;color:#23262e;margin-top:14px;letter-spacing:-.01em;animation:igpSube .5s both}
-.igq-m{font-size:22px;line-height:1.4;color:#4a4d55;margin-top:14px;max-width:600px;animation:igpSube .5s .1s both}
-.igq-st{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:26px}
-.igq-s{display:flex;gap:14px;align-items:center;background:#fff;border-radius:18px;padding:18px 18px;box-shadow:0 4px 16px rgba(40,30,10,.08);animation:igpSube .5s both}
-.igq-s .ic{flex:none;width:58px;height:58px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#fff}
-.igq-s .v{font-size:34px;font-weight:800;color:#23262e;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
-.igq-s .t{font-size:15.5px;color:#6b6b6b;line-height:1.25;margin-top:2px}
-.igq-ch{display:flex;flex-direction:column;gap:9px;margin-top:20px}
-.igq-c{display:flex;gap:12px;align-items:flex-start;background:#fff;border-radius:14px;padding:11px 14px;box-shadow:0 3px 12px rgba(40,30,10,.07);animation:igpSube .5s both}
-.igq-c i{flex:none;width:12px;height:12px;border-radius:50%;background:var(--c);margin-top:6px}
-.igq-c b{font-size:17px;color:#23262e;display:block;line-height:1.25}.igq-c span{font-size:14.5px;color:#666;line-height:1.3}
-.igq-det{position:absolute;left:64px;bottom:44px;border:0;border-radius:30px;padding:12px 24px;font-size:17px;font-weight:800;color:#fff;background:var(--c);cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18);display:flex;gap:8px;align-items:center}
-.igq-det:hover{filter:brightness(1.08)}
-.igq-pie{position:absolute;right:40px;bottom:18px;font-size:13px;color:#8a8a8a}
-.igq-marca{position:absolute;left:64px;bottom:18px;font-size:12.5px;color:#9a9a9a;letter-spacing:.06em}
-.igq-vol{position:absolute;right:24px;top:18px;z-index:3;border:0;border-radius:20px;padding:8px 16px;font-size:14px;font-weight:700;background:#fff;color:#3e424f;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.15)}`;
+var IGP_POST_CSS = `.igx{position:absolute;inset:0;background:#f7f6f3;overflow:hidden;color:#1f2a3a}
+.igx-acento{position:absolute;left:0;top:0;bottom:0;width:10px;background:var(--c)}
+.igx-marca{position:absolute;right:-60px;bottom:-80px;opacity:.05;color:#1f2a3a}
+.igx-col{position:absolute;left:66px;right:66px;top:38px;bottom:58px;display:flex;flex-direction:column;gap:22px}
+.igx-cab{display:flex;gap:40px;align-items:flex-start;flex:none}
+.igx-cab .txt{flex:1;min-width:0}
+.igx-k{font-size:14px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--c);display:flex;align-items:center;gap:12px}
+.igx-k span{display:inline-block;width:34px;height:2px;background:var(--c)}
+.igx-h{font-size:38px;font-weight:800;line-height:1.13;margin-top:12px;color:#1f2a3a;letter-spacing:-.01em;animation:igpSube .5s both}
+.igx-m{font-size:19px;line-height:1.42;color:#5a6170;margin-top:10px;animation:igpSube .5s .08s both}
+.igx-ics{display:flex;gap:14px;flex:none;margin-top:6px}
+.igx-ic{width:84px;height:84px;border-radius:50%;border:1.5px solid var(--c);display:flex;align-items:center;justify-content:center;color:var(--c);background:#fff;animation:igpSube .6s both}
+.igx-foto{flex:none;width:340px;height:200px;border-radius:14px;background-size:cover;background-position:center;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.igx-cu{flex:1;min-height:0}
+.igx-st{display:flex;background:#fff;border-radius:14px;box-shadow:0 2px 14px rgba(31,42,58,.07);animation:igpSube .5s .12s both}
+.igx-s{flex:1;padding:16px 22px;border-left:1px solid #ebe7df;min-width:0}.igx-s:first-child{border-left:0}
+.igx-s .v{font-size:32px;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap;display:flex;align-items:center;gap:10px}
+.igx-s .v i{flex:none;width:10px;height:10px;border-radius:50%}
+.igx-s .t{font-size:14px;color:#6b7280;margin-top:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;line-height:1.3}
+.igx-pk-t{font-size:13px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:#8a8f99;display:flex;gap:12px;align-items:center}
+.igx-pk-t:after{content:"";flex:1;height:1px;background:#e2ddd3}
+.igx-pk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 34px}
+.igx-p{display:flex;gap:14px;align-items:flex-start;animation:igpSube .5s both;padding:2px 0}
+.igx-p .b{flex:none;width:26px;height:26px;border-radius:6px;background:var(--c);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.igx-p .b.ok{background:#2e9d4f}.igx-p .b.med{background:#d99a16}.igx-p .b.mal{background:#c62828}
+.igx-p b{display:block;font-size:17.5px;line-height:1.3;color:#1f2a3a}
+.igx-p span{display:block;font-size:15px;line-height:1.35;color:#6b7280;margin-top:2px}
+.igx-pie{position:absolute;left:66px;right:66px;bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:#9aa0a6;border-top:1px solid #e2ddd3;padding-top:10px}
+.igx-det{border:1px solid var(--c);background:#fff;color:var(--c);border-radius:20px;padding:6px 16px;font-size:13.5px;font-weight:800;cursor:pointer}
+.igx-det:hover{background:var(--c);color:#fff}`;
+
 
 /* lista principal: portada, un post por numeral (con sus diapositivas de detalle detrás) y cierre */
 function igpLista({ inf, auto, ym, fotos }) {
@@ -7540,7 +7525,7 @@ function IgpDeck({ S, entidad, ym, inf, cerrar }) {
   let d = (di != null ? S[i]?.det?.[di] : S[i]) || S[0], fotos = d.fotos || [];
   Ve.useEffect(() => { if (fotos.length < 2) return; let t = setInterval(() => setFi(x => (x + 1) % fotos.length), 4500); return () => clearInterval(t); }, [i, di, fotos.length]);
   Ve.useLayoutEffect(() => { let c = cu.current, n = c?.firstChild; if (!n) return; n.style.zoom = 1; let a = c.clientHeight - 44, b = n.scrollHeight; if (b > a + 2) n.style.zoom = Math.max(.6, a / b); }, [i, di]);
-  Ve.useLayoutEffect(() => { let c = tx.current; if (!c) return; c.style.zoom = 1; let a = c.clientHeight, b = c.scrollHeight; if (b > a + 2) c.style.zoom = Math.max(.6, a / b); }, [i, di]);
+  Ve.useLayoutEffect(() => { let c = tx.current; if (!c) return; c.style.zoom = 1; let a = c.parentElement.clientHeight, b = c.scrollHeight; if (b > a + 2) c.style.zoom = Math.max(.6, a / b); }, [i, di]);
   Ve.useLayoutEffect(() => { let v = vp.current; if (!v) return; let W = v.clientWidth, H = v.clientHeight, k = Math.min(W / 1280, H / 720); setEsc({ k, x: (W - 1280 * k) / 2, y: (H - 720 * k) / 2 }); }, [tam]);
   let logo = typeof entidad.logo === "string" ? entidad.logo : null, mes = igMesTxt(ym);
   let abrir = (c, col) => setDet({ ...c, col: col || c.c || d.color });
@@ -7560,20 +7545,20 @@ function IgpDeck({ S, entidad, ym, inf, cerrar }) {
       igH("div", { className: "igp-ind" }, S.filter(x => x.tipo === "post").map((x, j) => igH("div", { key: j, style: { cursor: "pointer" }, onClick: e => { e.stopPropagation(); ir(S.indexOf(x)); } }, igpIco(x.ico, 20, "#f1d3a8"), `${x.n}. ${x.tit}`))),
       igH("div", { className: "p" }, `Elaborado por ${inf.elaborado || "la Administración"} · Cifras contables publicadas por Contabilidad`));
   } else if (d.tipo === "post") {
-    let f = fotos[fi % (fotos.length || 1)];
-    cuerpo = igH("div", { className: "igq", style: { "--c": d.color, background: `radial-gradient(circle at 78% 45%, ${d.color}1f 0, ${d.color}0a 38%, #fbf8f3 62%)` } }, igH("style", null, IGP_POST_CSS),
-      fotos.length ? igH("div", { className: "igq-foto", style: { backgroundImage: `url(${f.src})` } }) : igH("div", { className: "igq-arte", dangerouslySetInnerHTML: { __html: igpArte(d.n, d.color) } }),
-      igH("div", { className: "igq-tx", ref: tx },
-        igH("div", { className: "igq-k" }, igH("b", null, String(d.n).padStart(2, "0")), d.tit),
-        igH("div", { className: "igq-h" }, d.h),
-        d.m && igH("div", { className: "igq-m" }, d.m),
-        d.st?.length > 0 && igH("div", { className: "igq-st", style: d.st.length === 1 ? { gridTemplateColumns: "minmax(0,320px)" } : null }, d.st.map((x, j) => igH("div", { key: j, className: "igq-s", style: { animationDelay: 150 + j * 90 + "ms" } },
-          igH("span", { className: "ic", style: { background: x.c } }, igpIco(x.i, 32, "#fff", 2)),
-          igH("div", { style: { minWidth: 0 } }, igH("div", { className: "v", style: { color: x.c === "#d33" ? "#c62828" : void 0 } }, x.v), igH("div", { className: "t" }, x.t))))),
-        d.ch?.length > 0 && igH("div", { className: "igq-ch" }, d.ch.map((x, j) => igH("div", { key: j, className: "igq-c", style: { animationDelay: 300 + j * 80 + "ms" } }, igH("i"), igH("div", null, igH("b", null, x.t), x.x && igH("span", null, x.x)))))),
-      d.det?.length > 0 && igH("button", { type: "button", className: "igq-det", onClick: e => { e.stopPropagation(); setDi(0); } }, `Ver detalle (${d.det.length}) ›`),
-      f?.pie && igH("div", { className: "igq-marca", style: { left: "auto", right: 60, bottom: 50, color: "#555" } }, "📷 " + f.pie),
-      igH("div", { className: "igq-pie" }, `${entidad.entidad} · ${mes} · ${i + 1} / ${S.length}`));
+    let f = fotos[fi % (fotos.length || 1)], ics = IGP_TEMA[d.n] || [d.ico];
+    cuerpo = igH("div", { className: "igx", style: { "--c": d.color } }, igH("style", null, IGP_POST_CSS),
+      igH("div", { className: "igx-acento" }), igH("div", { className: "igx-marca" }, igpIco(ics[0], 520, "currentColor", .8)),
+      igH("div", { className: "igx-col" }, igH("div", { className: "igx-cab" },
+        igH("div", { className: "txt" }, igH("div", { className: "igx-k" }, `${String(d.n).padStart(2, "0")} · ${d.tit}`, igH("span")), igH("div", { className: "igx-h" }, d.h), d.m && igH("div", { className: "igx-m" }, d.m)),
+        fotos.length ? igH("div", { className: "igx-foto", style: { backgroundImage: `url(${f.src})` }, title: f.pie || "" }) : igH("div", { className: "igx-ics" }, ics.map((k, j) => igH("div", { key: j, className: "igx-ic", style: { animationDelay: j * 90 + "ms" } }, igpIco(k, 38, "currentColor", 1.5))))),
+      igH("div", { className: "igx-cu" }, igH("div", { ref: tx, style: { display: "flex", flexDirection: "column", gap: 20 } },
+        d.st?.length > 0 && igH("div", { className: "igx-st" }, d.st.map((x, j) => igH("div", { key: j, className: "igx-s" },
+          igH("div", { className: "v", style: { color: x.e === "mal" ? "#c62828" : "#1f2a3a" } }, x.e && igH("i", { style: { background: x.e === "ok" ? "#2e9d4f" : x.e === "med" ? "#d99a16" : "#c62828" } }), x.v), igH("div", { className: "t" }, x.t)))),
+        d.pk?.length > 0 && igH(Ve.Fragment, null, igH("div", { className: "igx-pk-t" }, "Puntos clave"),
+          igH("div", { className: "igx-pk" }, d.pk.map((x, j) => igH("div", { key: j, className: "igx-p", style: { animationDelay: 200 + j * 60 + "ms" } }, igH("span", { className: "b " + (x.e || "") }, x.n ?? j + 1), igH("div", null, igH("b", null, x.t), x.x && igH("span", null, x.x))))))))),
+      igH("div", { className: "igx-pie" }, igH("span", null, `${entidad.entidad} · Informe de gestión · ${mes}`),
+        d.det?.length > 0 && igH("button", { type: "button", className: "igx-det", onClick: e => { e.stopPropagation(); setDi(0); } }, `Ver tablas y gráficos (${d.det.length}) ›`),
+        igH("span", null, `${i + 1} / ${S.length}`)));
   } else if (d.tipo === "cierre" || d.tipo === "fin") {
     cuerpo = igH("div", { className: "igp-port" },
       igH("div", { className: "e" }, d.tipo === "cierre" ? "Cierre ejecutivo" : entidad.entidad),
