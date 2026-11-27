@@ -7172,7 +7172,8 @@ var IGP_CSS = `.igp{position:fixed;inset:0;z-index:99999;background:#14161b;disp
 .igp-clave{margin-top:auto;font-size:21px;line-height:1.38;font-weight:600;background:rgba(0,0,0,.22);border-radius:14px;padding:16px 18px;backdrop-filter:blur(2px)}
 .igp-pie-foto{font-size:13px;opacity:.85;margin-top:8px}
 .igp-dots{display:flex;gap:6px;margin-top:10px}.igp-dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45)}.igp-dots i.on{background:#fff}
-.igp-cu{position:absolute;left:390px;right:0;top:0;bottom:34px;padding:34px 40px 10px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.igp-cu{position:absolute;left:390px;right:0;top:0;bottom:34px;padding:34px 40px 10px;overflow:hidden}
+.igp-in{display:flex;flex-direction:column;gap:16px;min-height:100%}
 .igp-h{font-size:15px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:#6b6b6b;display:flex;align-items:center;gap:10px}
 .igp-h:after{content:"";flex:1;height:1px;background:#ddd5c8}
 .igp-pie{position:absolute;left:390px;right:0;bottom:0;height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 40px;font-size:12.5px;color:#8a8a8a}
@@ -7211,8 +7212,10 @@ var IGP_CSS = `.igp{position:fixed;inset:0;z-index:99999;background:#14161b;disp
 .igp-gauge{position:relative;width:170px;height:170px;flex:none}
 .igp-gauge svg circle.a{animation:igpArco 1.3s cubic-bezier(.2,.8,.2,1) both}
 .igp-gauge .gv{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.igp-gauge .gv b{font-size:34px;font-weight:800;color:#2b2e36}.igp-gauge .gv span{font-size:13px;color:#777;text-align:center;max-width:120px;line-height:1.2;margin-top:2px}
+.igp-gauge .gv b{font-size:28px;font-weight:800;color:#2b2e36}.igp-gauge .gv span{font-size:13px;color:#777;text-align:center;max-width:120px;line-height:1.2;margin-top:2px}
 .igp-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.igp-tile span{white-space:nowrap}.igp-tile span:first-child{white-space:normal}
+.igp-kpis.g{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.igp-kpis.g .igp-kpi{padding:22px 24px}.igp-kpis.g .v{font-size:44px}.igp-kpis.g .s{font-size:16px}.igp-kpis.g .t{font-size:14.5px}
 .igp-tile{background:#fff;border-radius:12px;padding:10px 12px;box-shadow:0 1px 6px rgba(40,30,10,.06);font-size:14.5px;animation:igpSube .5s both}
 .igp-tile .pb{height:8px;border-radius:4px;background:#ebe5da;margin-top:8px;overflow:hidden}.igp-tile .pb>i{display:block;height:100%;width:var(--w);border-radius:4px;animation:igpCrece 1s both}
 .igp-rng{display:grid;grid-template-columns:280px 1fr 90px;gap:14px;align-items:center;font-size:15px}
@@ -7259,7 +7262,7 @@ var IGP_CSS = `.igp{position:fixed;inset:0;z-index:99999;background:#14161b;disp
 function igpArmar({ inf, auto: a, ym, fotos }) {
   let S = [], rows = (L, ks) => (L || []).filter(r => ks.some(k => String(r[k] ?? "").trim()));
   let lote = (L, n) => { let P = []; for (let i = 0; i < L.length; i += n) P.push(L.slice(i, i + n)); return P.length ? P : [[]]; };
-  let sec = (n, o) => { let [, tit, color, ico] = IGP_SECC[n - 1]; S.push({ n, tit, color, ico, fotos: fotos?.[n] || [], ...o, menu: `${n}. ${tit}` + (o.parte ? ` (${o.parte})` : "") }); };
+  let sec = (n, o) => { let [, tit, color, ico] = IGP_SECC[n - 1]; S.push({ n, tit, color, ico, fotos: fotos?.[n] || [], primera: !S.some(y => y.n === n), ...o, menu: `${n}. ${tit}` + (o.parte ? ` (${o.parte})` : "") }); };
   let mes = igMesTxt(ym);
   S.push({ tipo: "portada", menu: "Portada", fotos: fotos?.[1] || [] });
   /* 1 */
@@ -7342,7 +7345,7 @@ function igpArmar({ inf, auto: a, ym, fotos }) {
   if (rg.length) sec(15, { sub: "Impacto frente a probabilidad", clave: `${rg.length} riesgos identificados · ${rg.filter(r => String(r.estado).toUpperCase() === "ROJO").length} en rojo`, riesgos: rg });
   /* 16 */
   let dr = rows(inf.decReq, ["dec"]);
-  lote(dr, 6).forEach((L, k, A) => L.length && sec(16, { sub: "Para decisión del Consejo", parte: A.length > 1 ? String(k + 1) : "", clave: k ? null : `${dr.length} decisiones requeridas al Consejo`, cards: L.map((r, j) => ({ t: r.dec, x: r.just, num: k * 6 + j + 1, c: "#a8742f" })), cols: L.length > 4 ? 3 : 2, lines: 4 }));
+  lote(dr, 8).forEach((L, k, A) => L.length && sec(16, { sub: "Para decisión del Consejo", parte: A.length > 1 ? String(k + 1) : "", clave: k ? null : `${dr.length} decisiones requeridas al Consejo`, cards: L.map((r, j) => ({ t: r.dec, x: r.just, num: k * 8 + j + 1, c: "#a8742f" })), cols: L.length > 4 ? 3 : 2, lines: 3 }));
   if (String(inf.cierre ?? "").trim()) S.push({ tipo: "cierre", menu: "Cierre ejecutivo", texto: inf.cierre, fotos: [] });
   S.push({ tipo: "fin", menu: "Preguntas", fotos: [] });
   return S;
@@ -7374,7 +7377,7 @@ function IgpDeck({ S, entidad, ym, inf, cerrar }) {
   }, [S, det]);
   let d = S[i] || S[0], fotos = d.fotos || [];
   Ve.useEffect(() => { if (fotos.length < 2) return; let t = setInterval(() => setFi(x => (x + 1) % fotos.length), 4500); return () => clearInterval(t); }, [i, fotos.length]);
-  Ve.useLayoutEffect(() => { let c = cu.current; if (!c) return; c.style.zoom = 1; let a = c.clientHeight, b = c.scrollHeight; if (b > a + 2) c.style.zoom = Math.max(.62, a / b); }, [i]);
+  Ve.useLayoutEffect(() => { let c = cu.current, n = c?.firstChild; if (!n) return; n.style.zoom = 1; let a = c.clientHeight - 44, b = n.scrollHeight; if (b > a + 2) n.style.zoom = Math.max(.6, a / b); }, [i]);
   Ve.useLayoutEffect(() => { let v = vp.current; if (!v) return; let W = v.clientWidth, H = v.clientHeight, k = Math.min(W / 1280, H / 720); setEsc({ k, x: (W - 1280 * k) / 2, y: (H - 720 * k) / 2 }); }, [tam]);
   let logo = typeof entidad.logo === "string" ? entidad.logo : null, mes = igMesTxt(ym);
   let abrir = (c, col) => setDet({ ...c, col: col || c.c || d.color });
@@ -7391,7 +7394,7 @@ function IgpDeck({ S, entidad, ym, inf, cerrar }) {
       igH("div", { className: "e" }, entidad.entidad),
       igH("div", { className: "t" }, "Informe de gestión", igH("br"), "de la administración"),
       igH("div", { className: "s" }, `${mes.charAt(0).toUpperCase() + mes.slice(1)} · Presentado al Consejo de Administración`),
-      igH("div", { className: "igp-ind" }, S.filter(x => x.n && !x.parte).slice(0, 16).map((x, j) => igH("div", { key: j, style: { cursor: "pointer" }, onClick: e => { e.stopPropagation(); ir(S.indexOf(x)); } }, igpIco(x.ico, 20, "#f1d3a8"), `${x.n}. ${x.tit}`))),
+      igH("div", { className: "igp-ind" }, S.filter(x => x.primera).map((x, j) => igH("div", { key: j, style: { cursor: "pointer" }, onClick: e => { e.stopPropagation(); ir(S.indexOf(x)); } }, igpIco(x.ico, 20, "#f1d3a8"), `${x.n}. ${x.tit}`))),
       igH("div", { className: "p" }, `Elaborado por ${inf.elaborado || "la Administración"} · Cifras contables publicadas por Contabilidad`));
   } else if (d.tipo === "cierre" || d.tipo === "fin") {
     cuerpo = igH("div", { className: "igp-port" },
@@ -7412,13 +7415,13 @@ function IgpDeck({ S, entidad, ym, inf, cerrar }) {
       fotos.length > 0 && igH(Ve.Fragment, null, f?.pie && igH("div", { className: "igp-pie-foto" }, "📷 " + f.pie), fotos.length > 1 && igH("div", { className: "igp-dots" }, fotos.map((_, j) => igH("i", { key: j, className: j === fi % fotos.length ? "on" : "" })))));
     let H = t => igH("div", { className: "igp-h" }, t);
     let c = [];
-    if (d.kpis?.length) c.push(d.kh && H(d.kh), igH("div", { className: "igp-kpis" }, d.kpis.map((k, j) => igH("div", { key: j, className: "igp-kpi", style: { "--c": k.c, animationDelay: j * 70 + "ms" } }, igH("div", { className: "t" }, k.t), igH("div", { className: "v", style: { color: k.c === "#d33" ? "#c62828" : void 0 } }, k.v), k.s && igH("div", { className: "s" }, k.s)))));
+    if (d.kpis?.length) c.push(d.kh && H(d.kh), igH("div", { className: "igp-kpis" + (!d.cards?.length && d.kpis.length <= 6 ? " g" : "") }, d.kpis.map((k, j) => igH("div", { key: j, className: "igp-kpi", style: { "--c": k.c, animationDelay: j * 70 + "ms" } }, igH("div", { className: "t" }, k.t), igH("div", { className: "v", style: { color: k.c === "#d33" ? "#c62828" : void 0 } }, k.v), k.s && igH("div", { className: "s" }, k.s)))));
     if (d.semaforo) c.push(igH("div", { className: "igp-cols", style: { gridTemplateColumns: "repeat(3,minmax(0,1fr))" } }, d.semaforo.map(([e, L], j) => igH("div", { key: e, className: "igp-col", style: { borderTop: `6px solid ${igpCol(e)}`, animationDelay: j * 90 + "ms" } },
       igH("h4", { style: { color: igpCol(e) } }, e === "AMARILLO" ? "Amarillo" : e === "VERDE" ? "Verde" : "Rojo", igH("span", { className: "tot" }, L.length)),
       L.map((r, k) => igH("div", { key: k, className: "igp-chip", onClick: () => abrir({ t: r.caso, x: r.significa, s: r.accion, sL: "Acción / siguiente paso", tag: e }, igpCol(e)) }, igH("span", null, igH("b", { style: { display: "block", fontSize: 16 } }, r.caso), igH("span", { style: { fontSize: 13.5, color: "#666", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } }, r.significa))))))));
     if (d.bars?.length) c.push(H(d.sub), igH(IgpBarras, { items: d.bars, color: d.color }));
     if (d.edades) { let tv = d.totVenc || 1, cs = ["#7cb98b", "#e0a21b", "#e07b39", "#c62828"];
-      c.push(H("Antigüedad del saldo vencido"), igH("div", { className: "igp-kpis" }, igH("div", { className: "igp-kpi", style: { "--c": "#a8742f" } }, igH("div", { className: "t" }, "Total vencido"), igH("div", { className: "v" }, igpM(d.totVenc))), ...d.edades.map((g, j) => igH("div", { key: j, className: "igp-kpi", style: { "--c": cs[j], animationDelay: (j + 1) * 70 + "ms" } }, igH("div", { className: "t" }, g.t), igH("div", { className: "v", style: { fontSize: 26 } }, igpM(g.v)), igH("div", { className: "s" }, `${g.n} unidades · ${Math.round(g.v / tv * 100)} %`)))),
+      c.push(H("Antigüedad del saldo vencido"), igH("div", { className: "igp-kpis", style: { gridTemplateColumns: "repeat(5,minmax(0,1fr))" } }, igH("div", { className: "igp-kpi", style: { "--c": "#a8742f" } }, igH("div", { className: "t" }, "Total vencido"), igH("div", { className: "v" }, igpM(d.totVenc))), ...d.edades.map((g, j) => igH("div", { key: j, className: "igp-kpi", style: { "--c": cs[j], animationDelay: (j + 1) * 70 + "ms" } }, igH("div", { className: "t" }, g.t), igH("div", { className: "v", style: { fontSize: 26 } }, igpM(g.v)), igH("div", { className: "s" }, `${g.n} unidades · ${Math.round(g.v / tv * 100)} %`)))),
         igH("div", { className: "igp-stack" }, d.edades.filter(g => g.v > 0).map((g, j) => igH("div", { key: j, title: `${g.t}: ${cbPesos(g.v)} (${g.n} unidades)`, style: { width: g.v / tv * 100 + "%", background: cs[d.edades.indexOf(g)], animationDelay: j * 120 + "ms" } }, g.v / tv > .1 ? `${Math.round(g.v / tv * 100)} %` : ""))));
     }
     if (d.etapas?.length) c.push(H("Cobro prejurídico, ejecutivo y judicial"), igH("div", { className: "igp-cols", style: { gridTemplateColumns: `repeat(${d.etapas.length},minmax(0,1fr))` } }, d.etapas.map(([e, L], j) => { let col = e === "Prejurídico" ? "#e0a21b" : e === "Ejecutivo" ? "#e07b39" : "#c62828", tot = L.reduce((s, r) => s + Math.max(0, r.u?.saldo || 0), 0);
@@ -7448,7 +7451,7 @@ function IgpDeck({ S, entidad, ym, inf, cerrar }) {
       c.push(igH("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 10 } }, d.kpiT.map((r, j) => { let col = igpCol(r.estado);
         return igH("div", { key: j, className: "igp-tile", style: { borderLeft: `7px solid ${col}`, animationDelay: j * 35 + "ms", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
           igH("div", null, igH("div", { style: { fontSize: 11.5, letterSpacing: ".07em", textTransform: "uppercase", color: "#888", fontWeight: 700 } }, r.dim), igH("div", { style: { fontWeight: 700, fontSize: 15.5 } }, r.ind)),
-          igH("div", { style: { textAlign: "right", fontWeight: 800, fontSize: 18, color: col === "#e0a21b" ? "#a87800" : col, whiteSpace: "nowrap" } }, r.res)); })), igH("div", { className: "igp-nota" }, `${dims.length} dimensiones · el color indica el estado (verde, amarillo, rojo)`));
+          igH("div", { style: { textAlign: "right", fontWeight: 800, fontSize: r.res.length > 14 ? 15 : 18, color: col === "#e0a21b" ? "#a87800" : col, maxWidth: "55%" } }, r.res)); })), igH("div", { className: "igp-nota" }, `${dims.length} dimensiones · el color indica el estado (verde, amarillo, rojo)`));
     }
     if (d.riesgos) {
       let imp = ["Crítico", "Alto", "Medio-Alto", "Medio", "Bajo"].filter(x => d.riesgos.some(r => r.impacto === x)), pro = ["Baja", "Media", "Media-Alta", "Alta"].filter(x => d.riesgos.some(r => r.prob === x));
@@ -7460,7 +7463,7 @@ function IgpDeck({ S, entidad, ym, inf, cerrar }) {
     }
     if (d.cards?.length) c.push(d.ch && H(d.ch), tarjetas(d.cards, d.cols, d.lines));
     if (d.nota) c.push(igH("div", { className: "igp-nota", style: { marginTop: "auto" } }, d.nota));
-    cuerpo = igH(Ve.Fragment, null, lado, igH("div", { className: "igp-cu", ref: cu }, ...c.filter(Boolean)),
+    cuerpo = igH(Ve.Fragment, null, lado, igH("div", { className: "igp-cu", ref: cu }, igH("div", { className: "igp-in" }, ...c.filter(Boolean))),
       igH("div", { className: "igp-pie" }, igH("span", null, `${entidad.entidad} · Informe de gestión · ${mes}`), igH("span", null, `${i + 1} / ${S.length}`)));
   }
   let menu = S.map((x, j) => [j, x.menu]);
