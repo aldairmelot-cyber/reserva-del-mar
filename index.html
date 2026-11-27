@@ -1077,8 +1077,14 @@ function ppCalc(base, cfgIn) {
   for (const x of otros) x.exp = cfg.explot?.[x.c] != null ? !!cfg.explot[x.c] : ppEsExplot(x);
   let EX = otros.filter(x => x.exp).reduce((a, x) => a + x.v27, 0), trasPct = Math.min(100, Math.max(0, +cfg.trasladoExp || 0)) / 100, ET = ppR(EX * trasPct);
   let cu = base.items.find(x => x.c === PP_CUOTAS) ?? { p26: 0 }, de = base.items.find(x => x.c === PP_DESC) ?? { p26: 0 }, fo = base.items.find(x => x.c === PP_FONDO) ?? { p26: 0 };
+  /* base 2026 de la comparación: si todos los gastos parten de la ejecución real, los ingresos también se comparan
+     con la ejecución real 2026 proyectada a doce meses (cuotas, fondo, descuento, manillas y otros ingresos) */
+  let gB = gastos.filter(x => x.b !== "val"), real26 = gB.length > 0 && gB.every(x => x.b === "e26"), py = x => Math.round((x?.e26 || 0) / nM * 12);
+  let ref26 = real26
+    ? { cu: py(cu), fo: py(fo), de: py(de), ma: Math.round(manProy), ot: otros.reduce((a, x) => a + (x.e26p || 0), 0), G: gastos.reduce((a, x) => a + (x.e26p || 0), 0), k: "e26p" }
+    : { cu: cu.p26 || 0, fo: fo.p26 || 0, de: de.p26 || 0, ma: man.p26 || 0, ot: otros.reduce((a, x) => a + (x.p26 || 0), 0), G: gastos.reduce((a, x) => a + (x.p26 || 0), 0), k: "p26" };
   // descuento por pronto pago: la tasa (10 %, Asamblea 2022) solo la recibe quien paga en los primeros 15 días
-  let descTasa = cfg.descPct != null && cfg.descPct !== "" ? +cfg.descPct / 100 : .1, desc26 = cu.p26 ? Math.abs(de.p26) / cu.p26 : 0;
+  let descTasa = cfg.descPct != null && cfg.descPct !== "" ? +cfg.descPct / 100 : .1, desc26 = ref26.cu ? Math.abs(ref26.de) / ref26.cu : 0;
   let descUso = cfg.descUso != null && cfg.descUso !== "" ? +cfg.descUso / 100 : descTasa ? Math.min(1, desc26 / descTasa) : 0, descPct = descTasa * descUso;
   let fondo = ppR(G * (+cfg.fondoPct || 0) / 100);
   let cuotaMes26 = base.uni?.length ? base.uni.reduce((a, u) => a + u[2], 0) : Math.round((cu.p26 + fo.p26) / 12);
@@ -1108,12 +1114,12 @@ function ppCalc(base, cfgIn) {
   let porGrupo = {};
   for (const x of gastos) { let g = x.c.slice(0, 4); (porGrupo[g] ??= { g, n: base.grupos?.[g] ?? g, filas: [], p26: 0, e26p: 0, r25: 0, v27: 0 }); let o = porGrupo[g]; o.filas.push(x); o.p26 += x.p26; o.e26p += x.e26p || 0; o.r25 += x.r25; o.v27 += x.v27; o.v27o = ops.map((op, i) => (o.v27o?.[i] ?? 0) + (x.v27o?.[i] ?? 0)); }
   let tot = k => gastos.reduce((a, x) => a + (x[k] || 0), 0);
-  return { cfg, descTasa, descUso, desc26, EX, ET, trasPct, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, temp: { on: tOn, peso: tw }, precio26, unid26, vm26, vm25, ops, ipc, sml };
+  return { cfg, real26, ref26, descTasa, descUso, desc26, EX, ET, trasPct, gastos, otros, grupos: Object.values(porGrupo).sort((a, b) => a.g.localeCompare(b.g)), G, O, G26: tot("p26"), G26p: tot("e26p"), G25: tot("r25"), fondo, descPct, cuotaMes26, cu26: cu.p26, man: { p26: man.p26, e26: man.e26, proy: manProy, fac: facMan, r25: man.r25 }, temp: { on: tOn, peso: tw }, precio26, unid26, vm26, vm25, ops, ipc, sml };
 }
 /* estado de resultados presupuestado: valores ANUALES [ppto 2026, opción 1, opción 2…]; la vista mensual divide por 12.
    El fondo de imprevistos no es una línea de ingreso ni de gasto: es el EXCEDENTE (ingresos − gastos) que se traslada al patrimonio. */
 function ppPyg(M, base) {
-  let it = c => base.items.find(x => x.c === c) ?? { p26: 0 }, cu = it(PP_CUOTAS).p26, de = it(PP_DESC).p26, fo = it(PP_FONDO).p26, ma = it(PP_MAN).p26, ot = M.otros.reduce((a, x) => a + x.p26, 0);
+  let R = M.ref26, cu = R.cu, de = R.de, fo = R.fo, ma = R.ma, ot = R.ot, G26 = R.G;
   let ing26 = cu + fo + de + ma + ot, col = (a26, f) => [a26, ...M.ops.map(f)], cero = v => Math.abs(v) < 5e3 ? 0 : v, tras = M.ET > 0;
   // si la Asamblea lleva la explotación de bienes comunes al fondo, esos ingresos salen del presupuesto ordinario
   let ingOrd = o => o.ing - M.ET;
@@ -1126,13 +1132,13 @@ function ppPyg(M, base) {
     { t: tras ? "Otros ingresos ordinarios (sin explotación de bienes comunes)" : "Otros ingresos ordinarios (concesiones, rendimientos, sanciones y reintegros)", v: col(ot, o => M.O - M.ET) },
     { t: tras ? "Total ingresos ordinarios" : "Total ingresos", v: col(ing26, o => ingOrd(o)), s: 1 },
     { t: "GASTOS", h: 1 },
-    ...M.grupos.map(g => ({ t: ppxCap(g.n), v: col(g.p26, o => g.v27o?.[o.i] ?? g.v27) })),
-    { t: "Total gastos de funcionamiento", v: col(M.G26, o => o.G), s: 1 },
-    { t: tras ? "EXCEDENTE ORDINARIO = FONDO DE IMPREVISTOS (" + String(M.cfg.fondoPct).replace(".", ",") + " % DE LOS GASTOS)" : "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(ing26 - M.G26, o => ingOrd(o) - o.G), r: 1 },
+    ...M.grupos.map(g => ({ t: ppxCap(g.n), v: col(g[R.k] || 0, o => g.v27o?.[o.i] ?? g.v27) })),
+    { t: "Total gastos de funcionamiento", v: col(G26, o => o.G), s: 1 },
+    { t: tras ? "EXCEDENTE ORDINARIO = FONDO DE IMPREVISTOS (" + String(M.cfg.fondoPct).replace(".", ",") + " % DE LOS GASTOS)" : "EXCEDENTE DEL EJERCICIO = FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(ing26 - G26, o => ingOrd(o) - o.G), r: 1 },
     ...(tras ? [
       { t: "Más: ingresos por explotación de bienes comunes", nota: "Destinados al fondo de imprevistos por decisión de la Asamblea General; no financian gastos de funcionamiento", v: col(null, o => M.ET) },
       { t: "TOTAL AL FONDO DE IMPREVISTOS", nota: "Se traslada al patrimonio", v: col(fo, o => ingOrd(o) - o.G + M.ET), r: 1 }] : []),
-    { t: "Resultado después del traslado al fondo", v: col(cero(ing26 - M.G26 - fo), o => cero(o.ing - o.G - o.fondoT)) }];
+    { t: "Resultado después del traslado al fondo", v: col(cero(ing26 - G26 - fo), o => cero(o.ing - o.G - o.fondoT)) }];
 }
 /* proposición para la Asamblea: ingresos por explotación de bienes comunes a gastos comunes (sin traslado) o al fondo (con traslado) */
 var PP_LEY_EXP = "Ley 675 de 2001, art. 19, parágrafo 2, y reglamento de propiedad horizontal (E.P. 753 de 2023), art. 24, parágrafo 2 (pág. 150): lo que se recibe por la explotación económica de los bienes comunes es para beneficio de la copropiedad y se destina al pago de las expensas comunes o a gastos de inversión, según lo decida la Asamblea General. A su vez, el art. 79 literal f) del reglamento (pág. 318) incluye entre los recursos del fondo de imprevistos el producto de la explotación económica de los bienes comunes no esenciales o de los destinados a ese fin por la Asamblea, y la Ley 675, art. 35, permite sumar al fondo los demás ingresos que la Asamblea considere pertinentes. Por eso el destino de estos ingresos lo define la Asamblea, no el Consejo ni la Administración.";
@@ -1159,8 +1165,8 @@ function ppCoefTipo(base) { let c = {}; (base.uni ?? []).filter(u => / T\d$/.tes
 function ppCuota26De(M, base, c) { let u = (base.uni ?? []).find(x => x[1] === c); return u ? u[2] : ppR(M.cuotaMes26 * c / 100, 1); }
 /* resumen MENSUAL: lo que se factura cada mes y con qué se pagan los gastos. Columnas [2026, opción 1, opción 2…] */
 function ppResumen(M, base) {
-  let it = c => base.items.find(x => x.c === c) ?? { p26: 0 }, cu = it(PP_CUOTAS).p26, de = it(PP_DESC).p26, fo = it(PP_FONDO).p26, ma = it(PP_MAN).p26, ot = M.otros.reduce((a, x) => a + x.p26, 0);
-  let col = (a, f) => [a, ...M.ops.map(f)], fo26 = fo / 12, fac26 = M.cuotaMes26 || (cu + fo) / 12, res26 = (cu + fo + de + ma + ot - M.G26) / 12;
+  let it = c => base.items.find(x => x.c === c) ?? { p26: 0 }, R = M.ref26, cu = R.cu, de = R.de, fo = R.fo, ma = R.ma, ot = R.ot, G26 = R.G;
+  let col = (a, f) => [a, ...M.ops.map(f)], fo26 = (it(PP_FONDO).p26 || 0) / 12, fac26 = M.cuotaMes26 || ((it(PP_CUOTAS).p26 || 0) + (it(PP_FONDO).p26 || 0)) / 12, res26 = (cu + fo + de + ma + ot - G26) / 12;
   let c = ppCoefTipo(base), a26 = ppCuota26De(M, base, c);
   return [
     { t: "FACTURACIÓN MENSUAL DE EXPENSAS COMUNES", h: 1 },
@@ -1177,7 +1183,7 @@ function ppResumen(M, base) {
     ...(M.unid26 ? [{ t: "Manillas que se espera vender al mes (promedio)", sub: 1, nota: `Proyección 2026: ${Math.round(M.unid26).toLocaleString("es-CO")} manillas${+M.cfg.crec ? `, más ${String(M.cfg.crec).replace(".", ",")} % de crecimiento de visitantes` : ""}. Es la misma cantidad en las tres opciones: el cambio de precio no se supone que cambie el número de visitantes`, v: col(M.unid26 / 12, o => o.unid27 / 12), f: "n" }] : []),
     { t: M.ET > 0 ? "Otros ingresos ordinarios (sin explotación de bienes comunes)" : "Otros ingresos ordinarios", v: col(ot / 12, o => (M.O - M.ET) / 12) },
     { t: "Total ingresos", v: col((cu + fo + de + ma + ot) / 12, o => (o.ing - M.ET) / 12), s: 1 },
-    { t: "Gastos de funcionamiento", v: col(M.G26 / 12, o => o.G / 12), s: 1 },
+    { t: "Gastos de funcionamiento", v: col(G26 / 12, o => o.G / 12), s: 1 },
     { t: "Excedente del ejercicio (fondo de imprevistos)", nota: "Se traslada al patrimonio", v: col(res26, o => (o.ing - M.ET - o.G) / 12), r: 1 },
     ...(M.ET > 0 ? [{ t: "Más: explotación de bienes comunes destinada al fondo", v: col(null, o => M.ET / 12) }, { t: "Total apropiación al fondo de imprevistos", v: col(res26, o => o.fondoT / 12), r: 1 }] : []),
     { t: "TARIFA DE CONTROL DE ACCESO", h: 1 },
@@ -1288,12 +1294,12 @@ function ppTab(h, enc, filas, cls) {
 function ppEncAM(h, titulos) { return [[["Concepto", 1, "", 2], ...titulos.map(t => [t, 2, "pp-gc"])], titulos.flatMap(() => [["Año", 1, "a-right"], ["Al mes", 1, "a-right pp-m"]])]; }
 function ppPygTab(h, M, base) {
   let F = ppPyg(M, base);
-  return ppTab(h, ppEncAM(h, ["Presupuesto 2026", ...M.ops.map((o, i) => `2027 · Opción ${i + 1}`)]),
+  return ppTab(h, ppEncAM(h, [M.real26 ? "Ejecución real 2026" : "Presupuesto 2026", ...M.ops.map((o, i) => `2027 · Opción ${i + 1}`)]),
     F.map(f => f.h ? f : { ...f, c: f.v.flatMap(v => v == null ? ["", ""] : [v, v / 12]), cc: f.v.flatMap(() => ["a-right", "a-right pp-m"]) }));
 }
 function ppResumenTab(h, M, base) {
   let F = ppResumen(M, base);
-  return ppTab(h, [[["Concepto"], ["2026 vigente"], ...M.ops.map(o => [o.nombre])]], F.map(f => f.h ? f : { ...f, c: f.v }), "pp-res");
+  return ppTab(h, [[["Concepto"], [M.real26 ? "2026 vigente · ejecución real" : "2026 vigente"], ...M.ops.map(o => [o.nombre])]], F.map(f => f.h ? f : { ...f, c: f.v }), "pp-res");
 }
 var PP_CSS = `
 .pp-t{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -1801,7 +1807,7 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
   let fRubro = (x, sub) => ({ t: ppxCap(x.n), nota: x.nota || null, sub, c: celdasRubro(x), cc: ccR() });
   let blanco = edit ? ["", "", ""] : ["", ""];
   /* base de un grupo de rubros: presupuesto 2026 aprobado o ejecución real 2026 (proyectada a diciembre) */
-  let ponerBase = (L, b) => { let f = { ...cfg.filas }; for (const x of L) { if (x.b === "val" || (b === "p26" && !x.p26)) continue; f[x.c] = { ...(f[x.c] ?? {}), b }; } guardar({ ...cfg, filas: f }); };
+  let ponerBase = (L, b) => { let f = { ...cfg.filas }; for (const x of L) { if (cfg.filas?.[x.c]?.b === "val" || (x.b === "val" && b === "p26")) continue; if (b === "p26" && !x.p26) { if (f[x.c]) { let { b: _, ...r } = f[x.c]; f[x.c] = r; } continue; } f[x.c] = { ...(f[x.c] ?? {}), b }; } guardar({ ...cfg, filas: f }); };
   let baseDe = L => { let np = L.filter(x => x.b === "p26").length, ne = L.filter(x => x.b === "e26").length, nv = L.length - np - ne; return { np, ne, nv, sola: !ne && np ? "p26" : !np && ne ? "e26" : null }; };
   let txtBase = L => { let k = baseDe(L); return k.sola === "p26" ? "Base: presupuesto 2026 aprobado" : k.sola === "e26" ? "Base: ejecución real 2026" : !k.np && !k.ne ? "Valor fijo" : `Mixta: ${k.np} con presupuesto, ${k.ne} con ejecución real${k.nv ? `, ${k.nv} fijo` : ""}`; };
   let ctlBaseG = L => { let k = baseDe(L), bt = (b, t) => h("button", { type: "button", className: "btn btn-sm" + (k.sola === b ? " btn-primario" : ""), "aria-pressed": k.sola === b, title: `Usar ${PP_BASES[b].toLowerCase()} como base de todos estos rubros`, onClick: e => { e.stopPropagation(); ponerBase(L, b); } }, t);
@@ -1813,6 +1819,13 @@ function PpPantalla({ ses, config, notificar, soloLectura }) {
     edit && h("button", { type: "button", className: "btn btn-sm", onClick: () => { let f = { ...cfg.filas }; for (const x of M.gastos) if (x.p26 && x.e26p > x.p26 * 1.1) f[x.c] = { ...(f[x.c] ?? {}), b: "e26" }; guardar({ ...cfg, filas: f }); } }, "Usar la proyección 2026 donde supere el presupuesto"),
     edit && h("button", { type: "button", className: "btn btn-sm", onClick: () => guardar({ ...cfg, filas: {} }) }, "Volver a los valores sugeridos"));
 
+  /* base de TODO el presupuesto (gastos y otros ingresos). Con «Ejecución real 2026» también el estado de resultados,
+     el resumen y el descuento por pronto pago se comparan con lo realmente ejecutado en 2026, no con el presupuesto */
+  let todoL = [...M.gastos, ...M.otros];
+  let ctlBaseTodo = !soloLectura && h("div", { className: "pp-barra", style: { alignItems: "center" } }, h("b", null, "Base de todos los gastos e ingresos:"),
+    h("button", { type: "button", className: "btn btn-sm" + (baseDe(todoL).sola === "p26" ? " btn-primario" : ""), onClick: () => ponerBase(todoL, "p26") }, "Presupuesto 2026 aprobado"),
+    h("button", { type: "button", className: "btn btn-sm" + (baseDe(todoL).sola === "e26" ? " btn-primario" : ""), onClick: () => ponerBase(todoL, "e26") }, "Ejecución real 2026"),
+    h("span", { className: "tenue" }, `Gastos: ${txtBase(M.gastos).replace(/^Base: /, "")}. Ingresos: ${txtBase(M.otros).replace(/^Base: /, "")}. ${M.real26 ? "El estado de resultados y el resumen comparan con la ejecución real 2026 proyectada a diciembre (cuotas, descuento, manillas y otros ingresos)." : "El estado de resultados y el resumen comparan con el presupuesto 2026 aprobado."} También se puede elegir por grupo (columna «Cómo se calcula») o por rubro (✎ Cambiar).`));
   /* 3. gastos */
   let todosAb = M.grupos.every(g => abG.has(g.g));
   let filasG = [];
@@ -1839,10 +1852,7 @@ let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
     h("div", { className: "aviso aviso-info" }, h("p", { style: { margin: 0 } }, h("b", null, "¿Cómo sube cada rubro? "), "Toque un grupo para ver solo esos rubros. Para cambiar cómo sube un rubro (salario mínimo, IPC, % de la propuesta del proveedor, dos incrementos en enero y julio, valor fijo o sin incremento) use ", h("b", null, "✎ Cambiar"), " en la columna «Cómo se calcula». En «Soporte» se adjunta el PDF de la propuesta.")),
     h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0" } }, [[null, "Todos los rubros", M.gastos], ["sml", "Suben con el salario mínimo", cuentaC("sml")], ["ipc", "Suben con el IPC", cuentaC("ipc")], ["propio", "Cálculo propio (propuesta, dos incrementos, fijo o sin incremento)", cuentaC("propio")]].map(([k, t, L]) => h("button", { key: String(k), type: "button", onClick: () => setFCrit(k), style: { textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: fCrit === k ? "2px solid var(--acento, #1f6f78)" : "1px solid var(--linea, #ddd)", background: fCrit === k ? "var(--acento-suave, #e8f3f4)" : "var(--hoja, #fff)" } }, h("div", { style: { fontWeight: 700 } }, t), h("div", { className: "tenue", style: { fontSize: 12 } }, `${L.length} rubros · ${ppP(L.reduce((a, x) => a + x.v27, 0) / 12)} al mes`)))),
     h("div", { className: "pp-barra" }, !fCrit && h("button", { type: "button", className: "btn btn-sm", onClick: () => setAbG(todosAb ? new Set() : new Set(M.grupos.map(g => g.g))) }, todosAb ? "Ver solo los grupos" : "Ver todos los rubros"), botonesEd),
-    !soloLectura && h("div", { className: "pp-barra", style: { alignItems: "center" } }, h("b", null, "Base de todos los gastos:"),
-      h("button", { type: "button", className: "btn btn-sm" + (baseDe(M.gastos).sola === "p26" ? " btn-primario" : ""), onClick: () => ponerBase(M.gastos, "p26") }, "Presupuesto 2026 aprobado"),
-      h("button", { type: "button", className: "btn btn-sm" + (baseDe(M.gastos).sola === "e26" ? " btn-primario" : ""), onClick: () => ponerBase(M.gastos, "e26") }, "Ejecución real 2026"),
-      h("span", { className: "tenue" }, txtBase(M.gastos) + ". También se puede elegir por grupo (columna «Cómo se calcula») o por rubro (✎ Cambiar).")),
+    ctlBaseTodo,
     chkExAnt,
     ppTab(h, encR(fCrit ? "Rubro" : "Grupo / rubro"), filasG));
 
@@ -1857,7 +1867,7 @@ let vGas = h("section", { className: "panel" }, h("h2", null, "Gastos 2027"),
     h("section", { className: "panel" }, h("h2", null, "Manillas de acceso"),
       h("p", { className: "sub" }, `Ejecutado a ${ultMes} de 2026: ${ppP(M.man.e26)}. Noviembre y diciembre se estiman con lo de 2025 ajustado por la tendencia de agosto a octubre (${ppPct(M.man.fac - 1)}). Cada opción parte de la proyección 2026.`),
       ppTab(h, [[["Concepto"], ["Ppto 2026 aprobado"], ["Ejecución real 2026"], ...M.ops.map((o, i) => [`Opción ${i + 1}`])]], manF)),
-    h("section", { className: "panel" }, h("h2", null, "Otros ingresos"), chkExAnt,
+    h("section", { className: "panel" }, h("h2", null, "Otros ingresos"), ctlBaseTodo, chkExAnt,
       h("p", { className: "sub" }, "Concesiones, intereses, sanciones y reintegros. Las cuotas de administración, el fondo y el descuento por pronto pago se calculan en cada opción (pestaña Resumen mensual)."),
       botonesEd,
       ppTab(h, encR("Ingreso"), [...M.otros.map(x => fRubro(x)), { t: "TOTAL OTROS INGRESOS", r: 1, c: [M.otros.reduce((a, x) => a + x.p26, 0), M.otros.reduce((a, x) => a + (x.e26p || 0), 0), M.O, M.O / 12, "", ...blanco], cc: ccR() }])));
